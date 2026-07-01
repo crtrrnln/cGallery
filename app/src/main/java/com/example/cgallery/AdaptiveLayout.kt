@@ -23,7 +23,7 @@ fun GalleryAdaptiveLayout(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
-                HomeScreen(version = "v0.1")
+                GalleryScreen()
             }
         },
         detailPane = {

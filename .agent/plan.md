@@ -1,29 +1,29 @@
 # Project Plan
 
-Create a clean, minimal, fully runnable Android project skeleton for cGallery v0.1. The app should launch to a HomeScreen with the text "cGallery v0.1" centered. Use Material 3, Navigation 3, and ensure adaptive layout foundations are in place. Minimal architecture, no real features.
+Develop cGallery v0.2: A read-only gallery app. Key focus is implementing MediaStore image loading, handling storage permissions with a dedicated UI, and displaying images in a 3-column grid using Coil. Maintain the existing Material 3 theme and Navigation 3 architecture from v0.1.
 
 ## Project Brief
 
-# Project Brief: cGallery (v0.1)
+# Project Brief: cGallery (v0.2)
 
-cGallery is a minimal, clean Android application designed as a foundation for a modern gallery experience. The initial version focuses on establishing a robust architectural baseline using the latest Android development standards.
+cGallery is a modern, read-only Android gallery application focused on performance and clean Material 3 design. Version 0.2 introduces local storage integration to display device images in a responsive grid.
 
 ### Features
-* **HomeScreen Display**: A clean, centered landing screen displaying "cGallery v0.1" to verify successful project initialization.
-* **Material 3 Integration**: Full implementation of the Material 3 design system, including dynamic color support and adaptive themes.
-* **Navigation 3 Architecture**: A state-driven navigation structure using the Jetpack Navigation 3 library.
-* **Adaptive Layout Foundation**: Implementation of the Compose Material Adaptive library to ensure the UI is ready for various screen sizes (phones, foldables, tablets).
+* **MediaStore Image Retrieval**: Efficiently fetches and indexes image URIs from the device's local storage using the `MediaStore.Images` API.
+* **Adaptive Image Grid**: Displays content in a responsive 3-column `LazyVerticalGrid` using Coil for high-performance image loading and caching.
+* **Dynamic Permission Handling**: Integrated logic to request and manage storage permissions (`READ_MEDIA_IMAGES` or `READ_EXTERNAL_STORAGE`) with a dedicated UI state for restricted access.
+* **State-Driven Navigation**: Seamless transitions between the Permission and Gallery screens using the state-based Jetpack Navigation 3 architecture.
 
 ### High-Level Technical Stack
-* **Kotlin**: The primary programming language for modern Android development.
-* **Jetpack Compose**: A modern toolkit for building native UI.
-* **Navigation 3**: State-driven navigation for managing app transitions.
-* **Compose Material Adaptive**: For building responsive and adaptive layouts across different form factors.
-* **Material Design 3 (M3)**: The latest evolution of Material Design for vibrant and expressive UI.
-* **Kotlin Coroutines**: For managing background tasks and asynchronous operations.
+* **Kotlin & Jetpack Compose**: The core foundation for modern, declarative UI development.
+* **Jetpack Navigation 3**: A state-driven approach to manage the flow between permission handling and content display.
+* **Compose Material Adaptive**: Ensures the gallery layout responds gracefully to different screen sizes and orientations.
+* **Coil**: An image loading library for Android backed by Kotlin Coroutines for efficient image processing.
+* **Material Design 3 (M3)**: Implements a vibrant, energetic color scheme with full edge-to-edge support and dynamic components.
+* **Kotlin Coroutines**: Used for asynchronous data fetching from MediaStore to ensure a jank-free UI experience.
 
 ## Implementation Steps
-**Total Duration:** 18m 43s
+**Total Duration:** 24m 2s
 
 ### Task_1_SetupThemeAndEdgeToEdge: Configure Material 3 theme with a vibrant color scheme and enable full edge-to-edge display in the MainActivity.
 - **Status:** COMPLETED
@@ -60,4 +60,23 @@ cGallery is a minimal, clean Android application designed as a foundation for a 
   - UI matches the project description
   - All existing tests pass
 - **Duration:** 1m 58s
+
+### Task_5_PermissionsAndDataLayer: Implement dynamic storage permission handling UI and the MediaStore data layer for image fetching.
+- **Status:** COMPLETED
+- **Updates:** Added storage permissions to Manifest. Implemented MediaStoreDataSource to fetch image URIs using Coroutines. Created PermissionScreen with Accompanist Permissions integration for dynamic storage access handling (API 33+ and below). Verified build stability.
+- **Acceptance Criteria:**
+  - Permission request logic handles READ_MEDIA_IMAGES or READ_EXTERNAL_STORAGE
+  - Dedicated UI state implemented for restricted access
+  - MediaStore repository fetches image URIs using Coroutines
+- **Duration:** 2m 1s
+
+### Task_6_GalleryUIAndNavigation: Develop the adaptive 3-column image grid with Coil, update Navigation 3 flow, and perform final run/verify.
+- **Status:** COMPLETED
+- **Updates:** Developed the adaptive 3-column image grid using LazyVerticalGrid and Coil. Updated Navigation 3 flow in MainActivity to check and request storage permissions (READ_MEDIA_IMAGES for API 33+, READ_EXTERNAL_STORAGE for below) before displaying the GalleryScreen. Integrated PermissionScreen and GalleryScreen into the state-driven Navigation 3 architecture. Verified app stability and feature parity with v0.2 requirements. Final check by critic_agent confirmed successful implementation without crashes or critical UI issues.
+- **Acceptance Criteria:**
+  - 3-column LazyVerticalGrid displays local images with Coil
+  - Navigation 3 routes between Permission and Gallery screens
+  - App builds and runs without crashes
+  - All existing tests pass
+- **Duration:** 3m 18s
 

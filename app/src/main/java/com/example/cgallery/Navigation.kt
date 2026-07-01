@@ -11,7 +11,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed interface GalleryKey : NavKey {
     @Serializable
-    data object Home : GalleryKey
+    data object Permission : GalleryKey
+
+    @Serializable
+    data object Gallery : GalleryKey
 }
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -19,6 +22,7 @@ sealed interface GalleryKey : NavKey {
 fun GalleryNavDisplay(
     backstack: List<GalleryKey>,
     onBack: () -> Unit,
+    onNavigate: (GalleryKey) -> Unit,
     navigator: ThreePaneScaffoldNavigator<Any>
 ) {
     NavDisplay(
@@ -26,7 +30,15 @@ fun GalleryNavDisplay(
         onBack = onBack,
         entryProvider = { key ->
             when (key) {
-                GalleryKey.Home -> NavEntry(key) {
+                GalleryKey.Permission -> NavEntry(key) {
+                    PermissionScreen(
+                        onPermissionGranted = {
+                            onNavigate(GalleryKey.Gallery)
+                        }
+                    )
+                }
+
+                GalleryKey.Gallery -> NavEntry(key) {
                     GalleryAdaptiveLayout(navigator)
                 }
             }
