@@ -92,7 +92,7 @@ cGallery is a refined, high-performance Android media gallery built with the lat
 
 ### Task_8_FullScreenPagingViewer: Implement full-screen image viewer with horizontal paging (HorizontalPager), single-image actions (share, delete, edit), and Navigation 3 integration.
 - **Status:** COMPLETED
-- **Updates:** Implemented HorizontalPager in ViewerScreen.kt to allow swiping between images. Navigation 3 now passes the starting index to the viewer. Updated TopAppBar actions in the viewer to target the currently displayed image. Handled dynamic list updates for deletion within the pager. Optimized performance with beyondViewportPageCount.
+- **Updates:** Refined the adaptive layout using ListDetailSceneStrategy. The app now correctly utilizes the detail pane on large screens, displaying the ViewerScreen side-by-side with the gallery grid. Maintained phone-first full-screen transitions. Synchronized Navigation 3 with the adaptive scaffold state. Verified stability.
 - **Acceptance Criteria:**
   - Full-screen viewer supports horizontal paging between images using HorizontalPager
   - Single-image actions (share, delete, edit) are functional via MediaStore/Intents

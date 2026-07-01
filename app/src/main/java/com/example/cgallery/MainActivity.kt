@@ -68,7 +68,15 @@ class MainActivity : ComponentActivity() {
                         },
                         onNavigate = { newKey ->
                             backstack = if (newKey == GalleryKey.Gallery) {
-                                listOf(GalleryKey.Gallery) // Replace stack when entering gallery after permission
+                                listOf(GalleryKey.Gallery)
+                            } else if (newKey is GalleryKey.Viewer) {
+                                // For List-Detail, we often want to replace the current detail
+                                // instead of pushing indefinitely if it's already a Viewer.
+                                if (backstack.lastOrNull() is GalleryKey.Viewer) {
+                                    backstack.dropLast(1) + newKey
+                                } else {
+                                    backstack + newKey
+                                }
                             } else {
                                 backstack + newKey
                             }

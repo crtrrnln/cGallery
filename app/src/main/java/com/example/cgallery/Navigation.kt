@@ -3,9 +3,12 @@ package com.example.cgallery
 import android.net.Uri
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.serialization.Serializable
 
@@ -29,29 +32,38 @@ fun GalleryNavDisplay(
     onNavigate: (GalleryKey) -> Unit,
     navigator: ThreePaneScaffoldNavigator<Any>
 ) {
+    val listDetailStrategy = rememberListDetailSceneStrategy<GalleryKey>()
+
     NavDisplay(
         backStack = backstack,
         onBack = onBack,
-        entryProvider = { key ->
-            when (key) {
-                GalleryKey.Permission -> NavEntry(key) {
-                    PermissionScreen(
-                        onPermissionGranted = {
-                            onNavigate(GalleryKey.Gallery)
-                        }
-                    )
-                }
+        sceneStrategy = listDetailStrategy,
+        entryProvider = entryProvider {
+            entry<GalleryKey.Permission> {
+                PermissionScreen(
+                    onPermissionGranted = {
+                        onNavigate(GalleryKey.Gallery)
+                    }
+                )
+            }
 
-                GalleryKey.Gallery -> NavEntry(key) {
-                    GalleryAdaptiveLayout(navigator, onImageClick = onNavigate)
-                }
+            entry<GalleryKey.Gallery>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.31")
+                    }
+                )
+            ) {
+                GalleryScreen(onImageClick = onNavigate)
+            }
 
-                is GalleryKey.Viewer -> NavEntry(key) {
-                    ViewerScreen(
-                        startIndex = key.startIndex,
-                        onBack = onBack
-                    )
-                }
+            entry<GalleryKey.Viewer>(
+                metadata = ListDetailSceneStrategy.detailPane()
+            ) { key ->
+                ViewerScreen(
+                    startIndex = key.startIndex,
+                    onBack = onBack
+                )
             }
         }
     )
