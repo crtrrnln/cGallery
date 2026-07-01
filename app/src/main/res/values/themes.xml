@@ -1,0 +1,4 @@
+<resources>
+
+    <style name="Theme.CGallery" parent="Theme.MaterialComponents.Light" />
+</resources>
