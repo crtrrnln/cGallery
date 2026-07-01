@@ -1,43 +1,41 @@
-# cGallery (v0.31)
+# cGallery
 
-cGallery is a refined, high-performance Android media gallery built with the latest Material Design 3 standards. It provides a fluid, responsive experience for browsing and managing local images across various form factors.
+cGallery is a fast, local-first Android gallery application designed with organizational features for large media libraries.
 
-## 🚀 Features
+## Features (v0.4)
+- **Image Grid Gallery**: Fast, smooth scrolling grid of all local images.
+- **Full-Screen Viewer**: Immersive photo viewing with swipe-to-navigate functionality.
+- **Interactive Actions**: Support for sharing, editing (external), and deleting images via modern MediaStore APIs.
+- **Albums**: Automatic grouping of images by system buckets (e.g., Camera) and filesystem directories.
+- **Favorites System**: Locally persistent favorites to quickly access your best shots.
+- **Search Functionality**: In-memory search by filenames and album names.
+- **Bottom Navigation**: Simple tab-based navigation for Gallery, Albums, Favorites, and Search.
 
-*   **Interactive Paging Viewer**: A full-screen image browser that supports horizontal swiping via `HorizontalPager`, allowing users to fluidly navigate through their entire collection.
-*   **Adaptive Gallery Grid**: A responsive media grid powered by the **Compose Material Adaptive** library, ensuring a seamless experience across phones, foldables, and tablets.
-*   **Contextual Multi-Select**: An intuitive selection mode for batch operations, enabling users to share or delete multiple images simultaneously via `ContentResolver`.
-*   **Refined UI & Motion**: A polished Material 3 interface featuring a subtle versioning header, vibrant color schemes, and expressive motion.
-*   **Media Actions**: Integrated support for sharing, editing, and secure deletion of images using modern MediaStore APIs (Android 11+ support).
+## Tech Stack
+- **Kotlin**: Core language.
+- **Jetpack Compose**: Declarative UI toolkit.
+- **Navigation 3**: State-driven navigation architecture.
+- **Material 3 (M3)**: Modern design system with adaptive layout support.
+- **MediaStore API**: Native Android media indexing and management.
+- **Coil**: Efficient image loading.
+- **DataStore**: Lightweight preference-based storage for favorites.
+- **Kotlin Coroutines**: Asynchronous data fetching.
 
-## 🛠 Technical Stack
+## Permissions Required
+- `READ_MEDIA_IMAGES` (on Android 13+)
+- `READ_EXTERNAL_STORAGE` (on older versions)
 
-*   **Kotlin & Jetpack Compose**: Modern, declarative UI development.
-*   **Jetpack Navigation 3**: State-driven navigation architecture.
-*   **Compose Material Adaptive**: Responsive layouts for multiple window sizes.
-*   **Material Design 3 (M3)**: Dynamic color systems and expressive components.
-*   **Coil**: High-performance image loading optimized for grids and paging.
-*   **Kotlin Coroutines**: Asynchronous MediaStore queries and file operations.
+## Architecture Overview
+cGallery uses a simple, flat architecture focused on direct MediaStore interactions.
+- **MediaStoreDataSource**: Provides direct access to local media metadata.
+- **FavoritesManager**: Handles persistence of favorite image IDs using DataStore.
+- **Navigation 3**: Manages screen transitions through a centralized state-driven approach.
+- No heavy abstraction layers or dependency injection frameworks are used to keep the codebase clean and maintainable.
 
-## ⚙️ Setup & Requirements
-
-### Prerequisites
-*   **Android Studio**: Ladybug (2024.2.1) or newer.
-*   **Android SDK**: Minimum API level 29, targeting **API 37**.
-
-### Installation
-1.  Clone the repository.
-2.  Open the project in Android Studio.
-3.  Ensure your IDE is configured to use Java 17 for Gradle.
-4.  Sync Gradle and run the `:app:assembleDebug` task.
-
-## 📂 Permissions
-
-The app requires the following permissions to function:
-*   `READ_MEDIA_IMAGES` (Android 13+)
-*   `READ_EXTERNAL_STORAGE` (API 32 and below)
-
-A built-in permission handling system (via Accompanist) ensures users are prompted gracefully.
+## Future Roadmap
+- **Enforced Inbox Workflow**: Planned features to streamline new media organization.
+- **Advanced Organization Tools**: Automated sorting and batch tagging.
+- **Optional Automation**: AI-assisted categorization and cleanup.
 
 ---
-*Developed with ❤️ as a cutting-edge Android Gallery Showcase.*
+*Developed with a focus on speed, stability, and simplicity.*

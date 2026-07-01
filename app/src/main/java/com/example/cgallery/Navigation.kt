@@ -21,6 +21,18 @@ sealed interface GalleryKey : NavKey {
     data object Gallery : GalleryKey
 
     @Serializable
+    data object Albums : GalleryKey
+
+    @Serializable
+    data object Favorites : GalleryKey
+
+    @Serializable
+    data object Search : GalleryKey
+
+    @Serializable
+    data class AlbumDetail(val bucketName: String) : GalleryKey
+
+    @Serializable
     data class Viewer(val startIndex: Int) : GalleryKey
 }
 
@@ -50,11 +62,57 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.31")
+                        HomeScreen(version = "v0.4")
                     }
                 )
             ) {
                 GalleryScreen(onImageClick = onNavigate)
+            }
+
+            entry<GalleryKey.Albums>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.4")
+                    }
+                )
+            ) {
+                AlbumsScreen(onAlbumClick = { album ->
+                    onNavigate(GalleryKey.AlbumDetail(album.name))
+                })
+            }
+
+            entry<GalleryKey.AlbumDetail>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.4")
+                    }
+                )
+            ) { key ->
+                AlbumDetailScreen(
+                    bucketName = key.bucketName,
+                    onImageClick = onNavigate,
+                    onBack = onBack
+                )
+            }
+
+            entry<GalleryKey.Favorites>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.4")
+                    }
+                )
+            ) {
+                FavoritesScreen(onImageClick = onNavigate)
+            }
+
+            entry<GalleryKey.Search>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.4")
+                    }
+                )
+            ) {
+                SearchScreen(onImageClick = onNavigate)
             }
 
             entry<GalleryKey.Viewer>(

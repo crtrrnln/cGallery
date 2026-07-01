@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.cgallery.data.FavoritesManager
 import com.example.cgallery.data.LocalImage
 import com.example.cgallery.data.MediaStoreDataSource
 import kotlinx.coroutines.launch
@@ -38,7 +41,10 @@ fun ViewerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dataSource = remember { MediaStoreDataSource(context) }
+    val favoritesManager = remember { FavoritesManager(context) }
+    
     var images by remember { mutableStateOf(emptyList<LocalImage>()) }
+    val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
     
     LaunchedEffect(Unit) {
         images = dataSource.fetchImages()
@@ -86,6 +92,18 @@ fun ViewerScreen(
                 },
                 actions = {
                     currentImage?.let { image ->
+                        val isFavorite = image.id in favoriteIds
+                        IconButton(onClick = {
+                            scope.launch {
+                                favoritesManager.toggleFavorite(image.id)
+                            }
+                        }) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                contentDescription = "Favorite",
+                                tint = if (isFavorite) Color.Red else Color.White
+                            )
+                        }
                         IconButton(onClick = {
                             val shareIntent = Intent().apply {
                                 action = Intent.ACTION_SEND
