@@ -1,29 +1,29 @@
 # Project Plan
 
-Develop cGallery v0.2: A read-only gallery app. Key focus is implementing MediaStore image loading, handling storage permissions with a dedicated UI, and displaying images in a 3-column grid using Coil. Maintain the existing Material 3 theme and Navigation 3 architecture from v0.1.
+Develop cGallery v0.31: Refine the UI header to show "cGallery v0.31" with a smaller version text, implement horizontal paging in the full-screen viewer to browse images, and create a detailed README.md file. Maintain the existing v0.3 foundation.
 
 ## Project Brief
 
-# Project Brief: cGallery (v0.2)
+# Project Brief: cGallery (v0.31)
 
-cGallery is a modern, read-only Android gallery application focused on performance and clean Material 3 design. Version 0.2 introduces local storage integration to display device images in a responsive grid.
+cGallery is a refined, high-performance Android media gallery built with the latest Material Design 3 standards. Version 0.31 focuses on enhancing the viewing experience with intuitive navigation gestures, polished visual branding, and comprehensive project documentation.
 
 ### Features
-* **MediaStore Image Retrieval**: Efficiently fetches and indexes image URIs from the device's local storage using the `MediaStore.Images` API.
-* **Adaptive Image Grid**: Displays content in a responsive 3-column `LazyVerticalGrid` using Coil for high-performance image loading and caching.
-* **Dynamic Permission Handling**: Integrated logic to request and manage storage permissions (`READ_MEDIA_IMAGES` or `READ_EXTERNAL_STORAGE`) with a dedicated UI state for restricted access.
-* **State-Driven Navigation**: Seamless transitions between the Permission and Gallery screens using the state-based Jetpack Navigation 3 architecture.
+* **Interactive Paging Viewer**: A full-screen image browser that supports horizontal swiping via `HorizontalPager`, allowing users to fluidly navigate through their entire collection.
+* **Adaptive Gallery Grid**: A responsive media grid powered by the Compose Material Adaptive library, ensuring a seamless experience across phones, foldables, and tablets.
+* **Contextual Multi-Select**: An intuitive selection mode for batch operations, enabling users to share or delete multiple images simultaneously via `ContentResolver`.
+* **Refined UI & Documentation**: A polished Material 3 interface featuring a subtle versioning header and a comprehensive README for streamlined setup and contribution.
 
 ### High-Level Technical Stack
-* **Kotlin & Jetpack Compose**: The core foundation for modern, declarative UI development.
-* **Jetpack Navigation 3**: A state-driven approach to manage the flow between permission handling and content display.
-* **Compose Material Adaptive**: Ensures the gallery layout responds gracefully to different screen sizes and orientations.
-* **Coil**: An image loading library for Android backed by Kotlin Coroutines for efficient image processing.
-* **Material Design 3 (M3)**: Implements a vibrant, energetic color scheme with full edge-to-edge support and dynamic components.
-* **Kotlin Coroutines**: Used for asynchronous data fetching from MediaStore to ensure a jank-free UI experience.
+* **Kotlin & Jetpack Compose**: The core foundation for modern, declarative Android UI development.
+* **Jetpack Navigation 3**: A state-driven navigation architecture for managing transitions between the adaptive grid and the interactive viewer.
+* **Compose Material Adaptive**: Specifically utilized for building responsive layouts that scale across different window sizes and device form factors.
+* **Material Design 3 (M3)**: Implements vibrant color systems and a modern aesthetic with full edge-to-edge display support.
+* **Coil**: An efficient, coroutine-based image loading library optimized for fast grid scrolling and high-resolution paging.
+* **Kotlin Coroutines**: Manages asynchronous MediaStore queries and file operations to ensure high-frame-rate UI performance.
 
 ## Implementation Steps
-**Total Duration:** 24m 2s
+**Total Duration:** 29m 37s
 
 ### Task_1_SetupThemeAndEdgeToEdge: Configure Material 3 theme with a vibrant color scheme and enable full edge-to-edge display in the MainActivity.
 - **Status:** COMPLETED
@@ -79,4 +79,32 @@ cGallery is a modern, read-only Android gallery application focused on performan
   - App builds and runs without crashes
   - All existing tests pass
 - **Duration:** 3m 18s
+
+### Task_7_MultiSelectAndBulkActions: Implement multi-select mode in the gallery grid with long-press gestures, selection indicators, and bulk delete/share actions.
+- **Status:** COMPLETED
+- **Updates:** Implemented multi-select mode with long-press gestures in the GalleryScreen. Added visual selection indicators (checkmark and border) for selected items. Integrated a contextual TopAppBar for bulk Share (Intent) and Delete (MediaStore delete request) actions. Handled back navigation to exit selection mode. Refactored MainActivity for cleaner adaptive layout integration. Verified build stability.
+- **Acceptance Criteria:**
+  - Long-press gesture enters selection mode
+  - Items show clear visual selection indicators
+  - Bulk share and delete (via ContentResolver) operations are functional
+  - Navigation 3 state is updated to reflect selection mode
+- **Duration:** 1m 49s
+
+### Task_8_FullScreenPagingViewer: Implement full-screen image viewer with horizontal paging (HorizontalPager), single-image actions (share, delete, edit), and Navigation 3 integration.
+- **Status:** COMPLETED
+- **Updates:** Implemented HorizontalPager in ViewerScreen.kt to allow swiping between images. Navigation 3 now passes the starting index to the viewer. Updated TopAppBar actions in the viewer to target the currently displayed image. Handled dynamic list updates for deletion within the pager. Optimized performance with beyondViewportPageCount.
+- **Acceptance Criteria:**
+  - Full-screen viewer supports horizontal paging between images using HorizontalPager
+  - Single-image actions (share, delete, edit) are functional via MediaStore/Intents
+  - Navigation 3 handles transitions between Grid and Paging Viewer
+- **Duration:** 3m 46s
+
+### Task_9_RefinementDocumentationAndVerification: Refine the UI header to 'cGallery v0.31', create a detailed README.md, and perform a final system-wide verification.
+- **Status:** IN_PROGRESS
+- **Acceptance Criteria:**
+  - UI header displays 'cGallery v0.31' with refined version text
+  - Detailed README.md file created in the project root
+  - App builds successfully, runs without crashes, and all tests pass
+  - Critic_agent verifies stability and requirement alignment
+- **StartTime:** 2026-07-01 16:25:39 ADT
 

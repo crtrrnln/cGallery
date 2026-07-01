@@ -13,7 +13,8 @@ import androidx.compose.ui.Modifier
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun GalleryAdaptiveLayout(
-    navigator: ThreePaneScaffoldNavigator<Any>
+    navigator: ThreePaneScaffoldNavigator<Any>,
+    onImageClick: (GalleryKey) -> Unit
 ) {
     ListDetailPaneScaffold(
         directive = navigator.scaffoldDirective,
@@ -23,7 +24,7 @@ fun GalleryAdaptiveLayout(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.surfaceVariant
             ) {
-                GalleryScreen()
+                GalleryScreen(onImageClick = onImageClick)
             }
         },
         detailPane = {

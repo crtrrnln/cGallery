@@ -56,27 +56,25 @@ class MainActivity : ComponentActivity() {
                 }
                 val scope = rememberCoroutineScope()
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Box(modifier = Modifier.padding(innerPadding)) {
-                        GalleryNavDisplay(
-                            backstack = backstack,
-                            onBack = {
-                                if (backstack.size > 1) {
-                                    backstack = backstack.dropLast(1)
-                                } else {
-                                    finish()
-                                }
-                            },
-                            onNavigate = { newKey ->
-                                backstack = if (newKey == GalleryKey.Gallery) {
-                                    listOf(GalleryKey.Gallery) // Replace stack when entering gallery after permission
-                                } else {
-                                    backstack + newKey
-                                }
-                            },
-                            navigator = navigator
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    GalleryNavDisplay(
+                        backstack = backstack,
+                        onBack = {
+                            if (backstack.size > 1) {
+                                backstack = backstack.dropLast(1)
+                            } else {
+                                finish()
+                            }
+                        },
+                        onNavigate = { newKey ->
+                            backstack = if (newKey == GalleryKey.Gallery) {
+                                listOf(GalleryKey.Gallery) // Replace stack when entering gallery after permission
+                            } else {
+                                backstack + newKey
+                            }
+                        },
+                        navigator = navigator
+                    )
                 }
 
                 // Handle back button for the adaptive scaffold

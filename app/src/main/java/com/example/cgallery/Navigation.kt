@@ -1,5 +1,6 @@
 package com.example.cgallery
 
+import android.net.Uri
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
 import androidx.compose.runtime.Composable
@@ -15,6 +16,9 @@ sealed interface GalleryKey : NavKey {
 
     @Serializable
     data object Gallery : GalleryKey
+
+    @Serializable
+    data class Viewer(val startIndex: Int) : GalleryKey
 }
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -39,7 +43,14 @@ fun GalleryNavDisplay(
                 }
 
                 GalleryKey.Gallery -> NavEntry(key) {
-                    GalleryAdaptiveLayout(navigator)
+                    GalleryAdaptiveLayout(navigator, onImageClick = onNavigate)
+                }
+
+                is GalleryKey.Viewer -> NavEntry(key) {
+                    ViewerScreen(
+                        startIndex = key.startIndex,
+                        onBack = onBack
+                    )
                 }
             }
         }
