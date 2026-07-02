@@ -16,30 +16,24 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.LocalImage
-import com.example.cgallery.data.MediaStoreDataSource
+import com.example.cgallery.data.MediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
+    images: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val dataSource = remember { MediaStoreDataSource(context) }
-    
     var searchQuery by remember { mutableStateOf("") }
-    var allImages by remember { mutableStateOf(emptyList<LocalImage>()) }
-    var allAlbums by remember { mutableStateOf(emptyList<String>()) }
-
-    LaunchedEffect(Unit) {
-        allImages = dataSource.fetchImages()
-        allAlbums = allImages.map { it.bucketName }.distinct()
+    
+    val allAlbums = remember(images) {
+        images.map { it.bucketName }.distinct()
     }
 
-    val filteredImages = remember(searchQuery, allImages) {
+    val filteredImages = remember(searchQuery, images) {
         if (searchQuery.isBlank()) emptyList()
-        else allImages.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
+        else images.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
     }
 
     val filteredAlbums = remember(searchQuery, allAlbums) {
@@ -107,7 +101,7 @@ fun SearchScreen(
                                 contentDescription = null,
                                 modifier = Modifier
                                     .aspectRatio(1f)
-                                    .clickable { onImageClick(GalleryKey.Viewer(allImages.indexOf(image))) },
+                                    .clickable { onImageClick(GalleryKey.Viewer(images.indexOf(image))) },
                                 contentScale = ContentScale.Crop
                             )
                         }

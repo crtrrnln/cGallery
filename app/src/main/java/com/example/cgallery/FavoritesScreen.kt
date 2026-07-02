@@ -14,26 +14,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.FavoritesManager
-import com.example.cgallery.data.LocalImage
-import com.example.cgallery.data.MediaStoreDataSource
+import com.example.cgallery.data.MediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
+    images: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val dataSource = remember { MediaStoreDataSource(context) }
     val favoritesManager = remember { FavoritesManager(context) }
-    
-    var allImages by remember { mutableStateOf(emptyList<LocalImage>()) }
-    var favoriteImages by remember { mutableStateOf(emptyList<LocalImage>()) }
     val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
-
-    LaunchedEffect(favoriteIds) {
-        allImages = dataSource.fetchImages()
-        favoriteImages = allImages.filter { it.id in favoriteIds }
+    
+    val favoriteImages = remember(images, favoriteIds) {
+        images.filter { it.id in favoriteIds }
     }
 
     Scaffold(
@@ -68,7 +63,7 @@ fun FavoritesScreen(
                             .aspectRatio(1f)
                             .padding(2.dp)
                             .clickable {
-                                onImageClick(GalleryKey.Viewer(allImages.indexOf(image)))
+                                onImageClick(GalleryKey.Viewer(images.indexOf(image)))
                             }
                     ) {
                         AsyncImage(

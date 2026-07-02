@@ -2,28 +2,31 @@ package com.example.cgallery
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,32 +38,33 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.LocalImage
-import com.example.cgallery.data.MediaStoreDataSource
+import com.example.cgallery.data.MediaItem
+import com.example.cgallery.data.MediaType
+import com.example.cgallery.data.AlbumEntity
 import kotlinx.coroutines.launch
+
+@Composable
+private fun formatDuration(durationMs: Long): String {
+    val totalSeconds = durationMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun GalleryScreen(
+    images: List<MediaItem>,
+    virtualAlbums: List<AlbumEntity> = emptyList(),
+    onAddToAlbum: (Long, Set<Long>) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dataSource = remember { MediaStoreDataSource(context) }
-    var images by remember { mutableStateOf(emptyList<LocalImage>()) }
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
-
-    val refreshImages = {
-        scope.launch {
-            images = dataSource.fetchImages()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        refreshImages()
-    }
+    var showAlbumSelection by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSelectionMode) {
         selectedIds = emptySet()
@@ -71,7 +75,6 @@ fun GalleryScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             selectedIds = emptySet()
-            refreshImages()
         }
     }
 
@@ -92,7 +95,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.4",
+                                "v0.41",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -109,13 +112,18 @@ fun GalleryScreen(
                 actions = {
                     if (isSelectionMode) {
                         IconButton(onClick = {
+                            showAlbumSelection = true
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Add to Album")
+                        }
+                        IconButton(onClick = {
                             val selectedUris = images.filter { it.id in selectedIds }.map { it.uri }
                             val shareIntent = Intent().apply {
                                 action = Intent.ACTION_SEND_MULTIPLE
                                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(selectedUris))
-                                type = "image/*"
+                                type = "*/*"
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Images"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
                         }) {
                             Icon(Icons.Default.Share, contentDescription = "Share")
                         }
@@ -130,7 +138,6 @@ fun GalleryScreen(
                                         context.contentResolver.delete(uri, null, null)
                                     }
                                     selectedIds = emptySet()
-                                    refreshImages()
                                 }
                             }
                         }) {
@@ -187,6 +194,28 @@ fun GalleryScreen(
                         contentScale = ContentScale.Crop
                     )
                     
+                    if (image.type == MediaType.VIDEO) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = "Video",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(48.dp)
+                        )
+                        
+                        Text(
+                            text = formatDuration(image.duration),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+
                     if (isSelected) {
                         Box(
                             modifier = Modifier
@@ -207,5 +236,40 @@ fun GalleryScreen(
                 }
             }
         }
+    }
+
+    if (showAlbumSelection) {
+        AlertDialog(
+            onDismissRequest = { showAlbumSelection = false },
+            title = { Text("Add to Album") },
+            text = {
+                LazyColumn {
+                    items(virtualAlbums) { album ->
+                        ListItem(
+                            headlineContent = { Text(album.name) },
+                            modifier = Modifier.clickable {
+                                onAddToAlbum(album.id, selectedIds)
+                                selectedIds = emptySet()
+                                showAlbumSelection = false
+                            }
+                        )
+                    }
+                    if (virtualAlbums.isEmpty()) {
+                        item {
+                            Text(
+                                "No virtual albums. Create one in the Albums tab.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAlbumSelection = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

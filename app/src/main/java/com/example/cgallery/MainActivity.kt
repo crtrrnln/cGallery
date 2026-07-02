@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.window.core.layout.WindowWidthSizeClass
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cgallery.ui.theme.CGalleryTheme
 import kotlinx.coroutines.launch
 
@@ -46,6 +47,10 @@ class MainActivity : ComponentActivity() {
                     this,
                     permission
                 ) == PackageManager.PERMISSION_GRANTED
+
+                val mediaStoreViewModel: MediaStoreViewModel = viewModel()
+                val mediaItems by mediaStoreViewModel.mediaItems.collectAsState()
+                val virtualAlbums by mediaStoreViewModel.virtualAlbumsWithMedia.collectAsState()
 
                 var backstack by remember {
                     mutableStateOf(
@@ -101,6 +106,12 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.padding(innerPadding)) {
                         GalleryNavDisplay(
                             backstack = backstack,
+                            mediaItems = mediaItems,
+                            virtualAlbums = virtualAlbums,
+                            onCreateAlbum = { mediaStoreViewModel.createAlbum(it) },
+                            onAddToAlbum = { albumId, mediaIds -> 
+                                mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
+                            },
                             onBack = {
                                 if (backstack.size > 1) {
                                     backstack = backstack.dropLast(1)

@@ -11,30 +11,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.LocalImage
-import com.example.cgallery.data.MediaStoreDataSource
+import com.example.cgallery.data.MediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumDetailScreen(
     bucketName: String,
+    images: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val dataSource = remember { MediaStoreDataSource(context) }
-    var allImages by remember { mutableStateOf(emptyList<LocalImage>()) }
-    var albumImages by remember { mutableStateOf(emptyList<LocalImage>()) }
-
-    LaunchedEffect(bucketName) {
-        allImages = dataSource.fetchImages()
-        albumImages = allImages.filter { it.bucketName == bucketName }
-    }
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -54,13 +43,13 @@ fun AlbumDetailScreen(
                 .padding(innerPadding),
             contentPadding = PaddingValues(4.dp)
         ) {
-            items(albumImages, key = { it.id }) { image ->
+            items(images, key = { it.id }) { image ->
                 Box(
                     modifier = Modifier
                         .aspectRatio(1f)
                         .padding(2.dp)
                         .clickable {
-                            onImageClick(GalleryKey.Viewer(allImages.indexOf(image)))
+                            onImageClick(GalleryKey.Viewer(images.indexOf(image)))
                         }
                 ) {
                     AsyncImage(

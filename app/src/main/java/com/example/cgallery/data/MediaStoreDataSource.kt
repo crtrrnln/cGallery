@@ -2,61 +2,82 @@ package com.example.cgallery.data
 
 import android.content.ContentUris
 import android.content.Context
-import android.net.Uri
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-data class LocalImage(
-    val id: Long,
-    val uri: Uri,
-    val displayName: String,
-    val bucketName: String,
-    val relativePath: String
-)
-
 class MediaStoreDataSource(private val context: Context) {
 
-    suspend fun fetchImages(): List<LocalImage> = withContext(Dispatchers.IO) {
-        val images = mutableListOf<LocalImage>()
-        
+    suspend fun fetchMedia(): List<MediaItem> = withContext(Dispatchers.IO) {
+        val mediaItems = mutableListOf<MediaItem>()
+
         val projection = arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
-            MediaStore.Images.Media.RELATIVE_PATH
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.DISPLAY_NAME,
+            MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME,
+            MediaStore.Files.FileColumns.RELATIVE_PATH,
+            MediaStore.Files.FileColumns.MEDIA_TYPE,
+            MediaStore.Files.FileColumns.DATE_ADDED,
+            MediaStore.Video.VideoColumns.DURATION
         )
-        
-        val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC"
-        
+
+        val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
+
         val query = context.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Files.getContentUri("external"),
             projection,
-            null,
-            null,
+            "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?)",
+            arrayOf(
+                MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+                MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString()
+            ),
             sortOrder
         )
-        
+
         query?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
-            val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)
-            
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+            val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME)
+            val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.RELATIVE_PATH)
+            val typeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+            val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
+            val durationColumn = cursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION)
+
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val name = cursor.getString(nameColumn) ?: ""
                 val bucket = cursor.getString(bucketColumn) ?: "Unknown"
                 val path = cursor.getString(pathColumn) ?: ""
-                
+                val typeInt = cursor.getInt(typeColumn)
+                val dateAdded = cursor.getLong(dateColumn)
+                val duration = if (durationColumn != -1) cursor.getLong(durationColumn) else 0L
+
+                val type = if (typeInt == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO) {
+                    MediaType.VIDEO
+                } else {
+                    MediaType.IMAGE
+                }
+
                 val contentUri = ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    if (type == MediaType.VIDEO) MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                    else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                     id
                 )
-                images.add(LocalImage(id, contentUri, name, bucket, path))
+                mediaItems.add(
+                    MediaItem(
+                        id = id,
+                        uri = contentUri,
+                        displayName = name,
+                        bucketName = bucket,
+                        relativePath = path,
+                        type = type,
+                        duration = duration,
+                        dateAdded = dateAdded
+                    )
+                )
             }
         }
-        
-        images
+
+        mediaItems
     }
 }

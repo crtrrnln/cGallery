@@ -15,8 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,27 +25,25 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.FavoritesManager
-import com.example.cgallery.data.LocalImage
+import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.MediaStoreDataSource
+import com.example.cgallery.data.MediaType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(
     startIndex: Int,
+    mediaItems: List<MediaItem>,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dataSource = remember { MediaStoreDataSource(context) }
-    val favoritesManager = remember { FavoritesManager(context) }
-    
-    var images by remember { mutableStateOf(emptyList<LocalImage>()) }
-    val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
+    var images by remember { mutableStateOf(emptyList<MediaItem>()) }
     
     LaunchedEffect(Unit) {
-        images = dataSource.fetchImages()
+        images = dataSource.fetchMedia()
     }
 
     if (images.isEmpty()) {
@@ -69,7 +65,7 @@ fun ViewerScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             scope.launch {
-                images = dataSource.fetchImages()
+                images = dataSource.fetchMedia()
                 if (images.isEmpty()) {
                     onBack()
                 }
@@ -92,38 +88,28 @@ fun ViewerScreen(
                 },
                 actions = {
                     currentImage?.let { image ->
-                        val isFavorite = image.id in favoriteIds
-                        IconButton(onClick = {
-                            scope.launch {
-                                favoritesManager.toggleFavorite(image.id)
-                            }
-                        }) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                contentDescription = "Favorite",
-                                tint = if (isFavorite) Color.Red else Color.White
-                            )
-                        }
                         IconButton(onClick = {
                             val shareIntent = Intent().apply {
                                 action = Intent.ACTION_SEND
                                 putExtra(Intent.EXTRA_STREAM, image.uri)
-                                type = "image/*"
+                                type = if (image.type == MediaType.VIDEO) "video/*" else "image/*"
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Image"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
                         }) {
                             Icon(Icons.Rounded.Share, contentDescription = "Share", tint = Color.White)
                         }
-                        IconButton(onClick = {
-                            val editIntent = Intent().apply {
-                                action = Intent.ACTION_EDIT
-                                setDataAndType(image.uri, "image/*")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        if (image.type == MediaType.IMAGE) {
+                            IconButton(onClick = {
+                                val editIntent = Intent().apply {
+                                    action = Intent.ACTION_EDIT
+                                    setDataAndType(image.uri, "image/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(editIntent, "Edit Image"))
+                            }) {
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = Color.White)
                             }
-                            context.startActivity(Intent.createChooser(editIntent, "Edit Image"))
-                        }) {
-                            Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = Color.White)
                         }
                         IconButton(onClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -137,7 +123,7 @@ fun ViewerScreen(
                             } else {
                                 context.contentResolver.delete(image.uri, null, null)
                                 scope.launch {
-                                    images = dataSource.fetchImages()
+                                    images = dataSource.fetchMedia()
                                     if (images.isEmpty()) {
                                         onBack()
                                     }
@@ -170,12 +156,19 @@ fun ViewerScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = image.uri,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
+                if (image.type == MediaType.VIDEO) {
+                    VideoPlayer(
+                        uri = image.uri,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    AsyncImage(
+                        model = image.uri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
         }
     }
