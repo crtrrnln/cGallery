@@ -5,10 +5,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
-@Entity(tableName = "albums")
-data class AlbumEntity(
+@Entity(tableName = "physical_albums")
+data class PhysicalAlbumEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String,
+    val bucketName: String,
+    val isHidden: Boolean = false,
     val groupId: Long? = null
 )
 
@@ -20,58 +21,31 @@ data class AlbumGroupEntity(
     val sortOrder: Int = 0
 )
 
-@Entity(
-    tableName = "album_media",
-    primaryKeys = ["albumId", "mediaId"]
-)
-data class AlbumMediaCrossRef(
-    val albumId: Long,
-    val mediaId: Long
-)
-
-data class AlbumMediaId(
-    val albumId: Long,
-    val mediaId: Long
-)
-
-data class AlbumWithMedia(
-    @Embedded val album: AlbumEntity,
-    @Relation(
-        parentColumn = "id",
-        entityColumn = "albumId",
-        entity = AlbumMediaCrossRef::class
-    )
-    val mediaItems: List<AlbumMediaCrossRef>
-) {
-    val mediaIds: List<Long> get() = mediaItems.map { it.mediaId }
-}
-
 @Dao
-interface AlbumDao {
-    @Query("SELECT * FROM albums")
-    fun getAllAlbums(): Flow<List<AlbumEntity>>
+interface PhysicalAlbumDao {
+    @Query("SELECT * FROM physical_albums")
+    fun getAllAlbums(): Flow<List<PhysicalAlbumEntity>>
+
+    @Query("SELECT * FROM physical_albums WHERE bucketName = :bucketName")
+    fun getAlbumByBucketName(bucketName: String): Flow<PhysicalAlbumEntity?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbum(album: AlbumEntity): Long
+    suspend fun insertAlbum(album: PhysicalAlbumEntity): Long
+
+    @Update
+    suspend fun updateAlbum(album: PhysicalAlbumEntity)
 
     @Delete
-    suspend fun deleteAlbum(album: AlbumEntity)
+    suspend fun deleteAlbum(album: PhysicalAlbumEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun addMediaToAlbum(crossRef: AlbumMediaCrossRef)
+    @Query("UPDATE physical_albums SET isHidden = :isHidden WHERE bucketName = :bucketName")
+    suspend fun updateAlbumVisibility(bucketName: String, isHidden: Boolean)
 
-    @Query("SELECT * FROM albums WHERE id = :albumId")
-    suspend fun getAlbumWithMedia(albumId: Long): AlbumWithMedia?
+    @Query("UPDATE physical_albums SET groupId = :groupId WHERE bucketName = :bucketName")
+    suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?)
 
-    @Transaction
-    @Query("SELECT * FROM albums")
-    fun getAllAlbumsWithMedia(): Flow<List<AlbumWithMedia>>
-
-    @Query("SELECT * FROM albums WHERE groupId = :groupId")
-    fun getAlbumsByGroup(groupId: Long?): Flow<List<AlbumEntity>>
-
-    @Query("UPDATE albums SET groupId = :groupId WHERE id = :albumId")
-    suspend fun moveAlbumToGroup(albumId: Long, groupId: Long?)
+    @Query("SELECT * FROM physical_albums WHERE groupId = :groupId")
+    fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>>
 }
 
 @Dao
@@ -106,14 +80,13 @@ interface AlbumGroupDao {
 
 @Database(
     entities = [
-        AlbumEntity::class,
-        AlbumGroupEntity::class,
-        AlbumMediaCrossRef::class
+        PhysicalAlbumEntity::class,
+        AlbumGroupEntity::class
     ],
-    version = 2
+    version = 4
 )
 abstract class VirtualAlbumDatabase : RoomDatabase() {
-    abstract fun albumDao(): AlbumDao
+    abstract fun physicalAlbumDao(): PhysicalAlbumDao
     abstract fun albumGroupDao(): AlbumGroupDao
 
     companion object {

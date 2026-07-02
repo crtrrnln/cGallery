@@ -1,6 +1,7 @@
 package com.example.cgallery
 
 import android.net.Uri
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
@@ -12,7 +13,6 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.AlbumWithMedia
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -33,7 +33,7 @@ sealed interface GalleryKey : NavKey {
     data object Search : GalleryKey
 
     @Serializable
-    data class AlbumDetail(val id: String, val isVirtual: Boolean = false) : GalleryKey
+    data class AlbumDetail(val id: String) : GalleryKey
 
     @Serializable
     data class GroupDetail(val groupId: Long) : GalleryKey
@@ -47,12 +47,11 @@ sealed interface GalleryKey : NavKey {
 fun GalleryNavDisplay(
     backstack: List<GalleryKey>,
     mediaItems: List<MediaItem>,
-    virtualAlbums: List<AlbumWithMedia>,
-    onCreateAlbum: (String) -> Unit,
     onAddToAlbum: (Long, Set<Long>) -> Unit,
     onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
     onNavigate: (GalleryKey) -> Unit,
+    onToggleAlbumVisibility: (String) -> Unit = {},
     navigator: ThreePaneScaffoldNavigator<Any>
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<GalleryKey>()
@@ -76,13 +75,12 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.41")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) {
                 GalleryScreen(
                     images = mediaItems,
-                    virtualAlbums = virtualAlbums.map { it.album },
                     onAddToAlbum = onAddToAlbum,
                     onImageClick = onNavigate
                 )
@@ -91,47 +89,35 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.5")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) {
                 AlbumsScreen(
                     images = mediaItems,
-                    virtualAlbums = virtualAlbums,
-                    onCreateAlbum = onCreateAlbum,
                     onAlbumClick = { album ->
-                        onNavigate(GalleryKey.AlbumDetail(album.name, isVirtual = false))
-                    },
-                    onVirtualAlbumClick = { albumWithMedia ->
-                        onNavigate(GalleryKey.AlbumDetail(albumWithMedia.album.id.toString(), isVirtual = true))
+                        onNavigate(GalleryKey.AlbumDetail(album.name))
                     },
                     onGroupClick = { groupId ->
                         onNavigate(GalleryKey.GroupDetail(groupId))
-                    }
+                    },
+                    onToggleAlbumVisibility = onToggleAlbumVisibility
                 )
             }
 
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.5")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) { key ->
-                val albumImages = remember(key, mediaItems, virtualAlbums) {
-                    if (key.isVirtual) {
-                        val albumId = key.id.toLongOrNull() ?: -1L
-                        val mediaIds = virtualAlbums.find { it.album.id == albumId }?.mediaIds ?: emptyList()
-                        mediaItems.filter { it.id in mediaIds }
-                    } else {
-                        mediaItems.filter { it.bucketName == key.id }
-                    }
+                val albumImages = remember(key, mediaItems) {
+                    mediaItems.filter { it.bucketName == key.id }
                 }
 
                 AlbumDetailScreen(
-                    bucketName = if (key.isVirtual) {
-                        virtualAlbums.find { it.album.id == (key.id.toLongOrNull() ?: -1L) }?.album?.name ?: "Album"
-                    } else key.id,
+                    bucketName = key.id,
                     images = albumImages,
                     onImageClick = onNavigate,
                     onBack = onBack
@@ -141,16 +127,15 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.5")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) { key ->
                 GroupDetailScreen(
                     groupId = key.groupId,
                     images = mediaItems,
-                    virtualAlbums = virtualAlbums,
-                    onVirtualAlbumClick = { albumWithMedia ->
-                        onNavigate(GalleryKey.AlbumDetail(albumWithMedia.album.id.toString(), isVirtual = true))
+                    onAlbumClick = { albumName ->
+                        onNavigate(GalleryKey.AlbumDetail(albumName))
                     },
                     onBack = onBack
                 )
@@ -159,7 +144,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favorites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.5")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) {
@@ -172,7 +157,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.5")
+                        HomeScreen(version = "v0.51")
                     }
                 )
             ) {
@@ -188,14 +173,7 @@ fun GalleryNavDisplay(
                 // Check if we're coming from an album detail by looking at the backstack
                 val previousKey = backstack.getOrNull(backstack.size - 2)
                 val filteredMedia = if (previousKey is GalleryKey.AlbumDetail) {
-                    // Recalculate the filtered images for this album
-                    if (previousKey.isVirtual) {
-                        val albumId = previousKey.id.toLongOrNull() ?: -1L
-                        val mediaIds = virtualAlbums.find { it.album.id == albumId }?.mediaIds ?: emptyList()
-                        mediaItems.filter { it.id in mediaIds }
-                    } else {
-                        mediaItems.filter { it.bucketName == previousKey.id }
-                    }
+                    mediaItems.filter { it.bucketName == previousKey.id }
                 } else {
                     null
                 }

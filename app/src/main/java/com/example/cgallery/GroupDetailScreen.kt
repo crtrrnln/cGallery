@@ -13,13 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.AlbumWithMedia
 import com.example.cgallery.data.AlbumGroupManager
 import com.example.cgallery.data.AlbumGroupEntity
-import com.example.cgallery.data.AlbumEntity
+import com.example.cgallery.data.PhysicalAlbumEntity
 import com.example.cgallery.data.MediaItem
 import kotlinx.coroutines.launch
 
@@ -28,8 +26,7 @@ import kotlinx.coroutines.launch
 fun GroupDetailScreen(
     groupId: Long,
     images: List<MediaItem>,
-    virtualAlbums: List<AlbumWithMedia>,
-    onVirtualAlbumClick: (AlbumWithMedia) -> Unit,
+    onAlbumClick: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -56,15 +53,30 @@ fun GroupDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "No albums in this group",
+                    "No folders in this group",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
+            val albumsWithDetails = remember(albumsInGroup, images) {
+                albumsInGroup.mapNotNull { albumEntity ->
+                    val imagesInAlbum = images.filter { it.bucketName == albumEntity.bucketName }
+                    if (imagesInAlbum.isNotEmpty()) {
+                        Album(
+                            name = albumEntity.bucketName,
+                            count = imagesInAlbum.size,
+                            coverImage = imagesInAlbum.first()
+                        )
+                    } else {
+                        null
+                    }
+                }.sortedBy { it.name }
+            }
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier
@@ -74,16 +86,11 @@ fun GroupDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(albumsInGroup) { album ->
-                    val albumWithMedia = virtualAlbums.find { it.album.id == album.id }
-                    if (albumWithMedia != null) {
-                        val coverMedia = images.find { it.id == albumWithMedia.mediaIds.firstOrNull() }
-                        VirtualAlbumItem(
-                            albumWithMedia = albumWithMedia,
-                            coverMedia = coverMedia,
-                            onClick = { onVirtualAlbumClick(albumWithMedia) }
-                        )
-                    }
+                items(albumsWithDetails) { album ->
+                    AlbumItem(
+                        album = album,
+                        onClick = { onAlbumClick(album.name) }
+                    )
                 }
             }
         }

@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.first
 
 class AlbumGroupManager(context: Context) {
     private val db = VirtualAlbumDatabase.getDatabase(context)
-    private val albumDao = db.albumDao()
     private val groupDao = db.albumGroupDao()
+    private val physicalAlbumDao = db.physicalAlbumDao()
 
     val allGroups: Flow<List<AlbumGroupEntity>> = groupDao.getAllGroups()
     val rootGroups: Flow<List<AlbumGroupEntity>> = groupDao.getRootGroups()
@@ -33,9 +33,9 @@ class AlbumGroupManager(context: Context) {
 
     suspend fun deleteGroup(group: AlbumGroupEntity) {
         // Move albums in this group to null (ungrouped)
-        val albumsInGroup = albumDao.getAlbumsByGroup(group.id).first()
+        val albumsInGroup = physicalAlbumDao.getAlbumsByGroup(group.id).first()
         albumsInGroup.forEach { album ->
-            albumDao.moveAlbumToGroup(album.id, null)
+            physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
         }
         groupDao.deleteGroup(group)
     }
@@ -47,10 +47,6 @@ class AlbumGroupManager(context: Context) {
     suspend fun renameGroup(groupId: Long, name: String) {
         val group = groupDao.getGroupById(groupId).first() ?: return
         groupDao.updateGroup(group.copy(name = name))
-    }
-
-    suspend fun moveAlbumToGroup(albumId: Long, groupId: Long?) {
-        albumDao.moveAlbumToGroup(albumId, groupId)
     }
 
     suspend fun moveGroupUp(groupId: Long) {
@@ -85,7 +81,7 @@ class AlbumGroupManager(context: Context) {
         }
     }
 
-    fun getAlbumsByGroup(groupId: Long?): Flow<List<AlbumEntity>> {
-        return albumDao.getAlbumsByGroup(groupId)
+    fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {
+        return physicalAlbumDao.getAlbumsByGroup(groupId)
     }
 }

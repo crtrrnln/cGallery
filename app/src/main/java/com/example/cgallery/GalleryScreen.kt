@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.MediaType
-import com.example.cgallery.data.AlbumEntity
 import kotlinx.coroutines.launch
 
 @Composable
@@ -55,7 +54,6 @@ private fun formatDuration(durationMs: Long): String {
 @Composable
 fun GalleryScreen(
     images: List<MediaItem>,
-    virtualAlbums: List<AlbumEntity> = emptyList(),
     onAddToAlbum: (Long, Set<Long>) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
@@ -243,31 +241,15 @@ fun GalleryScreen(
             onDismissRequest = { showAlbumSelection = false },
             title = { Text("Add to Album") },
             text = {
-                LazyColumn {
-                    items(virtualAlbums) { album ->
-                        ListItem(
-                            headlineContent = { Text(album.name) },
-                            modifier = Modifier.clickable {
-                                onAddToAlbum(album.id, selectedIds)
-                                selectedIds = emptySet()
-                                showAlbumSelection = false
-                            }
-                        )
-                    }
-                    if (virtualAlbums.isEmpty()) {
-                        item {
-                            Text(
-                                "No virtual albums. Create one in the Albums tab.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
+                Text(
+                    "Virtual albums have been removed. This feature will be updated for physical folders.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(16.dp)
+                )
             },
             confirmButton = {
                 TextButton(onClick = { showAlbumSelection = false }) {
-                    Text("Cancel")
+                    Text("OK")
                 }
             }
         )

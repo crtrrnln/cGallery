@@ -55,7 +55,6 @@ class MainActivity : ComponentActivity() {
 
                 val mediaStoreViewModel: MediaStoreViewModel = viewModel()
                 val mediaItems by mediaStoreViewModel.mediaItems.collectAsState()
-                val virtualAlbums by mediaStoreViewModel.virtualAlbumsWithMedia.collectAsState()
 
                 var backstack by remember {
                     mutableStateOf(
@@ -112,9 +111,7 @@ class MainActivity : ComponentActivity() {
                         GalleryNavDisplay(
                             backstack = backstack,
                             mediaItems = mediaItems,
-                            virtualAlbums = virtualAlbums,
-                            onCreateAlbum = { mediaStoreViewModel.createAlbum(it) },
-                            onAddToAlbum = { albumId, mediaIds -> 
+                            onAddToAlbum = { albumId, mediaIds ->
                                 mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
                             },
                             onReloadMedia = { mediaStoreViewModel.loadMedia() },
@@ -127,7 +124,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigate = { newKey ->
                                 backstack = when (newKey) {
-                                    is GalleryKey.Gallery, is GalleryKey.Albums, 
+                                    is GalleryKey.Gallery, is GalleryKey.Albums,
                                     is GalleryKey.Favorites, is GalleryKey.Search -> listOf(newKey)
                                     is GalleryKey.AlbumDetail -> {
                                         // Allow pushing album detail onto albums list
@@ -142,6 +139,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     else -> backstack + newKey
                                 }
+                            },
+                            onToggleAlbumVisibility = { bucketName ->
+                                mediaStoreViewModel.toggleAlbumVisibility(bucketName)
                             },
                             navigator = navigator
                         )
