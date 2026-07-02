@@ -3,9 +3,21 @@
 ## Project Overview
 This is an Android gallery application with Samsung Gallery import functionality. The project uses Kotlin, Jetpack Compose, Room database, and Media3 ExoPlayer for video playback.
 
-## Current Implementation Status
+## v0.5 Implementation Status (July 2026)
 
-### Completed Features
+### Completed Features in v0.5
+- ✅ Fixed permission loading issue - media now loads automatically after granting permissions without app restart
+- ✅ Fixed Samsung album click navigation - albums now navigate to detail view with filtered MediaStore content
+- ✅ Implemented Samsung Gallery-like folder hierarchy display with expandable/collapsible folders
+- ✅ Added recursive folder display with indentation for nested folders
+- ✅ Implemented long-press context menus for folders (rename, delete)
+- ✅ Implemented long-press context menus for albums (move to folder)
+- ✅ Added folder rename dialog with validation
+- ✅ Added folder delete dialog with confirmation (moves albums to orphan status)
+- ✅ Added album move dialog with folder selection (including "No Folder" option)
+- ✅ Updated version to 0.5
+
+### Previously Completed Features
 - ✅ Video playback fixes in ViewerScreen.kt (fetchImages → fetchMedia)
 - ✅ Samsung Gallery JSON import from BACKUP_ALBUM_DB.txt
 - ✅ Room database entities for Samsung albums and folders
@@ -18,12 +30,10 @@ This is an Android gallery application with Samsung Gallery import functionality
 - ✅ Database support for folder hierarchy via parentId
 
 ### Pending Features
-- ⏳ Display folder hierarchy (nested folders) in UI
-- ⏳ UI controls for moving albums between folders
+- ⏳ Collage-style folder covers (showing 4 album thumbnails in 2x2 grid)
 - ⏳ UI controls for moving folders into other folders
-- ⏳ UI controls for renaming folders
-- ⏳ UI controls for deleting folders
 - ⏳ Drag-and-drop or selection interface for folder management
+- ⏳ Performance optimization and caching
 
 ## Key Files and Their Purpose
 

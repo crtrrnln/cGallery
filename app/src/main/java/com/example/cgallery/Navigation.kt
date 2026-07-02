@@ -36,6 +36,9 @@ sealed interface GalleryKey : NavKey {
     data class AlbumDetail(val id: String, val isVirtual: Boolean = false) : GalleryKey
 
     @Serializable
+    data class GroupDetail(val groupId: Long) : GalleryKey
+
+    @Serializable
     data class Viewer(val startIndex: Int) : GalleryKey
 }
 
@@ -47,6 +50,7 @@ fun GalleryNavDisplay(
     virtualAlbums: List<AlbumWithMedia>,
     onCreateAlbum: (String) -> Unit,
     onAddToAlbum: (Long, Set<Long>) -> Unit,
+    onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
     onNavigate: (GalleryKey) -> Unit,
     navigator: ThreePaneScaffoldNavigator<Any>
@@ -62,6 +66,9 @@ fun GalleryNavDisplay(
                 PermissionScreen(
                     onPermissionGranted = {
                         onNavigate(GalleryKey.Gallery)
+                    },
+                    onPermissionRequest = {
+                        onReloadMedia()
                     }
                 )
             }
@@ -84,7 +91,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.41")
+                        HomeScreen(version = "v0.5")
                     }
                 )
             ) {
@@ -97,6 +104,9 @@ fun GalleryNavDisplay(
                     },
                     onVirtualAlbumClick = { albumWithMedia ->
                         onNavigate(GalleryKey.AlbumDetail(albumWithMedia.album.id.toString(), isVirtual = true))
+                    },
+                    onGroupClick = { groupId ->
+                        onNavigate(GalleryKey.GroupDetail(groupId))
                     }
                 )
             }
@@ -104,7 +114,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.41")
+                        HomeScreen(version = "v0.5")
                     }
                 )
             ) { key ->
@@ -128,10 +138,28 @@ fun GalleryNavDisplay(
                 )
             }
 
+            entry<GalleryKey.GroupDetail>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.5")
+                    }
+                )
+            ) { key ->
+                GroupDetailScreen(
+                    groupId = key.groupId,
+                    images = mediaItems,
+                    virtualAlbums = virtualAlbums,
+                    onVirtualAlbumClick = { albumWithMedia ->
+                        onNavigate(GalleryKey.AlbumDetail(albumWithMedia.album.id.toString(), isVirtual = true))
+                    },
+                    onBack = onBack
+                )
+            }
+
             entry<GalleryKey.Favorites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.41")
+                        HomeScreen(version = "v0.5")
                     }
                 )
             ) {
@@ -144,7 +172,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.41")
+                        HomeScreen(version = "v0.5")
                     }
                 )
             ) {
@@ -157,10 +185,26 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Viewer>(
                 metadata = ListDetailSceneStrategy.detailPane()
             ) { key ->
+                // Check if we're coming from an album detail by looking at the backstack
+                val previousKey = backstack.getOrNull(backstack.size - 2)
+                val filteredMedia = if (previousKey is GalleryKey.AlbumDetail) {
+                    // Recalculate the filtered images for this album
+                    if (previousKey.isVirtual) {
+                        val albumId = previousKey.id.toLongOrNull() ?: -1L
+                        val mediaIds = virtualAlbums.find { it.album.id == albumId }?.mediaIds ?: emptyList()
+                        mediaItems.filter { it.id in mediaIds }
+                    } else {
+                        mediaItems.filter { it.bucketName == previousKey.id }
+                    }
+                } else {
+                    null
+                }
+
                 ViewerScreen(
                     startIndex = key.startIndex,
                     mediaItems = mediaItems,
-                    onBack = onBack
+                    onBack = onBack,
+                    filteredMedia = filteredMedia
                 )
             }
         }

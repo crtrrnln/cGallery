@@ -22,6 +22,7 @@ fun AlbumDetailScreen(
     images: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     onBack: () -> Unit,
+    albumImages: List<MediaItem>? = null,
     modifier: Modifier = Modifier
 ) {
     Scaffold(

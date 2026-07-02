@@ -8,26 +8,16 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "albums")
 data class AlbumEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val name: String
-)
-
-@Entity(tableName = "samsung_albums")
-data class SamsungAlbumEntity(
-    @PrimaryKey val id: Long,
-    val title: String,
-    val path: String,
-    val folderId: Long?,
-    val coverPath: String,
-    val coverCrop: String?,
-    val sortPrimary: Long,
-    val sortSecondary: Long
-)
-
-@Entity(tableName = "samsung_folders")
-data class SamsungFolderEntity(
-    @PrimaryKey val id: Long,
     val name: String,
-    val parentId: Long?
+    val groupId: Long? = null
+)
+
+@Entity(tableName = "album_groups")
+data class AlbumGroupEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val parentId: Long? = null,
+    val sortOrder: Int = 0
 )
 
 @Entity(
@@ -72,82 +62,59 @@ interface AlbumDao {
 
     @Query("SELECT * FROM albums WHERE id = :albumId")
     suspend fun getAlbumWithMedia(albumId: Long): AlbumWithMedia?
-    
+
     @Transaction
     @Query("SELECT * FROM albums")
     fun getAllAlbumsWithMedia(): Flow<List<AlbumWithMedia>>
+
+    @Query("SELECT * FROM albums WHERE groupId = :groupId")
+    fun getAlbumsByGroup(groupId: Long?): Flow<List<AlbumEntity>>
+
+    @Query("UPDATE albums SET groupId = :groupId WHERE id = :albumId")
+    suspend fun moveAlbumToGroup(albumId: Long, groupId: Long?)
 }
 
 @Dao
-interface SamsungAlbumDao {
-    @Query("SELECT * FROM samsung_albums ORDER BY sortPrimary, sortSecondary")
-    fun getAllAlbums(): Flow<List<SamsungAlbumEntity>>
+interface AlbumGroupDao {
+    @Query("SELECT * FROM album_groups ORDER BY sortOrder")
+    fun getAllGroups(): Flow<List<AlbumGroupEntity>>
 
-    @Query("SELECT * FROM samsung_albums WHERE folderId IS NULL ORDER BY sortPrimary, sortSecondary")
-    fun getOrphanAlbums(): Flow<List<SamsungAlbumEntity>>
+    @Query("SELECT * FROM album_groups WHERE id = :groupId")
+    fun getGroupById(groupId: Long): Flow<AlbumGroupEntity?>
 
-    @Query("SELECT * FROM samsung_albums WHERE folderId = :folderId ORDER BY sortPrimary, sortSecondary")
-    fun getAlbumsByFolder(folderId: Long): Flow<List<SamsungAlbumEntity>>
+    @Query("SELECT * FROM album_groups WHERE parentId IS NULL ORDER BY sortOrder")
+    fun getRootGroups(): Flow<List<AlbumGroupEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbum(album: SamsungAlbumEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbums(albums: List<SamsungAlbumEntity>)
-
-    @Query("DELETE FROM samsung_albums")
-    suspend fun deleteAllAlbums()
-
-    @Query("DELETE FROM samsung_albums WHERE id = :id")
-    suspend fun deleteAlbum(id: Long)
-
-    @Query("UPDATE samsung_albums SET folderId = :folderId WHERE id = :albumId")
-    suspend fun moveAlbum(albumId: Long, folderId: Long?)
-}
-
-@Dao
-interface SamsungFolderDao {
-    @Query("SELECT * FROM samsung_folders ORDER BY name")
-    fun getAllFolders(): Flow<List<SamsungFolderEntity>>
-
-    @Query("SELECT * FROM samsung_folders WHERE parentId IS NULL ORDER BY name")
-    fun getRootFolders(): Flow<List<SamsungFolderEntity>>
-
-    @Query("SELECT * FROM samsung_folders WHERE parentId = :parentId ORDER BY name")
-    fun getChildFolders(parentId: Long): Flow<List<SamsungFolderEntity>>
+    @Query("SELECT * FROM album_groups WHERE parentId = :parentId ORDER BY sortOrder")
+    fun getChildGroups(parentId: Long): Flow<List<AlbumGroupEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFolder(folder: SamsungFolderEntity)
+    suspend fun insertGroup(group: AlbumGroupEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFolders(folders: List<SamsungFolderEntity>)
+    @Update
+    suspend fun updateGroup(group: AlbumGroupEntity)
 
-    @Query("UPDATE samsung_folders SET parentId = :parentId WHERE id = :folderId")
-    suspend fun moveFolder(folderId: Long, parentId: Long?)
+    @Delete
+    suspend fun deleteGroup(group: AlbumGroupEntity)
 
-    @Query("UPDATE samsung_folders SET name = :name WHERE id = :folderId")
-    suspend fun renameFolder(folderId: Long, name: String)
+    @Query("UPDATE album_groups SET parentId = :parentId WHERE id = :groupId")
+    suspend fun moveGroup(groupId: Long, parentId: Long?)
 
-    @Query("DELETE FROM samsung_folders WHERE id = :folderId")
-    suspend fun deleteFolder(folderId: Long)
-
-    @Query("DELETE FROM samsung_folders")
-    suspend fun deleteAllFolders()
+    @Query("UPDATE album_groups SET sortOrder = :sortOrder WHERE id = :groupId")
+    suspend fun updateGroupSortOrder(groupId: Long, sortOrder: Int)
 }
 
 @Database(
     entities = [
         AlbumEntity::class,
-        AlbumMediaCrossRef::class,
-        SamsungAlbumEntity::class,
-        SamsungFolderEntity::class
+        AlbumGroupEntity::class,
+        AlbumMediaCrossRef::class
     ],
     version = 2
 )
 abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
-    abstract fun samsungAlbumDao(): SamsungAlbumDao
-    abstract fun samsungFolderDao(): SamsungFolderDao
+    abstract fun albumGroupDao(): AlbumGroupDao
 
     companion object {
         @Volatile
@@ -160,34 +127,10 @@ abstract class VirtualAlbumDatabase : RoomDatabase() {
                     VirtualAlbumDatabase::class.java,
                     "virtual_albums.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
-            }
-        }
-
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("""
-                    CREATE TABLE IF NOT EXISTS samsung_albums (
-                        id INTEGER PRIMARY KEY NOT NULL,
-                        title TEXT NOT NULL,
-                        path TEXT NOT NULL,
-                        folderId INTEGER,
-                        coverPath TEXT NOT NULL,
-                        coverCrop TEXT,
-                        sortPrimary INTEGER NOT NULL,
-                        sortSecondary INTEGER NOT NULL
-                    )
-                """)
-                database.execSQL("""
-                    CREATE TABLE IF NOT EXISTS samsung_folders (
-                        id INTEGER PRIMARY KEY NOT NULL,
-                        name TEXT NOT NULL,
-                        parentId INTEGER
-                    )
-                """)
             }
         }
     }

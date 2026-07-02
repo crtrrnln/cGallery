@@ -35,15 +35,20 @@ import kotlinx.coroutines.launch
 fun ViewerScreen(
     startIndex: Int,
     mediaItems: List<MediaItem>,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    filteredMedia: List<MediaItem>? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dataSource = remember { MediaStoreDataSource(context) }
     var images by remember { mutableStateOf(emptyList<MediaItem>()) }
-    
-    LaunchedEffect(Unit) {
-        images = dataSource.fetchMedia()
+
+    LaunchedEffect(filteredMedia) {
+        images = if (filteredMedia != null) {
+            filteredMedia
+        } else {
+            dataSource.fetchMedia()
+        }
     }
 
     if (images.isEmpty()) {

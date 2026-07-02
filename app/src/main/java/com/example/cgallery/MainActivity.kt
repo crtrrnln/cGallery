@@ -37,16 +37,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             CGalleryTheme {
                 val navigator = rememberListDetailPaneScaffoldNavigator<Any>()
-                val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    Manifest.permission.READ_MEDIA_IMAGES
+                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    arrayOf(
+                        Manifest.permission.READ_MEDIA_IMAGES,
+                        Manifest.permission.READ_MEDIA_VIDEO
+                    )
                 } else {
-                    Manifest.permission.READ_EXTERNAL_STORAGE
+                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
                 }
 
-                val isPermissionGranted = ContextCompat.checkSelfPermission(
-                    this,
-                    permission
-                ) == PackageManager.PERMISSION_GRANTED
+                val isPermissionGranted = permissions.all { permission ->
+                    ContextCompat.checkSelfPermission(
+                        this,
+                        permission
+                    ) == PackageManager.PERMISSION_GRANTED
+                }
 
                 val mediaStoreViewModel: MediaStoreViewModel = viewModel()
                 val mediaItems by mediaStoreViewModel.mediaItems.collectAsState()
@@ -112,6 +117,7 @@ class MainActivity : ComponentActivity() {
                             onAddToAlbum = { albumId, mediaIds -> 
                                 mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
                             },
+                            onReloadMedia = { mediaStoreViewModel.loadMedia() },
                             onBack = {
                                 if (backstack.size > 1) {
                                     backstack = backstack.dropLast(1)

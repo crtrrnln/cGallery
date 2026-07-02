@@ -15,24 +15,31 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.cgallery.ui.theme.CGalleryTheme
 import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.shouldShowRationale
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionScreen(
-    onPermissionGranted: () -> Unit
+    onPermissionGranted: () -> Unit,
+    onPermissionRequest: () -> Unit = {}
 ) {
-    val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_IMAGES
+    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        listOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO
+        )
     } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
+        listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
-    val permissionState = rememberPermissionState(permission)
+    val multiplePermissionsState = rememberMultiplePermissionsState(permissions)
 
-    if (permissionState.status.isGranted) {
+    val allGranted = multiplePermissionsState.allPermissionsGranted
+
+    if (allGranted) {
         onPermissionGranted()
+        onPermissionRequest()
     } else {
         Box(
             modifier = Modifier
@@ -65,12 +72,14 @@ fun PermissionScreen(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
-                    onClick = { permissionState.launchPermissionRequest() }
+                    onClick = { multiplePermissionsState.launchMultiplePermissionRequest() }
                 ) {
                     Text("Grant Permission")
                 }
-                
-                if (permissionState.status.shouldShowRationale) {
+
+                val shouldShowRationale = multiplePermissionsState.shouldShowRationale
+
+                if (shouldShowRationale) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Access is essential for the app to function. You can also enable it in system settings.",

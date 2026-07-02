@@ -1,36 +1,34 @@
 package com.example.cgallery
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.AlbumWithMedia
-import com.example.cgallery.data.SamsungImportManager
-import com.example.cgallery.data.SamsungAlbumEntity
-import com.example.cgallery.data.SamsungFolderEntity
+import com.example.cgallery.data.AlbumGroupManager
+import com.example.cgallery.data.AlbumGroupEntity
+import com.example.cgallery.data.AlbumEntity
 import kotlinx.coroutines.launch
 
 data class Album(
@@ -47,42 +45,32 @@ fun AlbumsScreen(
     onCreateAlbum: (String) -> Unit = {},
     onAlbumClick: (Album) -> Unit,
     onVirtualAlbumClick: (AlbumWithMedia) -> Unit = {},
+    onGroupClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val samsungImportManager = remember { SamsungImportManager(context) }
-    
+    val groupManager = remember { AlbumGroupManager(context) }
+
     var showCreateAlbumDialog by remember { mutableStateOf(false) }
     var newAlbumName by remember { mutableStateOf("") }
-    var showImportDialog by remember { mutableStateOf(false) }
-    var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
-    
-    val samsungAlbums by samsungImportManager.allAlbums.collectAsState(initial = emptyList())
-    val samsungFolders by samsungImportManager.allFolders.collectAsState(initial = emptyList())
-    
-    // Group albums by folder
-    val albumsByFolder = remember(samsungAlbums) {
-        samsungAlbums.groupBy { it.folderId }
+    var showCreateGroupDialog by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
+    var showMoveToGroupDialog by remember { mutableStateOf(false) }
+    var selectedAlbumForMove by remember { mutableStateOf<AlbumEntity?>(null) }
+
+    val groups by groupManager.rootGroups.collectAsState(initial = emptyList())
+    val virtualAlbumEntities by remember(virtualAlbums) {
+        derivedStateOf { virtualAlbums.map { it.album } }
     }
-    val importStatus by samsungImportManager.importStatus.collectAsState()
-    
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            scope.launch {
-                try {
-                    val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.readText()
-                    if (content != null) {
-                        samsungImportManager.importFromJson(content)
-                    }
-                } catch (e: Exception) {
-                    // Error handled by importStatus
-                }
-            }
+    val groupedVirtualAlbums = remember(groups, virtualAlbumEntities) {
+        val albumsByGroup = mutableMapOf<Long?, List<AlbumEntity>>()
+        val ungrouped = virtualAlbumEntities.filter { it.groupId == null }
+        albumsByGroup[null] = ungrouped
+        groups.forEach { group ->
+            albumsByGroup[group.id] = virtualAlbumEntities.filter { it.groupId == group.id }
         }
+        albumsByGroup
     }
 
     val physicalAlbums = remember(images) {
@@ -100,11 +88,8 @@ fun AlbumsScreen(
             CenterAlignedTopAppBar(
                 title = { Text("Albums") },
                 actions = {
-                    IconButton(onClick = { showCreateFolderDialog = true }) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Folder")
-                    }
-                    IconButton(onClick = { showImportDialog = true }) {
-                        Icon(Icons.Default.CloudUpload, contentDescription = "Import Samsung Albums")
+                    IconButton(onClick = { showCreateGroupDialog = true }) {
+                        Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
                     }
                     IconButton(onClick = { showCreateAlbumDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Create Virtual Album")
@@ -114,88 +99,54 @@ fun AlbumsScreen(
         }
     ) { innerPadding ->
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+            columns = GridCells.Fixed(3),
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (samsungFolders.isNotEmpty() || samsungAlbums.any { it.folderId == null }) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Samsung Albums", style = MaterialTheme.typography.titleMedium)
-                        IconButton(onClick = {
-                            scope.launch {
-                                samsungImportManager.clearImportedData()
-                            }
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear Samsung Albums")
-                        }
-                    }
+            // Display album groups
+            if (groups.isNotEmpty()) {
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
+                    Text("Album Groups", style = MaterialTheme.typography.titleMedium)
                 }
-                
-                // Display folders with their albums in grid layout (Samsung Gallery style)
-                samsungFolders.forEach { folder ->
-                    val albumsInFolder = albumsByFolder[folder.id] ?: emptyList()
-                    if (albumsInFolder.isNotEmpty()) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
-                            Column {
-                                Text(
-                                    text = folder.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )
-                                // Display albums in a simple row for now (nested grids cause issues)
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    albumsInFolder.take(4).forEach { album ->
-                                        SamsungAlbumItem(
-                                            album = album,
-                                            onClick = { /* TODO: Navigate to album detail */ },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                items(groups) { group ->
+                    val albumsInGroup = groupedVirtualAlbums[group.id] ?: emptyList()
+                    GroupAlbumItem(
+                        group = group,
+                        albumsInGroup = albumsInGroup,
+                        images = images,
+                        onClick = { onGroupClick(group.id) }
+                    )
                 }
-                
-                // Display orphan albums (no folder) in grid
-                val orphanAlbums = albumsByFolder[null] ?: emptyList()
-                if (orphanAlbums.isNotEmpty()) {
-                    items(orphanAlbums) { album ->
-                        SamsungAlbumItem(
-                            album = album,
-                            onClick = { /* TODO: Navigate to album detail */ }
+            }
+
+            // Display ungrouped virtual albums
+            val ungroupedAlbums = groupedVirtualAlbums[null] ?: emptyList()
+            if (ungroupedAlbums.isNotEmpty()) {
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
+                    Text("Virtual Albums", style = MaterialTheme.typography.titleMedium)
+                }
+                items(ungroupedAlbums) { album ->
+                    val albumWithMedia = virtualAlbums.find { it.album.id == album.id }
+                    if (albumWithMedia != null) {
+                        val coverMedia = images.find { it.id == albumWithMedia.mediaIds.firstOrNull() }
+                        VirtualAlbumItem(
+                            albumWithMedia = albumWithMedia,
+                            coverMedia = coverMedia,
+                            onClick = { onVirtualAlbumClick(albumWithMedia) },
+                            onLongPress = {
+                                selectedAlbumForMove = album
+                                showMoveToGroupDialog = true
+                            }
                         )
                     }
                 }
             }
 
-            if (virtualAlbums.isNotEmpty()) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
-                    Text("Virtual Albums", style = MaterialTheme.typography.titleMedium)
-                }
-                items(virtualAlbums) { albumWithMedia ->
-                    val coverMedia = images.find { it.id == albumWithMedia.mediaIds.firstOrNull() }
-                    VirtualAlbumItem(
-                        albumWithMedia = albumWithMedia,
-                        coverMedia = coverMedia,
-                        onClick = { onVirtualAlbumClick(albumWithMedia) }
-                    )
-                }
-            }
-
-            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(3) }) {
                 Text("Folders", style = MaterialTheme.typography.titleMedium)
             }
             items(physicalAlbums) { album ->
@@ -235,76 +186,246 @@ fun AlbumsScreen(
         )
     }
 
-    if (showImportDialog) {
+    if (showCreateGroupDialog) {
         AlertDialog(
-            onDismissRequest = { showImportDialog = false },
-            title = { Text("Import Samsung Albums") },
+            onDismissRequest = { showCreateGroupDialog = false },
+            title = { Text("New Album Group") },
             text = {
-                Column {
-                    Text("Select a JSON file exported from Samsung Gallery")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    when (importStatus) {
-                        is SamsungImportManager.ImportStatus.Idle -> {
-                            Button(onClick = { filePickerLauncher.launch("application/json") }) {
-                                Text("Select File")
-                            }
-                        }
-                        is SamsungImportManager.ImportStatus.Loading -> {
-                            CircularProgressIndicator()
-                        }
-                        is SamsungImportManager.ImportStatus.Success -> {
-                            val status = importStatus as SamsungImportManager.ImportStatus.Success
-                            Text("Imported ${status.albumCount} albums and ${status.folderCount} folders")
-                        }
-                        is SamsungImportManager.ImportStatus.Error -> {
-                            val status = importStatus as SamsungImportManager.ImportStatus.Error
-                            Text("Error: ${status.message}", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
+                TextField(
+                    value = newGroupName,
+                    onValueChange = { newGroupName = it },
+                    placeholder = { Text("Group Name") },
+                    singleLine = true
+                )
             },
             confirmButton = {
-                TextButton(onClick = { showImportDialog = false }) {
-                    Text("Close")
+                TextButton(onClick = {
+                    if (newGroupName.isNotBlank()) {
+                        scope.launch {
+                            groupManager.createGroup(newGroupName)
+                            newGroupName = ""
+                            showCreateGroupDialog = false
+                        }
+                    }
+                }) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateGroupDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )
     }
 
-    if (showCreateFolderDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateFolderDialog = false },
-            title = { Text("Create Folder") },
-            text = {
-                Column {
-                    TextField(
-                        value = newFolderName,
-                        onValueChange = { newFolderName = it },
-                        label = { Text("Folder Name") },
-                        singleLine = true
+    if (showMoveToGroupDialog && selectedAlbumForMove != null) {
+        Dialog(onDismissRequest = {
+            showMoveToGroupDialog = false
+            selectedAlbumForMove = null
+        }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        "Move to Group",
+                        style = MaterialTheme.typography.titleLarge
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newFolderName.isNotBlank()) {
-                            scope.launch {
-                                samsungImportManager.createFolder(newFolderName)
-                                newFolderName = ""
-                                showCreateFolderDialog = false
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Select a group to move '${selectedAlbumForMove!!.name}' to:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(
+                        modifier = Modifier.height(200.dp)
+                    ) {
+                        item {
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        groupManager.moveAlbumToGroup(selectedAlbumForMove!!.id, null)
+                                        showMoveToGroupDialog = false
+                                        selectedAlbumForMove = null
+                                    }
+                                }
+                            ) {
+                                Text("No Group (Ungrouped)")
+                            }
+                        }
+                        items(groups.size) { index ->
+                            val group = groups[index]
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        groupManager.moveAlbumToGroup(selectedAlbumForMove!!.id, group.id)
+                                        showMoveToGroupDialog = false
+                                        selectedAlbumForMove = null
+                                    }
+                                }
+                            ) {
+                                Text(group.name)
                             }
                         }
                     }
-                ) {
-                    Text("Create")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateFolderDialog = false }) {
-                    Text("Cancel")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = {
+                            showMoveToGroupDialog = false
+                            selectedAlbumForMove = null
+                        }) {
+                            Text("Cancel")
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun GroupAlbumItem(
+    group: AlbumGroupEntity,
+    albumsInGroup: List<AlbumEntity>,
+    images: List<MediaItem>,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            when (albumsInGroup.size) {
+                0 -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.CreateNewFolder,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                1 -> {
+                    val albumWithMedia = albumsInGroup.first()
+                    val coverImage = images.firstOrNull()
+                    if (coverImage != null) {
+                        AsyncImage(
+                            model = coverImage.uri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+                2 -> {
+                    Row(Modifier.fillMaxSize()) {
+                        albumsInGroup.take(2).forEach { album ->
+                            val coverImage = images.firstOrNull()
+                            if (coverImage != null) {
+                                AsyncImage(
+                                    model = coverImage.uri,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                }
+                3 -> {
+                    Row(Modifier.fillMaxSize()) {
+                        Column(Modifier.weight(0.5f)) {
+                            albumsInGroup.take(2).forEach { album ->
+                                val coverImage = images.firstOrNull()
+                                if (coverImage != null) {
+                                    AsyncImage(
+                                        model = coverImage.uri,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+                        val coverImage = images.firstOrNull()
+                        if (coverImage != null) {
+                            AsyncImage(
+                                model = coverImage.uri,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .fillMaxHeight(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    // 4+ albums: 2x2 grid
+                    Column(Modifier.fillMaxSize()) {
+                        Row(Modifier.weight(1f)) {
+                            albumsInGroup.take(2).forEach { album ->
+                                val coverImage = images.firstOrNull()
+                                if (coverImage != null) {
+                                    AsyncImage(
+                                        model = coverImage.uri,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+                        Row(Modifier.weight(1f)) {
+                            albumsInGroup.drop(2).take(2).forEach { album ->
+                                val coverImage = images.firstOrNull()
+                                if (coverImage != null) {
+                                    AsyncImage(
+                                        model = coverImage.uri,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = group.name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+        Text(
+            text = "${albumsInGroup.size} albums",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -313,12 +434,18 @@ fun AlbumsScreen(
 fun VirtualAlbumItem(
     albumWithMedia: AlbumWithMedia,
     coverMedia: MediaItem?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongPress: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onLongPress() }
+                )
+            }
     ) {
         if (coverMedia != null) {
             AsyncImage(
@@ -384,41 +511,6 @@ fun AlbumItem(
             text = "${album.count} items",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-fun SamsungAlbumItem(
-    album: SamsungAlbumEntity,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        AsyncImage(
-            model = album.coverPath,
-            contentDescription = null,
-            modifier = Modifier
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp)),
-            contentScale = ContentScale.Crop
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = album.title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-        Text(
-            text = album.path,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
         )
     }
 }
