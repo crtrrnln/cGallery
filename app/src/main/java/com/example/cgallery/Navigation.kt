@@ -27,7 +27,7 @@ sealed interface GalleryKey : NavKey {
     data object Albums : GalleryKey
 
     @Serializable
-    data object Favorites : GalleryKey
+    data object Favourites : GalleryKey
 
     @Serializable
     data object Search : GalleryKey
@@ -75,7 +75,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) {
@@ -89,7 +89,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) {
@@ -101,14 +101,20 @@ fun GalleryNavDisplay(
                     onGroupClick = { groupId ->
                         onNavigate(GalleryKey.GroupDetail(groupId))
                     },
-                    onToggleAlbumVisibility = onToggleAlbumVisibility
+                    onToggleAlbumVisibility = onToggleAlbumVisibility,
+                    onSpecialAlbumClick = { type ->
+                        when (type) {
+                            com.example.cgallery.SpecialAlbumType.RECENTS -> onNavigate(GalleryKey.Gallery)
+                            com.example.cgallery.SpecialAlbumType.FAVOURITES -> onNavigate(GalleryKey.Favourites)
+                        }
+                    }
                 )
             }
 
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) { key ->
@@ -127,7 +133,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) { key ->
@@ -137,18 +143,21 @@ fun GalleryNavDisplay(
                     onAlbumClick = { albumName ->
                         onNavigate(GalleryKey.AlbumDetail(albumName))
                     },
+                    onGroupClick = { childGroupId ->
+                        onNavigate(GalleryKey.GroupDetail(childGroupId))
+                    },
                     onBack = onBack
                 )
             }
 
-            entry<GalleryKey.Favorites>(
+            entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) {
-                FavoritesScreen(
+                FavouritesScreen(
                     images = mediaItems,
                     onImageClick = onNavigate
                 )
@@ -157,7 +166,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.51")
+                        HomeScreen(version = "v0.52")
                     }
                 )
             ) {

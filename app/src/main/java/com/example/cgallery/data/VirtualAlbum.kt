@@ -5,12 +5,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
-@Entity(tableName = "physical_albums")
+@Entity(tableName = "physical_albums", indices = [Index(value = ["bucketName"], unique = true)])
 data class PhysicalAlbumEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val bucketName: String,
     val isHidden: Boolean = false,
-    val groupId: Long? = null
+    val groupId: Long? = null,
+    val sortOrder: Int = 0
 )
 
 @Entity(tableName = "album_groups")
@@ -44,7 +45,10 @@ interface PhysicalAlbumDao {
     @Query("UPDATE physical_albums SET groupId = :groupId WHERE bucketName = :bucketName")
     suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?)
 
-    @Query("SELECT * FROM physical_albums WHERE groupId = :groupId")
+    @Query("UPDATE physical_albums SET sortOrder = :sortOrder WHERE id = :albumId")
+    suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int)
+
+    @Query("SELECT * FROM physical_albums WHERE groupId = :groupId ORDER BY sortOrder")
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>>
 }
 
@@ -83,7 +87,7 @@ interface AlbumGroupDao {
         PhysicalAlbumEntity::class,
         AlbumGroupEntity::class
     ],
-    version = 4
+    version = 6
 )
 abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun physicalAlbumDao(): PhysicalAlbumDao

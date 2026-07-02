@@ -11,7 +11,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 enum class MediaType {
-    IMAGE, VIDEO
+    IMAGE, VIDEO, GIF
 }
 
 @Serializable

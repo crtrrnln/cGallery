@@ -31,4 +31,18 @@ class FavoritesManager(private val context: Context) {
             preferences[FAVORITES_KEY] = next
         }
     }
+
+    suspend fun addFavorite(id: Long) {
+        context.dataStore.edit { preferences ->
+            val current = preferences[FAVORITES_KEY] ?: emptySet()
+            preferences[FAVORITES_KEY] = current + id.toString()
+        }
+    }
+
+    suspend fun removeFavorite(id: Long) {
+        context.dataStore.edit { preferences ->
+            val current = preferences[FAVORITES_KEY] ?: emptySet()
+            preferences[FAVORITES_KEY] = current - id.toString()
+        }
+    }
 }

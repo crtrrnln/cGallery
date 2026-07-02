@@ -17,15 +17,17 @@ class PhysicalAlbumManager(context: Context) {
     suspend fun syncAlbums(bucketNames: List<String>) {
         val existingAlbums = physicalAlbumDao.getAllAlbums().first()
         val existingBucketNames = existingAlbums.map { it.bucketName }.toSet()
+        val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
 
         // Add new albums
-        bucketNames.forEach { bucketName ->
+        bucketNames.forEachIndexed { index, bucketName ->
             if (!existingBucketNames.contains(bucketName)) {
                 physicalAlbumDao.insertAlbum(
                     PhysicalAlbumEntity(
                         bucketName = bucketName,
                         isHidden = false,
-                        groupId = null
+                        groupId = null,
+                        sortOrder = maxSortOrder + 1 + index
                     )
                 )
             }
@@ -48,6 +50,10 @@ class PhysicalAlbumManager(context: Context) {
 
     suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?) {
         physicalAlbumDao.moveAlbumToGroup(bucketName, groupId)
+    }
+
+    suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int) {
+        physicalAlbumDao.updateAlbumSortOrder(albumId, sortOrder)
     }
 
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {

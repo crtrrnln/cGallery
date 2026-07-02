@@ -18,7 +18,7 @@ import com.example.cgallery.data.MediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FavoritesScreen(
+fun FavouritesScreen(
     images: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
@@ -26,7 +26,7 @@ fun FavoritesScreen(
     val context = LocalContext.current
     val favoritesManager = remember { FavoritesManager(context) }
     val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
-    
+
     val favoriteImages = remember(images, favoriteIds) {
         images.filter { it.id in favoriteIds }
     }
@@ -34,7 +34,7 @@ fun FavoritesScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Favorites") }
+                title = { Text("Favourites") }
             )
         }
     ) { innerPadding ->
@@ -44,7 +44,7 @@ fun FavoritesScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No favorites yet",
+                    text = "No favourites yet",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

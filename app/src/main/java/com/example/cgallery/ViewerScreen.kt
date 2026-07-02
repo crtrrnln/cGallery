@@ -16,6 +16,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +30,7 @@ import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.MediaStoreDataSource
 import com.example.cgallery.data.MediaType
+import com.example.cgallery.data.FavoritesManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,6 +44,8 @@ fun ViewerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val dataSource = remember { MediaStoreDataSource(context) }
+    val favoritesManager = remember { FavoritesManager(context) }
+    val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
     var images by remember { mutableStateOf(emptyList<MediaItem>()) }
 
     LaunchedEffect(filteredMedia) {
@@ -93,6 +98,22 @@ fun ViewerScreen(
                 },
                 actions = {
                     currentImage?.let { image ->
+                        val isFavorite = image.id in favoriteIds
+                        IconButton(onClick = {
+                            scope.launch {
+                                if (isFavorite) {
+                                    favoritesManager.removeFavorite(image.id)
+                                } else {
+                                    favoritesManager.addFavorite(image.id)
+                                }
+                            }
+                        }) {
+                            Icon(
+                                if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                contentDescription = if (isFavorite) "Remove from Favourites" else "Add to Favourites",
+                                tint = Color.White
+                            )
+                        }
                         IconButton(onClick = {
                             val shareIntent = Intent().apply {
                                 action = Intent.ACTION_SEND

@@ -54,6 +54,8 @@ class MediaStoreDataSource(private val context: Context) {
 
                 val type = if (typeInt == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO) {
                     MediaType.VIDEO
+                } else if (name.lowercase().endsWith(".gif")) {
+                    MediaType.GIF
                 } else {
                     MediaType.IMAGE
                 }

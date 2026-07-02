@@ -37,6 +37,14 @@ class AlbumGroupManager(context: Context) {
         albumsInGroup.forEach { album ->
             physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
         }
+
+        // Move child groups to root (parentId = null)
+        val allGroups = groupDao.getAllGroups().first()
+        val childGroups = allGroups.filter { it.parentId == group.id }
+        childGroups.forEach { childGroup ->
+            groupDao.moveGroup(childGroup.id, null)
+        }
+
         groupDao.deleteGroup(group)
     }
 
@@ -79,6 +87,10 @@ class AlbumGroupManager(context: Context) {
             groupDao.updateGroupSortOrder(groupId, nextGroup.sortOrder)
             groupDao.updateGroupSortOrder(nextGroup.id, group.sortOrder)
         }
+    }
+
+    suspend fun updateGroupSortOrder(groupId: Long, sortOrder: Int) {
+        groupDao.updateGroupSortOrder(groupId, sortOrder)
     }
 
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {

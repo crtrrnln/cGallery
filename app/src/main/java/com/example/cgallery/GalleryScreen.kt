@@ -93,7 +93,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.5",
+                                "v0.52",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -191,27 +191,36 @@ fun GalleryScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                    
+
+                    // Video indicator (small play icon in bottom-right corner)
                     if (image.type == MediaType.VIDEO) {
                         Icon(
-                            imageVector = Icons.Default.PlayCircle,
+                            Icons.Default.PlayCircle,
                             contentDescription = "Video",
                             tint = Color.White.copy(alpha = 0.8f),
                             modifier = Modifier
-                                .align(Alignment.Center)
-                                .size(48.dp)
-                        )
-                        
-                        Text(
-                            text = formatDuration(image.duration),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(4.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .padding(6.dp)
+                                .size(24.dp)
                         )
+                    }
+
+                    // GIF indicator (small badge in top-left corner)
+                    if (image.type == MediaType.GIF) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(4.dp)
+                                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "GIF",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                        }
                     }
 
                     if (isSelected) {

@@ -74,9 +74,9 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         if (showBottomBar) {
                             NavigationBar {
-                                val currentBase = backstack.firstOrNull { 
-                                    it is GalleryKey.Gallery || it is GalleryKey.Albums || 
-                                    it is GalleryKey.Favorites || it is GalleryKey.Search 
+                                val currentBase = backstack.firstOrNull {
+                                    it is GalleryKey.Gallery || it is GalleryKey.Albums ||
+                                    it is GalleryKey.Favourites || it is GalleryKey.Search
                                 } ?: GalleryKey.Gallery
 
                                 NavigationBarItem(
@@ -92,10 +92,10 @@ class MainActivity : ComponentActivity() {
                                     label = { Text("Albums") }
                                 )
                                 NavigationBarItem(
-                                    selected = currentBase is GalleryKey.Favorites,
-                                    onClick = { backstack = listOf(GalleryKey.Favorites) },
-                                    icon = { Icon(Icons.Rounded.Favorite, "Favorites") },
-                                    label = { Text("Favorites") }
+                                    selected = currentBase is GalleryKey.Favourites,
+                                    onClick = { backstack = listOf(GalleryKey.Favourites) },
+                                    icon = { Icon(Icons.Rounded.Favorite, "Favourites") },
+                                    label = { Text("Favourites") }
                                 )
                                 NavigationBarItem(
                                     selected = currentBase is GalleryKey.Search,
@@ -124,8 +124,23 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigate = { newKey ->
                                 backstack = when (newKey) {
-                                    is GalleryKey.Gallery, is GalleryKey.Albums,
-                                    is GalleryKey.Favorites, is GalleryKey.Search -> listOf(newKey)
+                                    is GalleryKey.Albums, is GalleryKey.Search -> listOf(newKey)
+                                    is GalleryKey.Favourites -> {
+                                        // If navigating from Albums, preserve Albums in backstack
+                                        if (backstack.lastOrNull() is GalleryKey.Albums) {
+                                            backstack + newKey
+                                        } else {
+                                            listOf(newKey)
+                                        }
+                                    }
+                                    is GalleryKey.Gallery -> {
+                                        // If navigating from Favourites, preserve Favourites in backstack
+                                        if (backstack.lastOrNull() is GalleryKey.Favourites) {
+                                            backstack + newKey
+                                        } else {
+                                            listOf(newKey)
+                                        }
+                                    }
                                     is GalleryKey.AlbumDetail -> {
                                         // Allow pushing album detail onto albums list
                                         backstack + newKey
