@@ -40,15 +40,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.MediaType
+import com.example.cgallery.ui.MediaGridItem
 import kotlinx.coroutines.launch
-
-@Composable
-private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = durationMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -63,6 +56,29 @@ fun GalleryScreen(
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
     var showAlbumSelection by remember { mutableStateOf(false) }
+
+    val imagesMap = remember(images) { images.associateBy { it.id } }
+    val currentSelectedIds by rememberUpdatedState(selectedIds)
+    val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
+    val currentOnImageClick by rememberUpdatedState(onImageClick)
+
+    val onToggleSelection = remember {
+        { id: Long ->
+            selectedIds = if (id in currentSelectedIds) {
+                currentSelectedIds - id
+            } else {
+                currentSelectedIds + id
+            }
+        }
+    }
+
+    val onLongClickItem = remember {
+        { id: Long ->
+            if (currentSelectedIds.isEmpty()) {
+                selectedIds = setOf(id)
+            }
+        }
+    }
 
     BackHandler(enabled = isSelectionMode) {
         selectedIds = emptySet()
@@ -93,7 +109,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.52",
+                                "v0.53",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -115,7 +131,7 @@ fun GalleryScreen(
                             Icon(Icons.Default.Add, contentDescription = "Add to Album")
                         }
                         IconButton(onClick = {
-                            val selectedUris = images.filter { it.id in selectedIds }.map { it.uri }
+                            val selectedUris = selectedIds.mapNotNull { imagesMap[it]?.uri }
                             val shareIntent = Intent().apply {
                                 action = Intent.ACTION_SEND_MULTIPLE
                                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(selectedUris))
@@ -126,7 +142,7 @@ fun GalleryScreen(
                             Icon(Icons.Default.Share, contentDescription = "Share")
                         }
                         IconButton(onClick = {
-                            val selectedUris = images.filter { it.id in selectedIds }.map { it.uri }
+                            val selectedUris = selectedIds.mapNotNull { imagesMap[it]?.uri }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                                 val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, selectedUris)
                                 deleteLauncher.launch(IntentSenderRequest.Builder(pendingIntent.intentSender).build())
@@ -159,93 +175,28 @@ fun GalleryScreen(
         ) {
             itemsIndexed(images, key = { _, image -> image.id }) { index, image ->
                 val isSelected = image.id in selectedIds
-                val itemPadding by animateDpAsState(if (isSelected) 8.dp else 2.dp, label = "padding")
-                
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .padding(itemPadding)
-                        .clip(RoundedCornerShape(if (isSelected) 12.dp else 0.dp))
-                        .combinedClickable(
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedIds = if (isSelected) {
-                                        selectedIds - image.id
-                                    } else {
-                                        selectedIds + image.id
-                                    }
-                                } else {
-                                    onImageClick(GalleryKey.Viewer(index))
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    selectedIds = setOf(image.id)
-                                }
-                            }
-                        )
-                ) {
-                    AsyncImage(
-                        model = image.uri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    // Video indicator (small play icon in bottom-right corner)
-                    if (image.type == MediaType.VIDEO) {
-                        Icon(
-                            Icons.Default.PlayCircle,
-                            contentDescription = "Video",
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(6.dp)
-                                .size(24.dp)
-                        )
-                    }
-
-                    // GIF indicator (small badge in top-left corner)
-                    if (image.type == MediaType.GIF) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(4.dp)
-                                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "GIF",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                            )
+                MediaGridItem(
+                    image = image,
+                    index = index,
+                    isSelected = isSelected,
+                    isSelectionMode = isSelectionMode,
+                    onClick = {
+                        if (currentIsSelectionMode) {
+                            onToggleSelection(image.id)
+                        } else {
+                            currentOnImageClick(GalleryKey.Viewer(index))
                         }
+                    },
+                    onLongClick = {
+                        onLongClickItem(image.id)
                     }
-
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
-                        )
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(4.dp)
-                                .size(24.dp)
-                        )
-                    }
-                }
+                )
             }
         }
     }
 
     if (showAlbumSelection) {
+// ...
         AlertDialog(
             onDismissRequest = { showAlbumSelection = false },
             title = { Text("Add to Album") },

@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
 
                 val mediaStoreViewModel: MediaStoreViewModel = viewModel()
                 val mediaItems by mediaStoreViewModel.mediaItems.collectAsState()
+                val mediaByBucket by mediaStoreViewModel.mediaByBucket.collectAsState()
+                val favoriteMedia by mediaStoreViewModel.favoriteMedia.collectAsState()
 
                 var backstack by remember {
                     mutableStateOf(
@@ -65,6 +67,50 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val windowAdaptiveInfo = currentWindowAdaptiveInfo()
                 val isSinglePane = windowAdaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT
+
+                val currentBackstack by rememberUpdatedState(backstack)
+                val onNavigate = remember {
+                    { newKey: GalleryKey ->
+                        backstack = when (newKey) {
+                            is GalleryKey.Albums, is GalleryKey.Search -> listOf(newKey)
+                            is GalleryKey.Favourites -> {
+                                if (currentBackstack.lastOrNull() is GalleryKey.Albums) {
+                                    currentBackstack + newKey
+                                } else {
+                                    listOf(newKey)
+                                }
+                            }
+                            is GalleryKey.Gallery -> {
+                                if (currentBackstack.lastOrNull() is GalleryKey.Favourites) {
+                                    currentBackstack + newKey
+                                } else {
+                                    listOf(newKey)
+                                }
+                            }
+                            is GalleryKey.AlbumDetail -> {
+                                currentBackstack + newKey
+                            }
+                            is GalleryKey.Viewer -> {
+                                if (currentBackstack.lastOrNull() is GalleryKey.Viewer) {
+                                    currentBackstack.dropLast(1) + newKey
+                                } else {
+                                    currentBackstack + newKey
+                                }
+                            }
+                            else -> currentBackstack + newKey
+                        }
+                    }
+                }
+
+                val onBack = remember {
+                    {
+                        if (currentBackstack.size > 1) {
+                            backstack = currentBackstack.dropLast(1)
+                        } else {
+                            finish()
+                        }
+                    }
+                }
 
                 val showBottomBar = isPermissionGranted && 
                     (!isSinglePane || backstack.lastOrNull() !is GalleryKey.Viewer)
@@ -111,50 +157,14 @@ class MainActivity : ComponentActivity() {
                         GalleryNavDisplay(
                             backstack = backstack,
                             mediaItems = mediaItems,
+                            mediaByBucket = mediaByBucket,
+                            favoriteMedia = favoriteMedia,
                             onAddToAlbum = { albumId, mediaIds ->
                                 mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
                             },
                             onReloadMedia = { mediaStoreViewModel.loadMedia() },
-                            onBack = {
-                                if (backstack.size > 1) {
-                                    backstack = backstack.dropLast(1)
-                                } else {
-                                    finish()
-                                }
-                            },
-                            onNavigate = { newKey ->
-                                backstack = when (newKey) {
-                                    is GalleryKey.Albums, is GalleryKey.Search -> listOf(newKey)
-                                    is GalleryKey.Favourites -> {
-                                        // If navigating from Albums, preserve Albums in backstack
-                                        if (backstack.lastOrNull() is GalleryKey.Albums) {
-                                            backstack + newKey
-                                        } else {
-                                            listOf(newKey)
-                                        }
-                                    }
-                                    is GalleryKey.Gallery -> {
-                                        // If navigating from Favourites, preserve Favourites in backstack
-                                        if (backstack.lastOrNull() is GalleryKey.Favourites) {
-                                            backstack + newKey
-                                        } else {
-                                            listOf(newKey)
-                                        }
-                                    }
-                                    is GalleryKey.AlbumDetail -> {
-                                        // Allow pushing album detail onto albums list
-                                        backstack + newKey
-                                    }
-                                    is GalleryKey.Viewer -> {
-                                        if (backstack.lastOrNull() is GalleryKey.Viewer) {
-                                            backstack.dropLast(1) + newKey
-                                        } else {
-                                            backstack + newKey
-                                        }
-                                    }
-                                    else -> backstack + newKey
-                                }
-                            },
+                            onBack = onBack,
+                            onNavigate = onNavigate,
                             onToggleAlbumVisibility = { bucketName ->
                                 mediaStoreViewModel.toggleAlbumVisibility(bucketName)
                             },

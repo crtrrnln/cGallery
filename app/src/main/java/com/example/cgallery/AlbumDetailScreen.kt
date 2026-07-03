@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.MediaType
+import com.example.cgallery.ui.MediaGridItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,7 @@ fun AlbumDetailScreen(
             )
         }
     ) { innerPadding ->
+        val currentOnImageClick by rememberUpdatedState(onImageClick)
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = modifier
@@ -52,53 +54,14 @@ fun AlbumDetailScreen(
                 .padding(innerPadding),
             contentPadding = PaddingValues(4.dp)
         ) {
-            items(images, key = { it.id }) { image ->
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .padding(2.dp)
-                        .clickable {
-                            onImageClick(GalleryKey.Viewer(images.indexOf(image)))
-                        }
-                ) {
-                    AsyncImage(
-                        model = image.uri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    // Video indicator (small play icon in bottom-right corner)
-                    if (image.type == MediaType.VIDEO) {
-                        Icon(
-                            Icons.Default.PlayCircle,
-                            contentDescription = "Video",
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(6.dp)
-                                .size(24.dp)
-                        )
+            itemsIndexed(images, key = { _, it -> it.id }) { index, image ->
+                MediaGridItem(
+                    image = image,
+                    index = index,
+                    onClick = {
+                        currentOnImageClick(GalleryKey.Viewer(index))
                     }
-
-                    // GIF indicator (small badge in top-left corner)
-                    if (image.type == MediaType.GIF) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .padding(4.dp)
-                                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "GIF",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
+                )
             }
         }
     }

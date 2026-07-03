@@ -8,6 +8,9 @@ import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -23,8 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
@@ -32,6 +38,7 @@ import com.example.cgallery.data.MediaStoreDataSource
 import com.example.cgallery.data.MediaType
 import com.example.cgallery.data.FavoritesManager
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,14 +53,8 @@ fun ViewerScreen(
     val dataSource = remember { MediaStoreDataSource(context) }
     val favoritesManager = remember { FavoritesManager(context) }
     val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
-    var images by remember { mutableStateOf(emptyList<MediaItem>()) }
-
-    LaunchedEffect(filteredMedia) {
-        images = if (filteredMedia != null) {
-            filteredMedia
-        } else {
-            dataSource.fetchMedia()
-        }
+    var images by remember(mediaItems, filteredMedia) {
+        mutableStateOf(filteredMedia ?: mediaItems)
     }
 
     if (images.isEmpty()) {
@@ -82,6 +83,9 @@ fun ViewerScreen(
             }
         }
     }
+
+    val offsetY = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
 
     Scaffold(
         topBar = {
@@ -161,39 +165,74 @@ fun ViewerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.5f),
+                    containerColor = Color.Black.copy(alpha = (0.5f * scale.value).coerceIn(0f, 0.5f)),
                     navigationIconContentColor = Color.White,
                     actionIconContentColor = Color.White
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = Color.Black.copy(alpha = scale.value.coerceIn(0f, 1f))
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            pageSpacing = 16.dp,
-            beyondViewportPageCount = 2
-        ) { page ->
-            val image = images[page]
-            Box(
+                .padding(innerPadding)
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            // Only consume vertical drag if we're not dragging horizontally much
+                            if (kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) || offsetY.value != 0f) {
+                                change.consume()
+                                scope.launch {
+                                    offsetY.snapTo(offsetY.value + dragAmount.y)
+                                    val newScale = (1f - (kotlin.math.abs(offsetY.value) / 1500f)).coerceIn(0.7f, 1f)
+                                    scale.snapTo(newScale)
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            if (kotlin.math.abs(offsetY.value) > 300f) {
+                                onBack()
+                            } else {
+                                scope.launch {
+                                    launch { offsetY.animateTo(0f, tween(200)) }
+                                    launch { scale.animateTo(1f, tween(200)) }
+                                }
+                            }
+                        }
+                    )
+                }
+                .graphicsLayer {
+                    translationY = offsetY.value
+                    scaleX = scale.value
+                    scaleY = scale.value
+                }
+        ) {
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                if (image.type == MediaType.VIDEO) {
-                    VideoPlayer(
-                        uri = image.uri,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    AsyncImage(
-                        model = image.uri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
+                pageSpacing = 16.dp,
+                beyondViewportPageCount = 2
+            ) { page ->
+                val image = images[page]
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (image.type == MediaType.VIDEO) {
+                        VideoPlayer(
+                            uri = image.uri,
+                            isActive = pagerState.currentPage == page,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        AsyncImage(
+                            model = image.uri,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 }
             }
         }

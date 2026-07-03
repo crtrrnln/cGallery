@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
+import com.example.cgallery.ui.MediaGridItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,12 +34,18 @@ fun SearchScreen(
 
     val filteredImages = remember(searchQuery, images) {
         if (searchQuery.isBlank()) emptyList()
-        else images.filter { it.displayName.contains(searchQuery, ignoreCase = true) }
+        else {
+            val query = searchQuery.lowercase()
+            images.filter { it.displayName.lowercase().contains(query) }
+        }
     }
 
     val filteredAlbums = remember(searchQuery, allAlbums) {
         if (searchQuery.isBlank()) emptyList()
-        else allAlbums.filter { it.contains(searchQuery, ignoreCase = true) }
+        else {
+            val query = searchQuery.lowercase()
+            allAlbums.filter { it.lowercase().contains(query) }
+        }
     }
 
     Scaffold(
@@ -63,6 +70,7 @@ fun SearchScreen(
             )
         }
     ) { innerPadding ->
+        val currentOnImageClick by rememberUpdatedState(onImageClick)
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
@@ -95,14 +103,14 @@ fun SearchScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         userScrollEnabled = false
                     ) {
-                        items(filteredImages) { image ->
-                            AsyncImage(
-                                model = image.uri,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clickable { onImageClick(GalleryKey.Viewer(images.indexOf(image))) },
-                                contentScale = ContentScale.Crop
+                        items(filteredImages, key = { it.id }) { image ->
+                            val fullIndex = remember(image, images) { images.indexOf(image) }
+                            MediaGridItem(
+                                image = image,
+                                index = fullIndex,
+                                onClick = {
+                                    currentOnImageClick(GalleryKey.Viewer(fullIndex))
+                                }
                             )
                         }
                     }

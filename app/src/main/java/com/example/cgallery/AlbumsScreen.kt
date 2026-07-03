@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.data.AlbumGroupManager
 import com.example.cgallery.data.AlbumGroupEntity
@@ -97,6 +98,8 @@ fun AlbumsScreen(
     val favoritesManager = remember { FavoritesManager(context) }
     val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
 
+    val mediaByBucket = remember(images) { images.groupBy { it.bucketName } }
+
     val visibleAlbums = remember(physicalAlbums, isHideShowMode) {
         if (isHideShowMode) {
             physicalAlbums
@@ -110,9 +113,9 @@ fun AlbumsScreen(
         visibleAlbums.filter { it.groupId == null }.distinctBy { it.bucketName }
     }
 
-    val albumsWithDetails = remember(ungroupedAlbums, images) {
+    val albumsWithDetails = remember(ungroupedAlbums, mediaByBucket) {
         ungroupedAlbums.mapNotNull { albumEntity ->
-            val imagesInAlbum = images.filter { it.bucketName == albumEntity.bucketName }
+            val imagesInAlbum = mediaByBucket[albumEntity.bucketName] ?: emptyList()
             if (imagesInAlbum.isNotEmpty()) {
                 Album(
                     name = albumEntity.bucketName,
@@ -135,7 +138,7 @@ fun AlbumsScreen(
         albumsByGroup
     }
 
-    val displayItems = remember(groups, albumsWithDetails, physicalAlbums, images) {
+    val displayItems = remember(groups, albumsWithDetails, physicalAlbums) {
         val items = mutableListOf<DisplayItem>()
         // Add special albums
         items.add(DisplayItem.SpecialAlbum("Recent", SpecialAlbumType.RECENTS))
@@ -220,7 +223,7 @@ fun AlbumsScreen(
                         GroupAlbumItem(
                             group = item.group,
                             albumsInGroup = albumsInGroup,
-                            images = images,
+                            mediaByBucket = mediaByBucket,
                             allGroups = allGroups,
                             getAlbumsByGroup = { groupId -> groupedAlbums[groupId] ?: emptyList() },
                             onClick = { onGroupClick(item.group.id) },
@@ -643,14 +646,14 @@ fun SpecialAlbumItem(
     val coverImage = remember(type, images, favoriteIds) {
         when (type) {
             SpecialAlbumType.RECENTS -> images.firstOrNull()
-            SpecialAlbumType.FAVOURITES -> images.filter { it.id in favoriteIds }.firstOrNull()
+            SpecialAlbumType.FAVOURITES -> images.find { it.id in favoriteIds }
         }
     }
 
     val itemCount = remember(type, images, favoriteIds) {
         when (type) {
             SpecialAlbumType.RECENTS -> images.size
-            SpecialAlbumType.FAVOURITES -> images.count { it.id in favoriteIds }
+            SpecialAlbumType.FAVOURITES -> favoriteIds.size // Much faster than images.count { it.id in favoriteIds }
         }
     }
 
@@ -667,7 +670,11 @@ fun SpecialAlbumItem(
         ) {
             if (coverImage != null) {
                 AsyncImage(
-                    model = coverImage.uri,
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(coverImage.uri)
+                        .crossfade(true)
+                        .size(180)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -705,7 +712,7 @@ fun SpecialAlbumItem(
 fun GroupAlbumItem(
     group: AlbumGroupEntity,
     albumsInGroup: List<PhysicalAlbumEntity>,
-    images: List<MediaItem>,
+    mediaByBucket: Map<String, List<MediaItem>>,
     allGroups: List<AlbumGroupEntity>,
     getAlbumsByGroup: (Long?) -> List<PhysicalAlbumEntity>,
     onClick: () -> Unit,
@@ -778,10 +785,14 @@ fun GroupAlbumItem(
                 }
                 1 -> {
                     val album = allAlbumsInHierarchy.first()
-                    val coverImage = images.find { it.bucketName == album.bucketName }
+                    val coverImage = mediaByBucket[album.bucketName]?.firstOrNull()
                     if (coverImage != null) {
                         AsyncImage(
-                            model = coverImage.uri,
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(coverImage.uri)
+                                .crossfade(true)
+                                .size(180)
+                                .build(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
@@ -791,10 +802,14 @@ fun GroupAlbumItem(
                 2 -> {
                     Row(Modifier.fillMaxSize()) {
                         allAlbumsInHierarchy.take(2).forEach { album ->
-                            val coverImage = images.find { it.bucketName == album.bucketName }
+                            val coverImage = mediaByBucket[album.bucketName]?.firstOrNull()
                             if (coverImage != null) {
                                 AsyncImage(
-                                    model = coverImage.uri,
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(coverImage.uri)
+                                        .crossfade(true)
+                                        .size(180)
+                                        .build(),
                                     contentDescription = null,
                                     modifier = Modifier
                                         .weight(1f)
@@ -809,10 +824,14 @@ fun GroupAlbumItem(
                     Row(Modifier.fillMaxSize()) {
                         Column(Modifier.weight(0.5f)) {
                             allAlbumsInHierarchy.take(2).forEach { album ->
-                                val coverImage = images.find { it.bucketName == album.bucketName }
+                                val coverImage = mediaByBucket[album.bucketName]?.firstOrNull()
                                 if (coverImage != null) {
                                     AsyncImage(
-                                        model = coverImage.uri,
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(coverImage.uri)
+                                            .crossfade(true)
+                                            .size(180)
+                                            .build(),
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
@@ -822,10 +841,14 @@ fun GroupAlbumItem(
                                 }
                             }
                         }
-                        val coverImage = images.find { it.bucketName == allAlbumsInHierarchy[2].bucketName }
+                        val coverImage = mediaByBucket[allAlbumsInHierarchy[2].bucketName]?.firstOrNull()
                         if (coverImage != null) {
                             AsyncImage(
-                                model = coverImage.uri,
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(coverImage.uri)
+                                    .crossfade(true)
+                                    .size(180)
+                                    .build(),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .weight(0.5f)
@@ -840,10 +863,14 @@ fun GroupAlbumItem(
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.weight(1f)) {
                             allAlbumsInHierarchy.take(2).forEach { album ->
-                                val coverImage = images.find { it.bucketName == album.bucketName }
+                                val coverImage = mediaByBucket[album.bucketName]?.firstOrNull()
                                 if (coverImage != null) {
                                     AsyncImage(
-                                        model = coverImage.uri,
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(coverImage.uri)
+                                            .crossfade(true)
+                                            .size(180)
+                                            .build(),
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
@@ -855,10 +882,14 @@ fun GroupAlbumItem(
                         }
                         Row(Modifier.weight(1f)) {
                             allAlbumsInHierarchy.drop(2).take(2).forEach { album ->
-                                val coverImage = images.find { it.bucketName == album.bucketName }
+                                val coverImage = mediaByBucket[album.bucketName]?.firstOrNull()
                                 if (coverImage != null) {
                                     AsyncImage(
-                                        model = coverImage.uri,
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(coverImage.uri)
+                                            .crossfade(true)
+                                            .size(180)
+                                            .build(),
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
@@ -903,7 +934,11 @@ fun AlbumItem(
     ) {
         Box {
             AsyncImage(
-                model = album.coverImage.uri,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(album.coverImage.uri)
+                    .crossfade(true)
+                    .size(180)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier
                     .aspectRatio(1f)

@@ -47,6 +47,8 @@ sealed interface GalleryKey : NavKey {
 fun GalleryNavDisplay(
     backstack: List<GalleryKey>,
     mediaItems: List<MediaItem>,
+    mediaByBucket: Map<String, List<MediaItem>>,
+    favoriteMedia: List<MediaItem>,
     onAddToAlbum: (Long, Set<Long>) -> Unit,
     onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
@@ -75,7 +77,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) {
@@ -89,7 +91,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) {
@@ -114,12 +116,12 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) { key ->
-                val albumImages = remember(key, mediaItems) {
-                    mediaItems.filter { it.bucketName == key.id }
+                val albumImages = remember(key, mediaByBucket) {
+                    mediaByBucket[key.id] ?: emptyList()
                 }
 
                 AlbumDetailScreen(
@@ -133,7 +135,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) { key ->
@@ -153,12 +155,13 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) {
                 FavouritesScreen(
                     images = mediaItems,
+                    favoriteImages = favoriteMedia,
                     onImageClick = onNavigate
                 )
             }
@@ -166,7 +169,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.52")
+                        HomeScreen(version = "v0.53")
                     }
                 )
             ) {

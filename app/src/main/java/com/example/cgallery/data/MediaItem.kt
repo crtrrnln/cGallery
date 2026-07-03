@@ -10,10 +10,13 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
+import androidx.compose.runtime.Immutable
+
 enum class MediaType {
     IMAGE, VIDEO, GIF
 }
 
+@Immutable
 @Serializable
 data class MediaItem(
     val id: Long,

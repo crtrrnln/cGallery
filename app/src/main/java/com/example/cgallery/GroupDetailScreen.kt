@@ -63,12 +63,14 @@ fun GroupDetailScreen(
     val albumsInGroup by groupManager.getAlbumsByGroup(groupId).collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
 
+    val mediaByBucket = remember(images) { images.groupBy { it.bucketName } }
+
     // Get child groups of this group
     val childGroups = remember(allGroups, groupId) {
         allGroups.filter { it.parentId == groupId }
     }
 
-    val displayItems = remember(childGroups, albumsInGroup, images) {
+    val displayItems = remember(childGroups, albumsInGroup, mediaByBucket) {
         val items = mutableListOf<GroupDisplayItem>()
         // Add child groups
         childGroups.forEach { childGroup ->
@@ -76,7 +78,7 @@ fun GroupDetailScreen(
         }
         // Add albums in this group
         albumsInGroup.forEach { albumEntity ->
-            val imagesInAlbum = images.filter { it.bucketName == albumEntity.bucketName }
+            val imagesInAlbum = mediaByBucket[albumEntity.bucketName] ?: emptyList()
             if (imagesInAlbum.isNotEmpty()) {
                 val album = Album(
                     name = albumEntity.bucketName,
@@ -135,15 +137,19 @@ fun GroupDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(displayItems) { item ->
+                items(displayItems, key = { item ->
+                    when (item) {
+                        is GroupDisplayItem.GroupItem -> "group_${item.group.id}"
+                        is GroupDisplayItem.AlbumItem -> "album_${item.album.name}"
+                    }
+                }) { item ->
                     when (item) {
                         is GroupDisplayItem.GroupItem -> {
                             val albumsInChildGroup by groupManager.getAlbumsByGroup(item.group.id).collectAsState(initial = emptyList())
-                            // For GroupDetailScreen, we don't need nested group covers, so pass empty for nested logic
                             GroupAlbumItem(
                                 group = item.group,
                                 albumsInGroup = albumsInChildGroup,
-                                images = images,
+                                mediaByBucket = mediaByBucket,
                                 allGroups = emptyList(),
                                 getAlbumsByGroup = { emptyList() },
                                 onClick = { onGroupClick(item.group.id) }
