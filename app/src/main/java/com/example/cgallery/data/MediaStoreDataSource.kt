@@ -46,8 +46,8 @@ class MediaStoreDataSource(private val context: Context) {
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val name = cursor.getString(nameColumn) ?: ""
-                val bucket = cursor.getString(bucketColumn) ?: "Unknown"
-                val path = cursor.getString(pathColumn) ?: ""
+                val bucket = cursor.getString(bucketColumn)?.intern() ?: "Unknown"
+                val path = cursor.getString(pathColumn)?.intern() ?: ""
                 val typeInt = cursor.getInt(typeColumn)
                 val dateAdded = cursor.getLong(dateColumn)
                 val duration = if (durationColumn != -1) cursor.getLong(durationColumn) else 0L

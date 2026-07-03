@@ -1,5 +1,6 @@
 package com.example.cgallery.ui
 
+import android.graphics.Bitmap
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -15,9 +16,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -35,28 +42,61 @@ fun MediaGridItem(
     index: Int,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
+    onItemClick: (Int, Long) -> Unit,
+    onItemLongClick: (Long) -> Unit = { _ -> },
     modifier: Modifier = Modifier
 ) {
-    val itemPadding by animateDpAsState(if (isSelected) 8.dp else 2.dp, label = "padding")
+    // Optimization: Skip animation calculations when not in selection mode to save UI thread cycles
+    val itemPadding = if (isSelectionMode) {
+        animateDpAsState(if (isSelected) 8.dp else 2.dp, label = "padding").value
+    } else {
+        2.dp
+    }
+
+    val context = LocalContext.current
+    val imageRequest = remember(image.uri) {
+        ImageRequest.Builder(context)
+            .data(image.uri)
+            .crossfade(false) // Optimization: Disable crossfade for faster list popping
+            .bitmapConfig(Bitmap.Config.RGB_565) // Optimization: 50% memory saving (2 bytes per pixel instead of 4)
+            .size(180)
+            .build()
+    }
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val checkIcon = rememberVectorPainter(Icons.Default.CheckCircle)
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .padding(itemPadding)
-            .clip(RoundedCornerShape(if (isSelected) 12.dp else 0.dp))
+            .then(
+                // Optimization: Use drawWithCache for overlay to reduce layout nodes and overdraw
+                if (isSelected) {
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .drawWithCache {
+                            onDrawWithContent {
+                                drawContent()
+                                drawRect(primaryColor.copy(alpha = 0.2f))
+                                val iconSize = 24.dp.toPx()
+                                val padding = 4.dp.toPx()
+                                translate(left = size.width - iconSize - padding, top = padding) {
+                                    with(checkIcon) {
+                                        draw(size = Size(iconSize, iconSize))
+                                    }
+                                }
+                            }
+                        }
+                } else Modifier
+            )
             .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+                onClick = { onItemClick(index, image.id) },
+                onLongClick = { onItemLongClick(image.id) }
             )
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(image.uri)
-                .crossfade(true)
-                .size(180) // Further reduced for 4GB RAM phones
-                .build(),
+            model = imageRequest,
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -91,24 +131,6 @@ fun MediaGridItem(
                     fontWeight = FontWeight.Bold
                 )
             }
-        }
-
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
-            )
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .size(24.dp)
-            )
         }
     }
 }

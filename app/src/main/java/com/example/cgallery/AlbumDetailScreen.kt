@@ -47,6 +47,12 @@ fun AlbumDetailScreen(
         }
     ) { innerPadding ->
         val currentOnImageClick by rememberUpdatedState(onImageClick)
+        val onItemClick = remember {
+            { index: Int, _: Long ->
+                currentOnImageClick(GalleryKey.Viewer(index))
+            }
+        }
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = modifier
@@ -58,9 +64,7 @@ fun AlbumDetailScreen(
                 MediaGridItem(
                     image = image,
                     index = index,
-                    onClick = {
-                        currentOnImageClick(GalleryKey.Viewer(index))
-                    }
+                    onItemClick = onItemClick
                 )
             }
         }

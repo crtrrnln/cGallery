@@ -47,8 +47,13 @@ sealed interface GalleryKey : NavKey {
 fun GalleryNavDisplay(
     backstack: List<GalleryKey>,
     mediaItems: List<MediaItem>,
+    mediaItemsMap: Map<Long, MediaItem>,
     mediaByBucket: Map<String, List<MediaItem>>,
     favoriteMedia: List<MediaItem>,
+    searchQuery: String,
+    searchResults: List<MediaItem>,
+    albumResults: List<String>,
+    onUpdateSearchQuery: (String) -> Unit,
     onAddToAlbum: (Long, Set<Long>) -> Unit,
     onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
@@ -77,12 +82,13 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) {
                 GalleryScreen(
                     images = mediaItems,
+                    imagesMap = mediaItemsMap,
                     onAddToAlbum = onAddToAlbum,
                     onImageClick = onNavigate
                 )
@@ -91,7 +97,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) {
@@ -116,7 +122,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) { key ->
@@ -135,7 +141,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) { key ->
@@ -155,12 +161,11 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) {
                 FavouritesScreen(
-                    images = mediaItems,
                     favoriteImages = favoriteMedia,
                     onImageClick = onNavigate
                 )
@@ -169,12 +174,15 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.53")
+                        HomeScreen(version = "v0.54")
                     }
                 )
             ) {
                 SearchScreen(
-                    images = mediaItems,
+                    searchQuery = searchQuery,
+                    searchResults = searchResults,
+                    albumResults = albumResults,
+                    onUpdateSearchQuery = onUpdateSearchQuery,
                     onImageClick = onNavigate
                 )
             }
@@ -182,12 +190,13 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Viewer>(
                 metadata = ListDetailSceneStrategy.detailPane()
             ) { key ->
-                // Check if we're coming from an album detail by looking at the backstack
+                // Check if we're coming from a list screen by looking at the backstack
                 val previousKey = backstack.getOrNull(backstack.size - 2)
-                val filteredMedia = if (previousKey is GalleryKey.AlbumDetail) {
-                    mediaItems.filter { it.bucketName == previousKey.id }
-                } else {
-                    null
+                val filteredMedia = when (previousKey) {
+                    is GalleryKey.AlbumDetail -> mediaByBucket[previousKey.id]
+                    is GalleryKey.Favourites -> favoriteMedia
+                    is GalleryKey.Search -> searchResults
+                    else -> null
                 }
 
                 ViewerScreen(

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -12,49 +14,27 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.ui.MediaGridItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    images: List<MediaItem>,
+    searchQuery: String,
+    searchResults: List<MediaItem>,
+    albumResults: List<String>,
+    onUpdateSearchQuery: (String) -> Unit,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    
-    val allAlbums = remember(images) {
-        images.map { it.bucketName }.distinct()
-    }
-
-    val filteredImages = remember(searchQuery, images) {
-        if (searchQuery.isBlank()) emptyList()
-        else {
-            val query = searchQuery.lowercase()
-            images.filter { it.displayName.lowercase().contains(query) }
-        }
-    }
-
-    val filteredAlbums = remember(searchQuery, allAlbums) {
-        if (searchQuery.isBlank()) emptyList()
-        else {
-            val query = searchQuery.lowercase()
-            allAlbums.filter { it.lowercase().contains(query) }
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     TextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = onUpdateSearchQuery,
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Search photos or albums...") },
                         leadingIcon = { Icon(Icons.Rounded.Search, null) },
@@ -71,54 +51,51 @@ fun SearchScreen(
         }
     ) { innerPadding ->
         val currentOnImageClick by rememberUpdatedState(onImageClick)
-        LazyColumn(
+        val onItemClick = remember {
+            { index: Int, _: Long ->
+                currentOnImageClick(GalleryKey.Viewer(index))
+            }
+        }
+        
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (filteredAlbums.isNotEmpty()) {
-                item {
-                    Text("Albums", style = MaterialTheme.typography.titleMedium)
+            if (albumResults.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text("Albums", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 }
-                items(filteredAlbums) { albumName ->
+                items(albumResults, key = { "album_$it" }, span = { GridItemSpan(maxLineSpan) }) { albumName ->
                     ListItem(
                         headlineContent = { Text(albumName) },
-                        modifier = Modifier.clickable { onImageClick(GalleryKey.AlbumDetail(albumName)) }
+                        modifier = Modifier.clickable { currentOnImageClick(GalleryKey.AlbumDetail(albumName)) }
+                    )
+                }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
+            if (searchResults.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text("Photos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                }
+                itemsIndexed(searchResults, key = { _, it -> it.id }) { index, image ->
+                    MediaGridItem(
+                        image = image,
+                        index = index,
+                        onItemClick = onItemClick
                     )
                 }
             }
 
-            if (filteredImages.isNotEmpty()) {
-                item {
-                    Text("Photos", style = MaterialTheme.typography.titleMedium)
-                }
-                item {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier.heightIn(max = 2000.dp), // Height adjustment for nesting
-                        contentPadding = PaddingValues(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        userScrollEnabled = false
-                    ) {
-                        items(filteredImages, key = { it.id }) { image ->
-                            val fullIndex = remember(image, images) { images.indexOf(image) }
-                            MediaGridItem(
-                                image = image,
-                                index = fullIndex,
-                                onClick = {
-                                    currentOnImageClick(GalleryKey.Viewer(fullIndex))
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (searchQuery.isNotBlank() && filteredImages.isEmpty() && filteredAlbums.isEmpty()) {
-                item {
+            if (searchQuery.isNotBlank() && searchResults.isEmpty() && albumResults.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         "No results found",
                         style = MaterialTheme.typography.bodyLarge,

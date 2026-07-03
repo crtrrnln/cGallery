@@ -20,6 +20,11 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
     val mediaItems: StateFlow<List<MediaItem>> = _mediaItems.asStateFlow()
 
+    val mediaItemsMap: StateFlow<Map<Long, MediaItem>> = _mediaItems
+        .map { items -> items.associateBy { it.id } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     val mediaByBucket: StateFlow<Map<String, List<MediaItem>>> = _mediaItems
         .map { items -> items.groupBy { it.bucketName } }
         .flowOn(Dispatchers.Default)
@@ -29,9 +34,34 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val favoriteMedia: StateFlow<List<MediaItem>> = combine(_mediaItems, favoriteIds) { items, ids ->
-        items.filter { it.id in ids }
+        if (ids.isEmpty()) emptyList() else items.filter { it.id in ids }
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    val searchResults: StateFlow<List<MediaItem>> = combine(_mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) emptyList()
+        else {
+            val lowerQuery = query.lowercase()
+            items.filter { it.displayName.lowercase().contains(lowerQuery) }
+        }
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val albumResults: StateFlow<List<String>> = combine(_mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) emptyList()
+        else {
+            val lowerQuery = query.lowercase()
+            items.map { it.bucketName }.distinct().filter { it.lowercase().contains(lowerQuery) }
+        }
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

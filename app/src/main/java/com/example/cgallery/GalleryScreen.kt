@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun GalleryScreen(
     images: List<MediaItem>,
+    imagesMap: Map<Long, MediaItem>,
     onAddToAlbum: (Long, Set<Long>) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
@@ -57,7 +58,6 @@ fun GalleryScreen(
     val isSelectionMode = selectedIds.isNotEmpty()
     var showAlbumSelection by remember { mutableStateOf(false) }
 
-    val imagesMap = remember(images) { images.associateBy { it.id } }
     val currentSelectedIds by rememberUpdatedState(selectedIds)
     val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
     val currentOnImageClick by rememberUpdatedState(onImageClick)
@@ -76,6 +76,16 @@ fun GalleryScreen(
         { id: Long ->
             if (currentSelectedIds.isEmpty()) {
                 selectedIds = setOf(id)
+            }
+        }
+    }
+
+    val onItemClick = remember {
+        { index: Int, id: Long ->
+            if (currentIsSelectionMode) {
+                onToggleSelection(id)
+            } else {
+                currentOnImageClick(GalleryKey.Viewer(index))
             }
         }
     }
@@ -109,7 +119,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.53",
+                                "v0.54",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -180,16 +190,8 @@ fun GalleryScreen(
                     index = index,
                     isSelected = isSelected,
                     isSelectionMode = isSelectionMode,
-                    onClick = {
-                        if (currentIsSelectionMode) {
-                            onToggleSelection(image.id)
-                        } else {
-                            currentOnImageClick(GalleryKey.Viewer(index))
-                        }
-                    },
-                    onLongClick = {
-                        onLongClickItem(image.id)
-                    }
+                    onItemClick = onItemClick,
+                    onItemLongClick = onLongClickItem
                 )
             }
         }

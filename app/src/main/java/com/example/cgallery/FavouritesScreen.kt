@@ -17,7 +17,6 @@ import com.example.cgallery.ui.MediaGridItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavouritesScreen(
-    images: List<MediaItem>,
     favoriteImages: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
@@ -30,6 +29,12 @@ fun FavouritesScreen(
         }
     ) { innerPadding ->
         val currentOnImageClick by rememberUpdatedState(onImageClick)
+        val onItemClick = remember {
+            { index: Int, _: Long ->
+                currentOnImageClick(GalleryKey.Viewer(index))
+            }
+        }
+
         if (favoriteImages.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -49,14 +54,11 @@ fun FavouritesScreen(
                     .padding(innerPadding),
                 contentPadding = PaddingValues(4.dp)
             ) {
-                itemsIndexed(favoriteImages, key = { _, it -> it.id }) { _, image ->
-                    val fullIndex = remember(image, images) { images.indexOf(image) }
+                itemsIndexed(favoriteImages, key = { _, it -> it.id }) { index, image ->
                     MediaGridItem(
                         image = image,
-                        index = fullIndex,
-                        onClick = {
-                            currentOnImageClick(GalleryKey.Viewer(fullIndex))
-                        }
+                        index = index,
+                        onItemClick = onItemClick
                     )
                 }
             }

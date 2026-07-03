@@ -37,26 +37,34 @@ class MainActivity : ComponentActivity() {
         setContent {
             CGalleryTheme {
                 val navigator = rememberListDetailPaneScaffoldNavigator<Any>()
-                val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    arrayOf(
-                        Manifest.permission.READ_MEDIA_IMAGES,
-                        Manifest.permission.READ_MEDIA_VIDEO
-                    )
-                } else {
-                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                val permissions = remember {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        arrayOf(
+                            Manifest.permission.READ_MEDIA_IMAGES,
+                            Manifest.permission.READ_MEDIA_VIDEO
+                        )
+                    } else {
+                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
                 }
 
-                val isPermissionGranted = permissions.all { permission ->
-                    ContextCompat.checkSelfPermission(
-                        this,
-                        permission
-                    ) == PackageManager.PERMISSION_GRANTED
+                val isPermissionGranted = remember(permissions) {
+                    permissions.all { permission ->
+                        ContextCompat.checkSelfPermission(
+                            this,
+                            permission
+                        ) == PackageManager.PERMISSION_GRANTED
+                    }
                 }
 
                 val mediaStoreViewModel: MediaStoreViewModel = viewModel()
                 val mediaItems by mediaStoreViewModel.mediaItems.collectAsState()
+                val mediaItemsMap by mediaStoreViewModel.mediaItemsMap.collectAsState()
                 val mediaByBucket by mediaStoreViewModel.mediaByBucket.collectAsState()
                 val favoriteMedia by mediaStoreViewModel.favoriteMedia.collectAsState()
+                val searchQuery by mediaStoreViewModel.searchQuery.collectAsState()
+                val searchResults by mediaStoreViewModel.searchResults.collectAsState()
+                val albumResults by mediaStoreViewModel.albumResults.collectAsState()
 
                 var backstack by remember {
                     mutableStateOf(
@@ -66,7 +74,9 @@ class MainActivity : ComponentActivity() {
                 }
                 val scope = rememberCoroutineScope()
                 val windowAdaptiveInfo = currentWindowAdaptiveInfo()
-                val isSinglePane = windowAdaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT
+                val isSinglePane = remember(windowAdaptiveInfo) {
+                    windowAdaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT
+                }
 
                 val currentBackstack by rememberUpdatedState(backstack)
                 val onNavigate = remember {
@@ -157,8 +167,13 @@ class MainActivity : ComponentActivity() {
                         GalleryNavDisplay(
                             backstack = backstack,
                             mediaItems = mediaItems,
+                            mediaItemsMap = mediaItemsMap,
                             mediaByBucket = mediaByBucket,
                             favoriteMedia = favoriteMedia,
+                            searchQuery = searchQuery,
+                            searchResults = searchResults,
+                            albumResults = albumResults,
+                            onUpdateSearchQuery = { mediaStoreViewModel.updateSearchQuery(it) },
                             onAddToAlbum = { albumId, mediaIds ->
                                 mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
                             },
