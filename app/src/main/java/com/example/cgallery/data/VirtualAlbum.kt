@@ -4,6 +4,9 @@ import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @Entity(tableName = "physical_albums", indices = [Index(value = ["bucketName"], unique = true)])
 data class PhysicalAlbumEntity(
@@ -82,16 +85,99 @@ interface AlbumGroupDao {
     suspend fun updateGroupSortOrder(groupId: Long, sortOrder: Int)
 }
 
+@Dao
+interface InboxDao {
+    @Query("SELECT * FROM inbox_items WHERE status = 'Pending' ORDER BY detectedTimestamp DESC")
+    fun getPendingItems(): Flow<List<InboxItemEntity>>
+
+    @Query("SELECT * FROM inbox_items WHERE status = 'Completed' ORDER BY processingTimestamp DESC")
+    fun getCompletedItems(): Flow<List<InboxItemEntity>>
+
+    @Query("SELECT * FROM inbox_items WHERE mediaStoreId = :mediaStoreId")
+    suspend fun getItemByMediaStoreId(mediaStoreId: Long): InboxItemEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertItem(item: InboxItemEntity): Long
+
+    @Update
+    suspend fun updateItem(item: InboxItemEntity)
+
+    @Query("UPDATE inbox_items SET status = :status, processingTimestamp = :timestamp WHERE id = :id")
+    suspend fun updateStatus(id: Long, status: InboxStatus, timestamp: Long)
+
+    @Delete
+    suspend fun deleteItem(item: InboxItemEntity)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM inbox_items WHERE mediaStoreId = :mediaStoreId)")
+    suspend fun exists(mediaStoreId: Long): Boolean
+}
+
+@Dao
+interface MonitoredFolderDao {
+    @Query("SELECT * FROM monitored_folders")
+    fun getAllFolders(): Flow<List<MonitoredFolderEntity>>
+
+    @Query("SELECT * FROM monitored_folders WHERE isEnabled = 1")
+    suspend fun getEnabledFoldersSync(): List<MonitoredFolderEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFolder(folder: MonitoredFolderEntity): Long
+
+    @Update
+    suspend fun updateFolder(folder: MonitoredFolderEntity)
+
+    @Delete
+    suspend fun deleteFolder(folder: MonitoredFolderEntity)
+}
+
+@Dao
+interface InboxStatsDao {
+    @Query("SELECT * FROM inbox_stats WHERE id = 1")
+    fun getStats(): Flow<InboxStatsEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun updateStats(stats: InboxStatsEntity)
+}
+
+class Converters {
+    @TypeConverter
+    fun fromList(value: List<String>) = Json.encodeToString(value)
+    @TypeConverter
+    fun toList(value: String) = Json.decodeFromString<List<String>>(value)
+
+    @TypeConverter
+    fun fromMap(value: Map<String, Int>) = Json.encodeToString(value)
+    @TypeConverter
+    fun toMap(value: String) = Json.decodeFromString<Map<String, Int>>(value)
+
+    @TypeConverter
+    fun fromStatus(value: InboxStatus) = value.name
+    @TypeConverter
+    fun toStatus(value: String) = InboxStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromOperation(value: InboxOperation) = value.name
+    @TypeConverter
+    fun toOperation(value: String) = InboxOperation.valueOf(value)
+}
+
 @Database(
     entities = [
         PhysicalAlbumEntity::class,
-        AlbumGroupEntity::class
+        AlbumGroupEntity::class,
+        InboxItemEntity::class,
+        MonitoredFolderEntity::class,
+        InboxStatsEntity::class
     ],
-    version = 6
+    version = 7
 )
+@TypeConverters(Converters::class)
 abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun physicalAlbumDao(): PhysicalAlbumDao
     abstract fun albumGroupDao(): AlbumGroupDao
+    abstract fun inboxDao(): InboxDao
+    abstract fun monitoredFolderDao(): MonitoredFolderDao
+    abstract fun inboxStatsDao(): InboxStatsDao
 
     companion object {
         @Volatile

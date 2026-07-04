@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Visibility
@@ -76,6 +77,7 @@ fun AlbumsScreen(
     onGroupClick: (Long) -> Unit = {},
     onToggleAlbumVisibility: (String) -> Unit = {},
     onSpecialAlbumClick: (SpecialAlbumType) -> Unit = {},
+    onInboxClick: () -> Unit = {},
     selectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -180,6 +182,13 @@ fun AlbumsScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (selectionMode) "Select Album" else "Albums") },
+                navigationIcon = {
+                    if (!selectionMode) {
+                        IconButton(onClick = onInboxClick) {
+                            Icon(Icons.Default.Email, contentDescription = "Inbox")
+                        }
+                    }
+                },
                 actions = {
                     if (!selectionMode) {
                         IconButton(onClick = { showCreateFolderDialog = true }) {

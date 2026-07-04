@@ -88,4 +88,20 @@ class MediaStoreDataSource(private val context: Context) {
 
         mediaItems
     }
+
+    suspend fun fetchMediaFolders(): List<MediaFolder> = withContext(Dispatchers.IO) {
+        val media = fetchMedia()
+        media.groupBy { it.bucketPath }
+            .map { (path, items) ->
+                val newest = items.first()
+                MediaFolder(
+                    path = path,
+                    name = items.first().bucketName,
+                    itemCount = items.size,
+                    lastModified = newest.dateAdded,
+                    coverUri = newest.uri.toString()
+                )
+            }
+            .sortedByDescending { it.lastModified }
+    }
 }

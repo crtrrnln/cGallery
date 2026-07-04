@@ -32,6 +32,16 @@ data class MediaItem(
     val dateAdded: Long = 0L
 )
 
+@Immutable
+@Serializable
+data class MediaFolder(
+    val path: String,
+    val name: String,
+    val itemCount: Int,
+    val lastModified: Long,
+    val coverUri: String
+)
+
 object UriSerializer : KSerializer<Uri> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)
 
