@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,13 +21,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.rememberAsyncImagePainter
 import com.example.cgallery.data.MediaItem
+import kotlin.math.max
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,9 +43,16 @@ fun CoverPickerScreen(
     onBack: () -> Unit
 ) {
     var selectedImage by remember { mutableStateOf<MediaItem?>(null) }
-    var cropOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var cropOffset by remember { mutableStateOf(Offset.Zero) }
     var cropScale by remember { mutableStateOf(1f) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    var imageIntrinsicSize by remember { mutableStateOf(Size.Zero) }
+
+    // Reset crop when image changes
+    LaunchedEffect(selectedImage) {
+        cropOffset = Offset.Zero
+        cropScale = 1f
+    }
 
     Scaffold(
         topBar = {
@@ -47,8 +62,6 @@ fun CoverPickerScreen(
                     IconButton(onClick = {
                         if (selectedImage != null) {
                             selectedImage = null
-                            cropOffset = androidx.compose.ui.geometry.Offset.Zero
-                            cropScale = 1f
                         } else {
                             onBack()
                         }
@@ -59,9 +72,13 @@ fun CoverPickerScreen(
                 actions = {
                     if (selectedImage != null) {
                         IconButton(onClick = {
-                            // Simplified crop storage: scale and offset as string
-                            val cropData = "${cropScale},${cropOffset.x},${cropOffset.y}"
-                            onCoverSelected(selectedImage!!.uri.toString(), cropData)
+                            if (containerSize.width > 0 && containerSize.height > 0) {
+                                // Save as: scale, normalized_offset_x, normalized_offset_y
+                                val normX = cropOffset.x / containerSize.width
+                                val normY = cropOffset.y / containerSize.height
+                                val cropData = "${cropScale},$normX,$normY"
+                                onCoverSelected(selectedImage!!.uri.toString(), cropData)
+                            }
                         }) {
                             Icon(Icons.Default.Check, contentDescription = "Confirm")
                         }
@@ -102,7 +119,7 @@ fun CoverPickerScreen(
                 AsyncImage(
                     model = selectedImage!!.uri,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize().graphicsLayer(alpha = 0.3f),
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.3f },
                     contentScale = ContentScale.Fit
                 )
 
@@ -113,10 +130,59 @@ fun CoverPickerScreen(
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color.DarkGray)
                         .onGloballyPositioned { containerSize = it.size }
-                        .pointerInput(Unit) {
+                        .pointerInput(imageIntrinsicSize, containerSize) {
                             detectTransformGestures { _, pan, zoom, _ ->
-                                cropScale *= zoom
-                                cropOffset += pan
+                                val newScale = (cropScale * zoom).coerceIn(1f, 10f)
+                                
+                                // Default sizes if not loaded yet
+                                val iWidth = if (imageIntrinsicSize.width > 0) imageIntrinsicSize.width else 1000f
+                                val iHeight = if (imageIntrinsicSize.height > 0) imageIntrinsicSize.height else 1000f
+                                val cWidth = if (containerSize.width > 0) containerSize.width.toFloat() else 900f
+                                val cHeight = if (containerSize.height > 0) containerSize.height.toFloat() else 900f
+
+                                // Calculate fitting
+                                val containerAspectRatio = cWidth / cHeight
+                                val imageAspectRatio = iWidth / iHeight
+                                
+                                val initialWidth: Float
+                                val initialHeight: Float
+                                
+                                if (imageAspectRatio > containerAspectRatio) {
+                                    initialWidth = cWidth
+                                    initialHeight = cWidth / imageAspectRatio
+                                } else {
+                                    initialWidth = cHeight * imageAspectRatio
+                                    initialHeight = cHeight
+                                }
+
+                                // Min scale to fill container
+                                val minScaleToFill = max(cWidth / initialWidth, cHeight / initialHeight)
+                                cropScale = max(newScale, minScaleToFill)
+                                
+                                val finalWidth = initialWidth * cropScale
+                                val finalHeight = initialHeight * cropScale
+                                
+                                val maxOffsetX = (finalWidth - cWidth) / 2f
+                                val maxOffsetY = (finalHeight - cHeight) / 2f
+                                
+                                val newOffset = cropOffset + pan
+                                
+                                // Snapping and clamping
+                                val snapThreshold = 20f
+                                var clampedX = newOffset.x.coerceIn(-maxOffsetX, maxOffsetX)
+                                var clampedY = newOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+                                
+                                if (maxOffsetX > 0) {
+                                    if (maxOffsetX - clampedX < snapThreshold) clampedX = maxOffsetX
+                                    else if (clampedX - (-maxOffsetX) < snapThreshold) clampedX = -maxOffsetX
+                                }
+                                
+                                if (maxOffsetY > 0) {
+                                    if (maxOffsetY - clampedY < snapThreshold) clampedY = maxOffsetY
+                                    else if (clampedY - (-maxOffsetY) < snapThreshold) clampedY = -maxOffsetY
+                                }
+
+                                cropOffset = Offset(clampedX, clampedY)
                             }
                         }
                         .clipToBounds()
@@ -124,6 +190,12 @@ fun CoverPickerScreen(
                     AsyncImage(
                         model = selectedImage!!.uri,
                         contentDescription = null,
+                        onSuccess = { state ->
+                            imageIntrinsicSize = Size(
+                                state.painter.intrinsicSize.width,
+                                state.painter.intrinsicSize.height
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
@@ -136,14 +208,14 @@ fun CoverPickerScreen(
                     )
                     
                     // Simple guide lines
-                    Box(Modifier.fillMaxSize().padding(1.dp).graphicsLayer(alpha = 0.2f)) {
-                        Divider(Modifier.align(Alignment.Center).fillMaxWidth())
-                        Divider(Modifier.align(Alignment.Center).fillMaxHeight().width(1.dp))
+                    Box(Modifier.fillMaxSize().padding(1.dp).graphicsLayer { alpha = 0.2f }) {
+                        HorizontalDivider(Modifier.align(Alignment.Center).fillMaxWidth())
+                        VerticalDivider(Modifier.align(Alignment.Center).fillMaxHeight().width(1.dp))
                     }
                 }
                 
                 Text(
-                    text = "Pinch to zoom, drag to move",
+                    text = "Pinch to zoom, drag to move. Edges snap to walls.",
                     color = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp),
                     style = MaterialTheme.typography.bodySmall

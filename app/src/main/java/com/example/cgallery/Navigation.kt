@@ -112,7 +112,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {
@@ -130,7 +130,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {
@@ -158,7 +158,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {
@@ -181,7 +181,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) { key ->
@@ -204,7 +204,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {
@@ -217,7 +217,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) { key ->
@@ -243,7 +243,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) { key ->
@@ -273,7 +273,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) { key ->
@@ -299,14 +299,13 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) { key ->
                 GroupDetailScreen(
                     groupId = key.groupId,
                     images = mediaItems,
-                    mediaByBucket = mediaByBucket,
                     onAlbumClick = { albumName ->
                         onNavigate(GalleryKey.AlbumDetail(albumName))
                     },
@@ -366,7 +365,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {
@@ -379,7 +378,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.67")
+                        HomeScreen(version = "v0.68")
                     }
                 )
             ) {

@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -61,6 +62,11 @@ enum class SpecialAlbumType {
     RECENTS,
     FAVOURITES
 }
+
+data class RepresentativeImage(
+    val uri: String,
+    val crop: String? = null
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,6 +191,7 @@ fun AlbumsScreen(
             }
         })).forEach { items.add(it) }
 
+        // Remove duplicates and force a stable order
         items.distinctBy { item ->
             when (item) {
                 is DisplayItem.SpecialAlbum -> "special_${item.type}"
@@ -695,7 +702,7 @@ fun AlbumsScreen(
                 }
                 unifiedList
             }
-            null -> emptyList()
+            else -> emptyList()
         }
 
         AlertDialog(
@@ -957,18 +964,21 @@ fun GroupAlbumItem(
             }
         }))
 
-        val images = mutableListOf<String>()
+        val items = mutableListOf<RepresentativeImage>()
 
-        fun getFirstImageOfAlbum(album: PhysicalAlbumEntity): String? {
-            return album.customCoverUri ?: mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
+        fun getFirstImageOfAlbum(album: PhysicalAlbumEntity): RepresentativeImage? {
+            val uri = album.customCoverUri ?: mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
+            return uri?.let { RepresentativeImage(it, album.customCoverCrop) }
         }
 
-        fun getFirstImageOfGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()): String? {
+        fun getFirstImageOfGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()): RepresentativeImage? {
             if (groupId in visited) return null
             visited.add(groupId)
 
             val currentGroup = allGroups.find { it.id == groupId }
-            if (currentGroup?.customCoverUri != null) return currentGroup.customCoverUri
+            if (currentGroup?.customCoverUri != null) {
+                return RepresentativeImage(currentGroup.customCoverUri, currentGroup.customCoverCrop)
+            }
 
             val albums = getAlbumsByGroup(groupId).sortedBy { it.sortOrder }
             val children = allGroups.filter { it.parentId == groupId }.sortedBy { it.sortOrder }
@@ -1003,17 +1013,17 @@ fun GroupAlbumItem(
         }
 
         for (child in directChildren) {
-            if (images.size >= 4) break
+            if (items.size >= 4) break
             when (child) {
                 is PhysicalAlbumEntity -> {
-                    getFirstImageOfAlbum(child)?.let { images.add(it) }
+                    getFirstImageOfAlbum(child)?.let { items.add(it) }
                 }
                 is AlbumGroupEntity -> {
-                    getFirstImageOfGroup(child.id)?.let { images.add(it) }
+                    getFirstImageOfGroup(child.id)?.let { items.add(it) }
                 }
             }
         }
-        images
+        items
     }
 
     Column(
@@ -1045,13 +1055,13 @@ fun GroupAlbumItem(
                         .size(180)
                         .build(),
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                    modifier = Modifier.fillMaxSize().clipToBounds().graphicsLayer {
                         scaleX = scale
                         scaleY = scale
-                        translationX = offX / 300f * size.width // Proportional adjustment
-                        translationY = offY / 300f * size.height
+                        translationX = offX * size.width
+                        translationY = offY * size.height
                     },
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             } else {
                 when (representativeImages.size) {
@@ -1069,42 +1079,70 @@ fun GroupAlbumItem(
                         }
                     }
                     1 -> {
-                        val coverItem = representativeImages.first()
+                        val rep = representativeImages.first()
                         val context = LocalContext.current
-                        val request = remember(coverItem) {
+                        val request = remember(rep.uri) {
                             ImageRequest.Builder(context)
-                                .data(coverItem)
+                                .data(rep.uri)
                                 .crossfade(false)
                                 .bitmapConfig(Bitmap.Config.RGB_565)
                                 .size(180)
                                 .build()
                         }
+                        
+                        val cropData = rep.crop?.split(",")
+                        val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
+                        val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
+                        val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
+
                         AsyncImage(
                             model = request,
                             contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            modifier = Modifier.fillMaxSize().clipToBounds().graphicsLayer {
+                                if (rep.crop != null) {
+                                    scaleX = scale
+                                    scaleY = scale
+                                    translationX = offX * size.width
+                                    translationY = offY * size.height
+                                }
+                            },
+                            contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
                         )
                     }
                     2 -> {
                         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            representativeImages.take(2).forEach { coverItem ->
+                            representativeImages.take(2).forEach { rep ->
                                 val context = LocalContext.current
-                                val request = remember(coverItem) {
+                                val request = remember(rep.uri) {
                                     ImageRequest.Builder(context)
-                                        .data(coverItem)
+                                        .data(rep.uri)
                                         .crossfade(false)
                                         .bitmapConfig(Bitmap.Config.RGB_565)
                                         .size(180)
                                         .build()
                                 }
+                                
+                                val cropData = rep.crop?.split(",")
+                                val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
+                                val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
+                                val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
+
                                 AsyncImage(
                                     model = request,
                                     contentDescription = null,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .fillMaxHeight(),
-                                    contentScale = ContentScale.Crop
+                                        .fillMaxHeight()
+                                        .clipToBounds()
+                                        .graphicsLayer {
+                                            if (rep.crop != null) {
+                                                scaleX = scale
+                                                scaleY = scale
+                                                translationX = offX * size.width
+                                                translationY = offY * size.height
+                                            }
+                                        },
+                                    contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
                                 )
                             }
                         }
@@ -1112,43 +1150,73 @@ fun GroupAlbumItem(
                     3 -> {
                         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.take(2).forEach { coverItem ->
+                                representativeImages.take(2).forEach { rep ->
                                     val context = LocalContext.current
-                                    val request = remember(coverItem) {
+                                    val request = remember(rep.uri) {
                                         ImageRequest.Builder(context)
-                                            .data(coverItem)
+                                            .data(rep.uri)
                                             .crossfade(false)
                                             .bitmapConfig(Bitmap.Config.RGB_565)
                                             .size(180)
                                             .build()
                                     }
+                                    
+                                    val cropData = rep.crop?.split(",")
+                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
+                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
+                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
+
                                     AsyncImage(
                                         model = request,
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .fillMaxWidth(),
-                                        contentScale = ContentScale.Crop
+                                            .fillMaxWidth()
+                                            .clipToBounds()
+                                            .graphicsLayer {
+                                                if (rep.crop != null) {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                    translationX = offX * size.width
+                                                    translationY = offY * size.height
+                                                }
+                                            },
+                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
                                     )
                                 }
                             }
-                            val coverItem3 = representativeImages[2]
+                            val rep3 = representativeImages[2]
                             val context = LocalContext.current
-                            val request = remember(coverItem3) {
+                            val request = remember(rep3.uri) {
                                 ImageRequest.Builder(context)
-                                    .data(coverItem3)
+                                    .data(rep3.uri)
                                     .crossfade(false)
                                     .bitmapConfig(Bitmap.Config.RGB_565)
                                     .size(180)
                                     .build()
                             }
+                            
+                            val cropData3 = rep3.crop?.split(",")
+                            val scale3 = cropData3?.get(0)?.toFloatOrNull() ?: 1f
+                            val offX3 = cropData3?.get(1)?.toFloatOrNull() ?: 0f
+                            val offY3 = cropData3?.get(2)?.toFloatOrNull() ?: 0f
+
                             AsyncImage(
                                 model = request,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .weight(0.5f)
-                                    .fillMaxHeight(),
-                                contentScale = ContentScale.Crop
+                                    .fillMaxHeight()
+                                    .clipToBounds()
+                                    .graphicsLayer {
+                                        if (rep3.crop != null) {
+                                            scaleX = scale3
+                                            scaleY = scale3
+                                            translationX = offX3 * size.width
+                                            translationY = offY3 * size.height
+                                        }
+                                    },
+                                contentScale = if (rep3.crop != null) ContentScale.Fit else ContentScale.Crop
                             )
                         }
                     }
@@ -1156,44 +1224,74 @@ fun GroupAlbumItem(
                         // 4+ albums: 2x2 grid
                         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.take(2).forEach { coverItem ->
+                                representativeImages.take(2).forEach { rep ->
                                     val context = LocalContext.current
-                                    val request = remember(coverItem) {
+                                    val request = remember(rep.uri) {
                                         ImageRequest.Builder(context)
-                                            .data(coverItem)
+                                            .data(rep.uri)
                                             .crossfade(false)
                                             .bitmapConfig(Bitmap.Config.RGB_565)
                                             .size(180)
                                             .build()
                                     }
+                                    
+                                    val cropData = rep.crop?.split(",")
+                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
+                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
+                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
+
                                     AsyncImage(
                                         model = request,
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .fillMaxHeight(),
-                                        contentScale = ContentScale.Crop
+                                            .fillMaxHeight()
+                                            .clipToBounds()
+                                            .graphicsLayer {
+                                                if (rep.crop != null) {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                    translationX = offX * size.width
+                                                    translationY = offY * size.height
+                                                }
+                                            },
+                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
                                     )
                                 }
                             }
                             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.drop(2).take(2).forEach { coverItem ->
+                                representativeImages.drop(2).take(2).forEach { rep ->
                                     val context = LocalContext.current
-                                    val request = remember(coverItem) {
+                                    val request = remember(rep.uri) {
                                         ImageRequest.Builder(context)
-                                            .data(coverItem)
+                                            .data(rep.uri)
                                             .crossfade(false)
                                             .bitmapConfig(Bitmap.Config.RGB_565)
                                             .size(180)
                                             .build()
                                     }
+                                    
+                                    val cropData = rep.crop?.split(",")
+                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
+                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
+                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
+
                                     AsyncImage(
                                         model = request,
                                         contentDescription = null,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .fillMaxHeight(),
-                                        contentScale = ContentScale.Crop
+                                            .fillMaxHeight()
+                                            .clipToBounds()
+                                            .graphicsLayer {
+                                                if (rep.crop != null) {
+                                                    scaleX = scale
+                                                    scaleY = scale
+                                                    translationX = offX * size.width
+                                                    translationY = offY * size.height
+                                                }
+                                            },
+                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
                                     )
                                 }
                             }
@@ -1265,11 +1363,11 @@ fun AlbumItem(
                             if (entity.customCoverUri != null) {
                                 scaleX = scale
                                 scaleY = scale
-                                translationX = offX / 300f * size.width
-                                translationY = offY / 300f * size.height
+                                translationX = offX * size.width
+                                translationY = offY * size.height
                             }
                         },
-                    contentScale = ContentScale.Crop
+                    contentScale = if (entity.customCoverUri != null) ContentScale.Fit else ContentScale.Crop
                 )
             } else {
                 Box(
@@ -1351,7 +1449,7 @@ fun AlbumItem(
                         text = "GIF",
                         color = Color.White,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

@@ -93,46 +93,43 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val currentBackstack by rememberUpdatedState(backstack)
-                val onNavigate = remember {
-                    { newKey: GalleryKey ->
-                        backstack = when (newKey) {
-                            is GalleryKey.Albums, is GalleryKey.Search -> listOf(newKey)
-                            is GalleryKey.Favourites -> {
-                                if (currentBackstack.lastOrNull() is GalleryKey.Albums) {
-                                    currentBackstack + newKey
-                                } else {
-                                    listOf(newKey)
-                                }
+                val onNavigate: (GalleryKey) -> Unit = { newKey ->
+                    val updated = when (newKey) {
+                        is GalleryKey.Albums, is GalleryKey.Search -> listOf(newKey)
+                        is GalleryKey.Favourites -> {
+                            if (currentBackstack.lastOrNull() is GalleryKey.Albums) {
+                                currentBackstack + newKey
+                            } else {
+                                listOf(newKey)
                             }
-                            is GalleryKey.Gallery -> {
-                                if (currentBackstack.lastOrNull() is GalleryKey.Favourites) {
-                                    currentBackstack + newKey
-                                } else {
-                                    listOf(newKey)
-                                }
+                        }
+                        is GalleryKey.Gallery -> {
+                            if (currentBackstack.lastOrNull() is GalleryKey.Favourites) {
+                                currentBackstack + newKey
+                            } else {
+                                listOf(newKey)
                             }
-                            is GalleryKey.AlbumDetail -> {
+                        }
+                        is GalleryKey.AlbumDetail, is GalleryKey.GroupDetail -> {
+                            currentBackstack + newKey
+                        }
+                        is GalleryKey.Viewer -> {
+                            if (currentBackstack.lastOrNull() is GalleryKey.Viewer) {
+                                currentBackstack.dropLast(1) + newKey
+                            } else {
                                 currentBackstack + newKey
                             }
-                            is GalleryKey.Viewer -> {
-                                if (currentBackstack.lastOrNull() is GalleryKey.Viewer) {
-                                    currentBackstack.dropLast(1) + newKey
-                                } else {
-                                    currentBackstack + newKey
-                                }
-                            }
-                            else -> currentBackstack + newKey
                         }
+                        else -> currentBackstack + newKey
                     }
+                    backstack = updated
                 }
 
-                val onBack = remember {
-                    {
-                        if (currentBackstack.size > 1) {
-                            backstack = currentBackstack.dropLast(1)
-                        } else {
-                            finish()
-                        }
+                val onBack: () -> Unit = {
+                    if (backstack.size > 1) {
+                        backstack = backstack.dropLast(1)
+                    } else {
+                        finish()
                     }
                 }
 
@@ -224,11 +221,9 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Handle back button for the adaptive scaffold
-                BackHandler(enabled = navigator.canNavigateBack()) {
-                    scope.launch {
-                        navigator.navigateBack()
-                    }
+                // Handle back button - Use onBack to ensure backstack and scaffold stay in sync
+                BackHandler(enabled = true) {
+                    onBack()
                 }
             }
         }
