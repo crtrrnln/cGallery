@@ -1,6 +1,8 @@
 package com.example.cgallery
 
 import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -11,18 +13,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,6 +65,7 @@ fun AlbumsScreen(
     images: List<MediaItem>,
     mediaByBucket: Map<String, List<MediaItem>>,
     onAlbumClick: (Album) -> Unit,
+    onConfirmSelection: (List<String>) -> Unit = {},
     onGroupClick: (Long) -> Unit = {},
     onToggleAlbumVisibility: (String) -> Unit = {},
     onSpecialAlbumClick: (SpecialAlbumType) -> Unit = {},
@@ -86,6 +78,7 @@ fun AlbumsScreen(
     val groupManager = remember { AlbumGroupManager(context) }
     val physicalAlbumManager = remember { PhysicalAlbumManager(context) }
 
+    var selectedAlbumsForAction by remember { mutableStateOf(setOf<String>()) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -178,19 +171,56 @@ fun AlbumsScreen(
         }
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                val structure = physicalAlbumManager.exportStructure()
+                context.contentResolver.openOutputStream(it)?.use { stream ->
+                    stream.write(structure.toByteArray())
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                context.contentResolver.openInputStream(it)?.use { stream ->
+                    val structure = stream.bufferedReader().readText()
+                    physicalAlbumManager.importStructure(structure)
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (selectionMode) "Select Album" else "Albums") },
+                title = { Text(if (selectionMode) "Select Destinations" else "Albums") },
                 navigationIcon = {
-                    if (!selectionMode) {
+                    if (selectionMode) {
+                        IconButton(onClick = { onConfirmSelection(emptyList()) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancel")
+                        }
+                    } else {
                         IconButton(onClick = onInboxClick) {
                             Icon(Icons.Default.Email, contentDescription = "Inbox")
                         }
                     }
                 },
                 actions = {
-                    if (!selectionMode) {
+                    if (selectionMode) {
+                        IconButton(
+                            onClick = { onConfirmSelection(selectedAlbumsForAction.toList()) },
+                            enabled = selectedAlbumsForAction.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = "Confirm")
+                        }
+                    } else {
                         IconButton(onClick = { showCreateFolderDialog = true }) {
                             Icon(Icons.Default.Add, contentDescription = "Create Folder")
                         }
@@ -199,6 +229,12 @@ fun AlbumsScreen(
                                 if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                 contentDescription = if (isHideShowMode) "Exit Hide/Show Mode" else "Enter Hide/Show Mode"
                             )
+                        }
+                        IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Import Structure")
+                        }
+                        IconButton(onClick = { exportLauncher.launch("cgallery_structure.json") }) {
+                            Icon(Icons.Default.FileUpload, contentDescription = "Export Structure")
                         }
                         IconButton(onClick = { showCreateGroupDialog = true }) {
                             Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
@@ -256,19 +292,28 @@ fun AlbumsScreen(
                         )
                     }
                     is DisplayItem.AlbumItem -> {
+                        val isSelected = item.album.name in selectedAlbumsForAction
                         AlbumItem(
                             album = item.album,
                             isHidden = item.entity.isHidden,
                             isHideShowMode = isHideShowMode,
+                            isSelected = isSelected,
+                            selectionMode = selectionMode,
                             onClick = {
-                                if (isHideShowMode) {
+                                if (selectionMode) {
+                                    selectedAlbumsForAction = if (isSelected) {
+                                        selectedAlbumsForAction - item.album.name
+                                    } else {
+                                        selectedAlbumsForAction + item.album.name
+                                    }
+                                } else if (isHideShowMode) {
                                     onToggleAlbumVisibility(item.album.name)
                                 } else {
                                     onAlbumClick(item.album)
                                 }
                             },
                             onLongClick = {
-                                if (!isHideShowMode) {
+                                if (!isHideShowMode && !selectionMode) {
                                     selectedAlbumForGroup = item.album
                                     showMoveToGroupDialog = true
                                 }
@@ -975,6 +1020,8 @@ fun AlbumItem(
     album: Album,
     isHidden: Boolean = false,
     isHideShowMode: Boolean = false,
+    isSelected: Boolean = false,
+    selectionMode: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     onMoveUp: () -> Unit = {},
@@ -1008,6 +1055,22 @@ fun AlbumItem(
                 contentScale = ContentScale.Crop
             )
 
+            if (selectionMode && isSelected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+
             // Reorder buttons
             if (showReorderButtons) {
                 Column(
@@ -1027,7 +1090,9 @@ fun AlbumItem(
                         )
                     }
                     IconButton(
-                        onClick = onMoveDown,
+                        onClick = {
+                             onMoveDown()
+                        },
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(

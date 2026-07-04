@@ -69,8 +69,8 @@ fun GalleryNavDisplay(
     searchResults: List<MediaItem>,
     albumResults: List<Pair<String, String>>,
     onUpdateSearchQuery: (String) -> Unit,
-    onAddToAlbum: (String, Set<Long>) -> Unit,
-    onMoveToAlbum: (String, Set<Long>) -> Unit,
+    onAddToAlbum: (List<String>, Set<Long>) -> Unit,
+    onMoveToAlbum: (List<String>, Set<Long>) -> Unit,
     onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
     onNavigate: (GalleryKey) -> Unit,
@@ -100,7 +100,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {
@@ -117,7 +117,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {
@@ -144,7 +144,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {
@@ -165,7 +165,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) { key ->
@@ -187,7 +187,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {
@@ -200,16 +200,19 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) { key ->
                 AlbumsScreen(
                     images = mediaItems,
                     mediaByBucket = mediaByBucket,
+                    onAlbumClick = {},
                     selectionMode = true,
-                    onAlbumClick = { album ->
-                        inboxViewModel.processItems(key.inboxIds, album.name, key.isMove)
+                    onConfirmSelection = { paths ->
+                        if (paths.isNotEmpty()) {
+                            inboxViewModel.processItems(key.inboxIds, paths, key.isMove)
+                        }
                         onBack()
                     }
                 )
@@ -218,19 +221,22 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) { key ->
                 AlbumsScreen(
                     images = mediaItems,
                     mediaByBucket = mediaByBucket,
+                    onAlbumClick = {},
                     selectionMode = true,
-                    onAlbumClick = { album ->
-                        if (key.isMove) {
-                            onMoveToAlbum(album.name, key.mediaIds)
-                        } else {
-                            onAddToAlbum(album.name, key.mediaIds)
+                    onConfirmSelection = { paths ->
+                        if (paths.isNotEmpty()) {
+                            if (key.isMove) {
+                                onMoveToAlbum(paths, key.mediaIds)
+                            } else {
+                                onAddToAlbum(paths, key.mediaIds)
+                            }
                         }
                         onBack()
                     }
@@ -240,7 +246,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) { key ->
@@ -262,7 +268,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) { key ->
@@ -283,7 +289,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {
@@ -296,7 +302,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.6")
+                        HomeScreen(version = "v0.61")
                     }
                 )
             ) {

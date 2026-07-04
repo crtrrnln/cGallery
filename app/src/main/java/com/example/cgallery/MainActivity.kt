@@ -188,11 +188,11 @@ class MainActivity : ComponentActivity() {
                             searchResults = searchResults,
                             albumResults = albumResults,
                             onUpdateSearchQuery = { mediaStoreViewModel.updateSearchQuery(it) },
-                            onAddToAlbum = { albumPath, mediaIds ->
-                                mediaStoreViewModel.copyMediaToAlbum(albumPath, mediaIds)
+                            onAddToAlbum = { albumPaths, mediaIds ->
+                                mediaStoreViewModel.copyMediaToAlbum(albumPaths, mediaIds)
                             },
-                            onMoveToAlbum = { albumPath, mediaIds ->
-                                mediaStoreViewModel.moveMediaToAlbum(albumPath, mediaIds)
+                            onMoveToAlbum = { albumPaths, mediaIds ->
+                                mediaStoreViewModel.moveMediaToAlbum(albumPaths, mediaIds)
                             },
                             onReloadMedia = { mediaStoreViewModel.loadMedia() },
                             onBack = onBack,

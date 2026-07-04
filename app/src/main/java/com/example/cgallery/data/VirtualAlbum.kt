@@ -4,10 +4,12 @@ import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+@Serializable
 @Entity(tableName = "physical_albums", indices = [Index(value = ["bucketName"], unique = true)])
 data class PhysicalAlbumEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -17,6 +19,7 @@ data class PhysicalAlbumEntity(
     val sortOrder: Int = 0
 )
 
+@Serializable
 @Entity(tableName = "album_groups")
 data class AlbumGroupEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

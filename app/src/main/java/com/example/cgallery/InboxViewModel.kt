@@ -94,7 +94,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun processItems(ids: Set<Long>, targetFolder: String, isMove: Boolean) {
+    fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
             _isScanning.value = true // Reusing scanning for general work
             val operation = if (isMove) InboxOperation.MOVE else InboxOperation.COPY
@@ -102,7 +102,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
             
             itemsToProcess.forEach { item ->
-                if (manager.processItem(item, listOf(targetFolder), operation)) {
+                if (manager.processItem(item, targetFolders, operation)) {
                     successCount++
                 }
             }

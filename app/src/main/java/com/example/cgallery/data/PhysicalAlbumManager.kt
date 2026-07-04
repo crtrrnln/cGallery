@@ -5,6 +5,12 @@ import android.os.Environment
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class PhysicalAlbumManager(context: Context) {
     private val db = VirtualAlbumDatabase.getDatabase(context)
@@ -156,6 +162,70 @@ class PhysicalAlbumManager(context: Context) {
             Result.success(targetFile.absolutePath)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    @Serializable
+    data class StructureExport(
+        val groups: List<AlbumGroupEntity>,
+        val albums: List<PhysicalAlbumEntity>
+    )
+
+    suspend fun exportStructure(): String = withContext(Dispatchers.IO) {
+        val groups = groupDao.getAllGroups().first()
+        val albums = physicalAlbumDao.getAllAlbums().first()
+        Json.encodeToString(StructureExport(groups, albums))
+    }
+
+    suspend fun importStructure(json: String) = withContext(Dispatchers.IO) {
+        try {
+            val data = Json.decodeFromString<StructureExport>(json)
+            val existingAlbums = physicalAlbumDao.getAllAlbums().first()
+            val existingAlbumPaths = existingAlbums.map { it.bucketName }.toSet()
+
+            // 1. Re-create groups
+            val allGroups = groupDao.getAllGroups().first()
+            allGroups.forEach { groupDao.deleteGroup(it) }
+
+            val groupNameMap = mutableMapOf<Long, Long>() // oldId to newId
+            data.groups.forEach { group ->
+                val newId = groupDao.insertGroup(group.copy(id = 0))
+                groupNameMap[group.id] = newId
+            }
+
+            // Update parent IDs for nested groups
+            data.groups.forEach { group ->
+                if (group.parentId != null) {
+                    val oldParentId = group.parentId
+                    val newId = groupNameMap[group.id]
+                    val newParentId = groupNameMap[oldParentId]
+                    if (newId != null && newParentId != null) {
+                        val currentGroup = groupDao.getGroupById(newId).first()
+                        if (currentGroup != null) {
+                            groupDao.updateGroup(currentGroup.copy(parentId = newParentId))
+                        }
+                    }
+                }
+            }
+
+            // 2. Update existing albums
+            data.albums.forEach { importedAlbum ->
+                if (existingAlbumPaths.contains(importedAlbum.bucketName)) {
+                    val existing = physicalAlbumDao.getAlbumByBucketName(importedAlbum.bucketName).first()
+                    if (existing != null) {
+                        val newGroupId = importedAlbum.groupId?.let { groupNameMap[it] }
+                        physicalAlbumDao.updateAlbum(
+                            existing.copy(
+                                groupId = newGroupId,
+                                sortOrder = importedAlbum.sortOrder,
+                                isHidden = importedAlbum.isHidden
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -92,93 +92,99 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun moveMediaToAlbum(targetFolderPath: String, mediaIds: Set<Long>) {
+    fun moveMediaToAlbum(targetFolderPaths: List<String>, mediaIds: Set<Long>) {
         viewModelScope.launch {
             _isLoading.value = true
             val itemsToMove = _mediaItems.value.filter { it.id in mediaIds }
-            val movedFiles = mutableListOf<String>()
+            val allCreatedFiles = mutableListOf<String>()
             val sourceFiles = itemsToMove.map { it.fullPath }
             val errors = mutableListOf<String>()
             
             withContext(Dispatchers.IO) {
                 itemsToMove.forEach { item ->
-                    val result = physicalAlbumManager.moveFile(item.fullPath, targetFolderPath)
-                    if (result.isSuccess) {
-                        movedFiles.add(result.getOrThrow())
+                    val firstDest = targetFolderPaths.first()
+                    val moveResult = physicalAlbumManager.moveFile(item.fullPath, firstDest)
+                    
+                    if (moveResult.isSuccess) {
+                        val firstCreatedPath = moveResult.getOrThrow()
+                        allCreatedFiles.add(firstCreatedPath)
+                        
+                        for (i in 1 until targetFolderPaths.size) {
+                            val copyResult = physicalAlbumManager.copyFile(firstCreatedPath, targetFolderPaths[i])
+                            if (copyResult.isSuccess) {
+                                allCreatedFiles.add(copyResult.getOrThrow())
+                            } else {
+                                errors.add("${item.displayName} -> ${targetFolderPaths[i]}: ${copyResult.exceptionOrNull()?.message}")
+                            }
+                        }
                     } else {
-                        errors.add("${item.displayName}: ${result.exceptionOrNull()?.message}")
+                        errors.add("${item.displayName} -> $firstDest: ${moveResult.exceptionOrNull()?.message}")
                     }
                 }
             }
             
-            if (movedFiles.isNotEmpty()) {
+            if (allCreatedFiles.isNotEmpty()) {
                 MediaScannerConnection.scanFile(
                     getApplication(),
-                    (movedFiles + sourceFiles).toTypedArray(),
+                    (allCreatedFiles + sourceFiles).toTypedArray(),
                     null
                 ) { _, _ -> }
                 
                 val message = if (errors.isEmpty()) {
-                    "Successfully moved ${movedFiles.size} items"
+                    "Successfully moved ${itemsToMove.size} items to ${targetFolderPaths.size} locations"
                 } else {
-                    "Moved ${movedFiles.size} items. ${errors.size} failed: ${errors.first()}"
+                    "Partial success. ${errors.size} errors: ${errors.first()}"
                 }
                 _operationResult.emit(message)
                 
                 kotlinx.coroutines.delay(500)
                 loadMedia()
             } else {
-                val errorMessage = if (errors.isNotEmpty()) {
-                    "Failed to move: ${errors.first()}"
-                } else {
-                    "Failed to move items"
-                }
+                val errorMessage = if (errors.isNotEmpty()) "Failed: ${errors.first()}" else "Failed to move items"
                 _operationResult.emit(errorMessage)
                 _isLoading.value = false
             }
         }
     }
 
-    fun copyMediaToAlbum(targetFolderPath: String, mediaIds: Set<Long>) {
+    fun copyMediaToAlbum(targetFolderPaths: List<String>, mediaIds: Set<Long>) {
         viewModelScope.launch {
             _isLoading.value = true
             val itemsToCopy = _mediaItems.value.filter { it.id in mediaIds }
-            val copiedFiles = mutableListOf<String>()
+            val allCreatedFiles = mutableListOf<String>()
             val errors = mutableListOf<String>()
             
             withContext(Dispatchers.IO) {
                 itemsToCopy.forEach { item ->
-                    val result = physicalAlbumManager.copyFile(item.fullPath, targetFolderPath)
-                    if (result.isSuccess) {
-                        copiedFiles.add(result.getOrThrow())
-                    } else {
-                        errors.add("${item.displayName}: ${result.exceptionOrNull()?.message}")
+                    for (dest in targetFolderPaths) {
+                        val result = physicalAlbumManager.copyFile(item.fullPath, dest)
+                        if (result.isSuccess) {
+                            allCreatedFiles.add(result.getOrThrow())
+                        } else {
+                            errors.add("${item.displayName} -> $dest: ${result.exceptionOrNull()?.message}")
+                        }
                     }
                 }
             }
             
-            if (copiedFiles.isNotEmpty()) {
+            if (allCreatedFiles.isNotEmpty()) {
                 MediaScannerConnection.scanFile(
                     getApplication(),
-                    copiedFiles.toTypedArray(),
+                    allCreatedFiles.toTypedArray(),
                     null
                 ) { _, _ -> }
                 
                 val message = if (errors.isEmpty()) {
-                    "Successfully copied ${copiedFiles.size} items"
+                    "Successfully copied ${itemsToCopy.size} items to ${targetFolderPaths.size} locations"
                 } else {
-                    "Copied ${copiedFiles.size} items. ${errors.size} failed: ${errors.first()}"
+                    "Partial success. ${errors.size} errors: ${errors.first()}"
                 }
                 _operationResult.emit(message)
                 
                 kotlinx.coroutines.delay(500)
                 loadMedia()
             } else {
-                val errorMessage = if (errors.isNotEmpty()) {
-                    "Failed to copy: ${errors.first()}"
-                } else {
-                    "Failed to copy items"
-                }
+                val errorMessage = if (errors.isNotEmpty()) "Failed: ${errors.first()}" else "Failed to copy items"
                 _operationResult.emit(errorMessage)
                 _isLoading.value = false
             }
