@@ -1,4 +1,4 @@
-# Inbox Architecture - v0.65
+# Inbox Architecture - v0.66
 
 ## System Overview
 The Inbox system is a decoupled workflow layer designed to handle newly detected media from specific physical folders (Monitored Folders). It tracks the lifecycle of these items from detection to final organisation into user-selected destinations.

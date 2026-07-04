@@ -25,6 +25,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -100,34 +101,52 @@ fun GroupDetailScreen(
 
     val displayItems = remember(childGroups, albumsInGroup, mediaByBucketInternal) {
         val items = mutableListOf<GroupDisplayItem>()
+        val combined = mutableListOf<GroupDisplayItem>()
+        
         // Add child groups
-        childGroups.forEach { childGroup ->
-            items.add(GroupDisplayItem.GroupItem(childGroup))
-        }
-        // Add albums in this group
+        childGroups.forEach { combined.add(GroupDisplayItem.GroupItem(it)) }
+        
+        // Add albums
         albumsInGroup.forEach { albumEntity ->
             val imagesInAlbum = mediaByBucketInternal[albumEntity.bucketName] ?: emptyList()
-            if (imagesInAlbum.isNotEmpty()) {
-                val album = Album(
-                    name = albumEntity.bucketName,
-                    displayName = java.io.File(albumEntity.bucketName).name,
-                    count = imagesInAlbum.size,
-                    coverImage = imagesInAlbum.first()
-                )
-                items.add(GroupDisplayItem.AlbumItem(album, albumEntity))
-            }
+            val album = Album(
+                name = albumEntity.bucketName,
+                displayName = java.io.File(albumEntity.bucketName).name,
+                count = imagesInAlbum.size,
+                coverImage = imagesInAlbum.firstOrNull()
+            )
+            combined.add(GroupDisplayItem.AlbumItem(album, albumEntity))
         }
+        
+        // Sort combined list by sortOrder, then by name
+        combined.sortedWith(compareBy({ 
+            when (it) {
+                is GroupDisplayItem.GroupItem -> it.group.sortOrder
+                is GroupDisplayItem.AlbumItem -> it.entity.sortOrder
+            }
+        }, {
+            when (it) {
+                is GroupDisplayItem.GroupItem -> it.group.name
+                is GroupDisplayItem.AlbumItem -> it.album.displayName
+            }
+        })).forEach { items.add(it) }
+        
         items
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { 
                     if (selectionMode) {
                         Text("${selectedAlbums.size} Selected")
                     } else {
-                        Text(group?.name ?: "Group")
+                        Text(
+                            text = group?.name ?: "Group",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 },
                 navigationIcon = {
@@ -161,7 +180,7 @@ fun GroupDetailScreen(
                                     leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) }
                                 )
                                 DropdownMenuItem(
-                                text = { Text("Create Folder") },
+                                text = { Text("Create Album") },
                                 onClick = {
                                     showMenu = false
                                     showCreateFolderDialog = true
@@ -211,9 +230,9 @@ fun GroupDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(displayItems, key = { item ->
                     when (item) {
@@ -223,13 +242,12 @@ fun GroupDetailScreen(
                 }) { item ->
                     when (item) {
                         is GroupDisplayItem.GroupItem -> {
-                            val albumsInChildGroup by groupManager.getAlbumsByGroup(item.group.id).collectAsState(initial = emptyList())
                             GroupAlbumItem(
                                 group = item.group,
-                                albumsInGroup = albumsInChildGroup,
+                                albumsInGroup = groupManager.getAlbumsByGroup(item.group.id).collectAsState(initial = emptyList()).value,
                                 mediaByBucket = mediaByBucketInternal,
-                                allGroups = emptyList(),
-                                getAlbumsByGroup = { emptyList() },
+                                allGroups = allGroups,
+                                getAlbumsByGroup = { gid -> allGroups.filter { it.parentId == gid }.flatMap { g -> listOf<PhysicalAlbumEntity>() } /* Simplified for now as it's complex to get recursive albums here */ },
                                 onClick = { onGroupClick(item.group.id) },
                                 onLongClick = {
                                     selectedGroupForMove = item.group
@@ -296,12 +314,12 @@ fun GroupDetailScreen(
     if (showCreateFolderDialog) {
         AlertDialog(
             onDismissRequest = { showCreateFolderDialog = false },
-            title = { Text("New Folder") },
+            title = { Text("New Album") },
             text = {
                 TextField(
                     value = newFolderName,
                     onValueChange = { newFolderName = it },
-                    placeholder = { Text("Folder Name") },
+                    placeholder = { Text("Album Name") },
                     singleLine = true
                 )
             },
@@ -619,16 +637,26 @@ fun GroupDetailScreen(
                                         scope.launch {
                                             if (index > 0) {
                                                 val prevItem = itemsToReorder[index - 1]
-                                                // Only swap if both items are the same type
-                                                when {
-                                                    item is PhysicalAlbumEntity && prevItem is PhysicalAlbumEntity -> {
-                                                        physicalAlbumManager.updateAlbumSortOrder(item.id, prevItem.sortOrder)
-                                                        physicalAlbumManager.updateAlbumSortOrder(prevItem.id, item.sortOrder)
-                                                    }
-                                                    item is AlbumGroupEntity && prevItem is AlbumGroupEntity -> {
-                                                        groupManager.updateGroupSortOrder(item.id, prevItem.sortOrder)
-                                                        groupManager.updateGroupSortOrder(prevItem.id, item.sortOrder)
-                                                    }
+                                                val currentSort = when (item) {
+                                                    is PhysicalAlbumEntity -> item.sortOrder
+                                                    is AlbumGroupEntity -> item.sortOrder
+                                                    else -> 0
+                                                }
+                                                val prevSort = when (prevItem) {
+                                                    is PhysicalAlbumEntity -> prevItem.sortOrder
+                                                    is AlbumGroupEntity -> prevItem.sortOrder
+                                                    else -> 0
+                                                }
+
+                                                // Update item
+                                                when (item) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, prevSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, prevSort)
+                                                }
+                                                // Update prevItem
+                                                when (prevItem) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(prevItem.id, currentSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(prevItem.id, currentSort)
                                                 }
                                             }
                                         }
@@ -642,16 +670,26 @@ fun GroupDetailScreen(
                                         scope.launch {
                                             if (index < itemsToReorder.size - 1) {
                                                 val nextItem = itemsToReorder[index + 1]
-                                                // Only swap if both items are the same type
-                                                when {
-                                                    item is PhysicalAlbumEntity && nextItem is PhysicalAlbumEntity -> {
-                                                        physicalAlbumManager.updateAlbumSortOrder(item.id, nextItem.sortOrder)
-                                                        physicalAlbumManager.updateAlbumSortOrder(nextItem.id, item.sortOrder)
-                                                    }
-                                                    item is AlbumGroupEntity && nextItem is AlbumGroupEntity -> {
-                                                        groupManager.updateGroupSortOrder(item.id, nextItem.sortOrder)
-                                                        groupManager.updateGroupSortOrder(nextItem.id, item.sortOrder)
-                                                    }
+                                                val currentSort = when (item) {
+                                                    is PhysicalAlbumEntity -> item.sortOrder
+                                                    is AlbumGroupEntity -> item.sortOrder
+                                                    else -> 0
+                                                }
+                                                val nextSort = when (nextItem) {
+                                                    is PhysicalAlbumEntity -> nextItem.sortOrder
+                                                    is AlbumGroupEntity -> nextItem.sortOrder
+                                                    else -> 0
+                                                }
+
+                                                // Update item
+                                                when (item) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, nextSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, nextSort)
+                                                }
+                                                // Update nextItem
+                                                when (nextItem) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(nextItem.id, currentSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(nextItem.id, currentSort)
                                                 }
                                             }
                                         }

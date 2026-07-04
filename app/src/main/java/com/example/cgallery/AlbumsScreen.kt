@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -42,7 +43,7 @@ data class Album(
     val name: String, // This is now the full path
     val displayName: String, // This is the short name for UI
     val count: Int,
-    val coverImage: MediaItem
+    val coverImage: MediaItem?
 )
 
 enum class ReorderType {
@@ -99,6 +100,7 @@ fun AlbumsScreen(
     var showReorderDialog by remember { mutableStateOf(false) }
     var reorderType by remember { mutableStateOf<ReorderType?>(null) }
     var showDeleteGroupConfirmation by remember { mutableStateOf<AlbumGroupEntity?>(null) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val groups by groupManager.rootGroups.collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
@@ -120,18 +122,14 @@ fun AlbumsScreen(
     }
 
     val albumsWithDetails = remember(ungroupedAlbums, mediaByBucket) {
-        ungroupedAlbums.mapNotNull { albumEntity ->
+        ungroupedAlbums.map { albumEntity ->
             val imagesInAlbum = mediaByBucket[albumEntity.bucketName] ?: emptyList()
-            if (imagesInAlbum.isNotEmpty()) {
-                Album(
-                    name = albumEntity.bucketName,
-                    displayName = File(albumEntity.bucketName).name,
-                    count = imagesInAlbum.size,
-                    coverImage = imagesInAlbum.first()
-                )
-            } else {
-                null
-            }
+            Album(
+                name = albumEntity.bucketName,
+                displayName = File(albumEntity.bucketName).name,
+                count = imagesInAlbum.size,
+                coverImage = imagesInAlbum.firstOrNull()
+            )
         }.distinctBy { it.name }
     }
 
@@ -152,23 +150,41 @@ fun AlbumsScreen(
             items.add(DisplayItem.SpecialAlbum("Recent", SpecialAlbumType.RECENTS))
             items.add(DisplayItem.SpecialAlbum("Favourites", SpecialAlbumType.FAVOURITES))
         }
-        // Add root groups only (groups with no parent), sorted by sortOrder
-        groups.filter { it.parentId == null }.sortedBy { it.sortOrder }.forEach { group ->
-            items.add(DisplayItem.GroupItem(group))
+
+        val rootItems = mutableListOf<DisplayItem>()
+        
+        // Add root groups
+        groups.filter { it.parentId == null }.forEach { group ->
+            rootItems.add(DisplayItem.GroupItem(group))
         }
-        // Add ungrouped albums, sorted by sortOrder
+
+        // Add ungrouped albums
         val relevantAlbums = if (selectionMode) albumsWithDetails else albumsWithDetails.filter { album ->
             physicalAlbums.find { it.bucketName == album.name }?.groupId == null
         }
         
-        relevantAlbums.sortedBy { album ->
-            physicalAlbums.find { it.bucketName == album.name }?.sortOrder ?: Int.MAX_VALUE
-        }.forEach { album ->
+        relevantAlbums.forEach { album ->
             val entity = physicalAlbums.find { it.bucketName == album.name }
             if (entity != null) {
-                items.add(DisplayItem.AlbumItem(album, entity))
+                rootItems.add(DisplayItem.AlbumItem(album, entity))
             }
         }
+
+        // Sort combined list by sortOrder, then by name to mix them if sortOrder is identical
+        rootItems.sortedWith(compareBy({ 
+            when (it) {
+                is DisplayItem.GroupItem -> it.group.sortOrder
+                is DisplayItem.AlbumItem -> it.entity.sortOrder
+                else -> Int.MAX_VALUE
+            }
+        }, {
+            when (it) {
+                is DisplayItem.GroupItem -> it.group.name
+                is DisplayItem.AlbumItem -> it.album.displayName
+                else -> ""
+            }
+        })).forEach { items.add(it) }
+
         items.distinctBy { item ->
             when (item) {
                 is DisplayItem.SpecialAlbum -> "special_${item.type}"
@@ -205,6 +221,7 @@ fun AlbumsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(if (selectionMode) "Select Destinations" else "Albums") },
@@ -228,29 +245,66 @@ fun AlbumsScreen(
                             Icon(Icons.Default.Check, contentDescription = "Confirm")
                         }
                     } else {
-                        IconButton(onClick = { showCreateFolderDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Create Folder")
-                        }
-                        IconButton(onClick = { isHideShowMode = !isHideShowMode }) {
-                            Icon(
-                                if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (isHideShowMode) "Exit Hide/Show Mode" else "Enter Hide/Show Mode"
-                            )
-                        }
-                        IconButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
-                            Icon(Icons.Default.FileDownload, contentDescription = "Import Structure")
-                        }
-                        IconButton(onClick = { exportLauncher.launch("cgallery_structure.json") }) {
-                            Icon(Icons.Default.FileUpload, contentDescription = "Export Structure")
-                        }
-                        IconButton(onClick = { showCreateGroupDialog = true }) {
-                            Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
-                        }
-                        IconButton(onClick = {
-                            reorderType = ReorderType.ROOT_ITEMS
-                            showReorderDialog = true
-                        }) {
-                            Icon(Icons.Default.SwapVert, contentDescription = "Reorder")
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More Options")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Create Album") },
+                                    onClick = {
+                                        showMenu = false
+                                        showCreateFolderDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Add, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Create Group") },
+                                    onClick = {
+                                        showMenu = false
+                                        showCreateGroupDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isHideShowMode) "Exit Hide/Show Mode" else "Hide/Show Albums") },
+                                    onClick = {
+                                        showMenu = false
+                                        isHideShowMode = !isHideShowMode
+                                    },
+                                    leadingIcon = { 
+                                        Icon(if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Import Structure") },
+                                    onClick = {
+                                        showMenu = false
+                                        importLauncher.launch(arrayOf("application/json"))
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FileDownload, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Export Structure") },
+                                    onClick = {
+                                        showMenu = false
+                                        exportLauncher.launch("cgallery_structure.json")
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FileUpload, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reorder") },
+                                    onClick = {
+                                        showMenu = false
+                                        reorderType = ReorderType.ROOT_ITEMS
+                                        showReorderDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.SwapVert, null) }
+                                )
+                            }
                         }
                     }
                 }
@@ -262,9 +316,9 @@ fun AlbumsScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(displayItems, key = { item ->
                 when (item) {
@@ -373,12 +427,12 @@ fun AlbumsScreen(
     if (showCreateFolderDialog) {
         AlertDialog(
             onDismissRequest = { showCreateFolderDialog = false },
-            title = { Text("New Folder") },
+            title = { Text("New Album") },
             text = {
                 TextField(
                     value = newFolderName,
                     onValueChange = { newFolderName = it },
-                    placeholder = { Text("Folder Name") },
+                    placeholder = { Text("Album Name") },
                     singleLine = true
                 )
             },
@@ -675,16 +729,26 @@ fun AlbumsScreen(
                                         scope.launch {
                                             if (index > 0) {
                                                 val prevItem = itemsToReorder[index - 1]
-                                                // Only swap if both items are the same type
-                                                when {
-                                                    item is PhysicalAlbumEntity && prevItem is PhysicalAlbumEntity -> {
-                                                        physicalAlbumManager.updateAlbumSortOrder(item.id, prevItem.sortOrder)
-                                                        physicalAlbumManager.updateAlbumSortOrder(prevItem.id, item.sortOrder)
-                                                    }
-                                                    item is AlbumGroupEntity && prevItem is AlbumGroupEntity -> {
-                                                        groupManager.updateGroupSortOrder(item.id, prevItem.sortOrder)
-                                                        groupManager.updateGroupSortOrder(prevItem.id, item.sortOrder)
-                                                    }
+                                                val currentSort = when (item) {
+                                                    is PhysicalAlbumEntity -> item.sortOrder
+                                                    is AlbumGroupEntity -> item.sortOrder
+                                                    else -> 0
+                                                }
+                                                val prevSort = when (prevItem) {
+                                                    is PhysicalAlbumEntity -> prevItem.sortOrder
+                                                    is AlbumGroupEntity -> prevItem.sortOrder
+                                                    else -> 0
+                                                }
+
+                                                // Update item
+                                                when (item) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, prevSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, prevSort)
+                                                }
+                                                // Update prevItem
+                                                when (prevItem) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(prevItem.id, currentSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(prevItem.id, currentSort)
                                                 }
                                             }
                                         }
@@ -698,16 +762,26 @@ fun AlbumsScreen(
                                         scope.launch {
                                             if (index < itemsToReorder.size - 1) {
                                                 val nextItem = itemsToReorder[index + 1]
-                                                // Only swap if both items are the same type
-                                                when {
-                                                    item is PhysicalAlbumEntity && nextItem is PhysicalAlbumEntity -> {
-                                                        physicalAlbumManager.updateAlbumSortOrder(item.id, nextItem.sortOrder)
-                                                        physicalAlbumManager.updateAlbumSortOrder(nextItem.id, item.sortOrder)
-                                                    }
-                                                    item is AlbumGroupEntity && nextItem is AlbumGroupEntity -> {
-                                                        groupManager.updateGroupSortOrder(item.id, nextItem.sortOrder)
-                                                        groupManager.updateGroupSortOrder(nextItem.id, item.sortOrder)
-                                                    }
+                                                val currentSort = when (item) {
+                                                    is PhysicalAlbumEntity -> item.sortOrder
+                                                    is AlbumGroupEntity -> item.sortOrder
+                                                    else -> 0
+                                                }
+                                                val nextSort = when (nextItem) {
+                                                    is PhysicalAlbumEntity -> nextItem.sortOrder
+                                                    is AlbumGroupEntity -> nextItem.sortOrder
+                                                    else -> 0
+                                                }
+
+                                                // Update item
+                                                when (item) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, nextSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, nextSort)
+                                                }
+                                                // Update nextItem
+                                                when (nextItem) {
+                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(nextItem.id, currentSort)
+                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(nextItem.id, currentSort)
                                                 }
                                             }
                                         }
@@ -805,7 +879,7 @@ fun SpecialAlbumItem(
         Box(
             modifier = Modifier
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (coverImage != null) {
@@ -843,7 +917,8 @@ fun SpecialAlbumItem(
             text = name,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = "$itemCount",
@@ -907,7 +982,7 @@ fun GroupAlbumItem(
         Box(
             modifier = Modifier
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .combinedClickable(
                     onClick = onClick,
@@ -979,7 +1054,7 @@ fun GroupAlbumItem(
                         }
                     }
                     2 -> {
-                        Row(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             allAlbumsInHierarchy.take(2).forEach { album ->
                                 val coverItem = if (album.customCoverUri != null) {
                                     album.customCoverUri
@@ -1009,8 +1084,8 @@ fun GroupAlbumItem(
                         }
                     }
                     3 -> {
-                        Row(Modifier.fillMaxSize()) {
-                            Column(Modifier.weight(0.5f)) {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 allAlbumsInHierarchy.take(2).forEach { album ->
                                     val coverItem = if (album.customCoverUri != null) {
                                         album.customCoverUri
@@ -1067,8 +1142,8 @@ fun GroupAlbumItem(
                     }
                     else -> {
                         // 4+ albums: 2x2 grid
-                        Column(Modifier.fillMaxSize()) {
-                            Row(Modifier.weight(1f)) {
+                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                 allAlbumsInHierarchy.take(2).forEach { album ->
                                     val coverItem = if (album.customCoverUri != null) {
                                         album.customCoverUri
@@ -1096,7 +1171,7 @@ fun GroupAlbumItem(
                                     }
                                 }
                             }
-                            Row(Modifier.weight(1f)) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                 allAlbumsInHierarchy.drop(2).take(2).forEach { album ->
                                     val coverItem = if (album.customCoverUri != null) {
                                         album.customCoverUri
@@ -1134,7 +1209,8 @@ fun GroupAlbumItem(
             text = group.name,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1163,14 +1239,16 @@ fun AlbumItem(
     ) {
         Box {
             val context = LocalContext.current
-            val coverUri = entity.customCoverUri ?: album.coverImage.uri.toString()
+            val coverUri = entity.customCoverUri ?: album.coverImage?.uri?.toString()
             val request = remember(coverUri) {
-                ImageRequest.Builder(context)
-                    .data(coverUri)
-                    .crossfade(false)
-                    .bitmapConfig(Bitmap.Config.RGB_565)
-                    .size(180)
-                    .build()
+                if (coverUri != null) {
+                    ImageRequest.Builder(context)
+                        .data(coverUri)
+                        .crossfade(false)
+                        .bitmapConfig(Bitmap.Config.RGB_565)
+                        .size(180)
+                        .build()
+                } else null
             }
             
             val cropData = entity.customCoverCrop?.split(",")
@@ -1178,28 +1256,45 @@ fun AlbumItem(
             val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
             val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
 
-            AsyncImage(
-                model = request,
-                contentDescription = null,
-                modifier = Modifier
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .graphicsLayer {
-                        if (entity.customCoverUri != null) {
-                            scaleX = scale
-                            scaleY = scale
-                            translationX = offX / 300f * size.width
-                            translationY = offY / 300f * size.height
-                        }
-                    },
-                contentScale = ContentScale.Crop
-            )
+            if (request != null) {
+                AsyncImage(
+                    model = request,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(24.dp))
+                        .graphicsLayer {
+                            if (entity.customCoverUri != null) {
+                                scaleX = scale
+                                scaleY = scale
+                                translationX = offX / 300f * size.width
+                                translationY = offY / 300f * size.height
+                            }
+                        },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PhotoAlbum,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
 
             if (selectionMode && isSelected) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(24.dp))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1246,7 +1341,7 @@ fun AlbumItem(
             }
 
             // GIF badge on cover (video icon removed)
-            if (album.coverImage.type == com.example.cgallery.data.MediaType.GIF) {
+            if (album.coverImage?.type == com.example.cgallery.data.MediaType.GIF) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -1267,7 +1362,7 @@ fun AlbumItem(
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(24.dp))
                         .background(
                             if (isHidden)
                                 MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
@@ -1290,7 +1385,8 @@ fun AlbumItem(
             text = album.displayName,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = "${album.count}",

@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -74,6 +75,7 @@ fun AlbumDetailScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { 
@@ -81,7 +83,24 @@ fun AlbumDetailScreen(
                         Text("${selectedIds.size} Selected")
                     } else {
                         val albumName = remember(bucketName) { File(bucketName).name }
-                        Text(albumName)
+                        val imageCount = remember(images) { images.count { it.type == MediaType.IMAGE || it.type == MediaType.GIF } }
+                        val videoCount = remember(images) { images.count { it.type == MediaType.VIDEO } }
+                        
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = albumName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            if (images.isNotEmpty()) {
+                                Text(
+                                    text = "$imageCount images $videoCount videos",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
@@ -138,7 +157,7 @@ fun AlbumDetailScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(4.dp)
+            contentPadding = PaddingValues(2.dp)
         ) {
             itemsIndexed(images, key = { _, it -> it.id }) { index, image ->
                 val isSelected = image.id in selectedIds

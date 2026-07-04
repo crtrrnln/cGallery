@@ -47,10 +47,13 @@ class PhysicalAlbumManager(context: Context) {
             }
         }
 
-        // Remove albums that no longer exist in MediaStore
+        // Remove albums that no longer exist in MediaStore AND are gone from disk
         existingAlbums.forEach { album ->
             if (!bucketNames.contains(album.bucketName)) {
-                physicalAlbumDao.deleteAlbum(album)
+                val file = File(album.bucketName)
+                if (!file.exists() || !file.isDirectory) {
+                    physicalAlbumDao.deleteAlbum(album)
+                }
             }
         }
     }
@@ -85,7 +88,7 @@ class PhysicalAlbumManager(context: Context) {
 
             val newFolder = File(parentDir, folderName)
             if (newFolder.exists()) {
-                Result.failure(Exception("Folder already exists"))
+                Result.failure(Exception("Album already exists"))
             } else {
                 val success = newFolder.mkdirs()
                 if (success) {
@@ -102,7 +105,7 @@ class PhysicalAlbumManager(context: Context) {
 
                     Result.success(newFolder.absolutePath)
                 } else {
-                    Result.failure(Exception("Failed to create folder"))
+                    Result.failure(Exception("Failed to create album"))
                 }
             }
         } catch (e: Exception) {

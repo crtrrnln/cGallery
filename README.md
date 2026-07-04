@@ -2,23 +2,24 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.65)
+## Features (v0.66)
 
-### UI Layout Fixes
-- **Eliminated Ghost Padding**: Fixed a double-padding issue that caused excessive empty space at the top and bottom of most screens.
-- **Unified Inset Handling**: Screens now correctly handle status and navigation bars independently of the main app container.
+### Samsung-Inspired UI
+- **Modern Aesthetics**: Updated all covers with 24dp rounded corners and refined grid spacing (8dp/12dp gaps) for a premium look and feel.
+- **Tightened Media Grid**: Reduced photo spacing to 2dp in gallery and album views for a dense, high-performance visual experience.
+- **Clean Management**: Moved administrative tools to a 3-dot overflow menu, keeping the primary "Albums" interface focused and clutter-free.
+- **Rich Details**: Added image and video counts to album headers and grid items.
 
-### Album Management
-- **Universal Folder Creation**: Added "Create Folder" to the Album Group detail screen, allowing you to create new physical albums directly inside a group.
-- **Fixed Creation Logic**: Refined the folder creation process to immediately trigger a MediaStore scan and provide visual feedback via snackbars.
-- **Hierarchical Group Operations**: Enabled Move and Delete operations for album groups located inside other groups.
+### Advanced Organisation
+- **Mixed Content Sorting**: Albums and Album Groups now intermingle based on sort order and name, rather than groups being pinned to the top.
+- **Robust Creation**: Fixed empty album creation; new albums now persist and show up immediately even before media is added.
+- **Auto-Ellipsis**: Long album and group names are now smartly truncated with "..." to prevent layout breakage.
 
 ### Inbox System
-- **Inbox Foundation**: Dedicated workflow layer to track and organise newly detected media.
+- **Inbox Navigation**: Added a dedicated back button to exit the Inbox workflow.
 - **Multi-Destination Logic**: Organise a single photo into multiple physical folders simultaneously (MOVE or COPY).
 - **"Inbox, not Everything Box"**: Automatically ignores existing folder contents when monitoring starts.
 - **Manual Scan**: Trigger immediate detection of new media via the "Scan Now" feature.
-- **Organisation Workflow**: Immersive full-screen UI to preview and multi-select destinations for pending media.
 
 ### Core Gallery
 - **Persona Red Theme**: Custom vibrant red branding with high-performance drawing optimisations.

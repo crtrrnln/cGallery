@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,6 +31,7 @@ fun InboxScreen(
     onItemClick: (Int) -> Unit,
     onOrganise: (Set<Long>, Boolean) -> Unit,
     onSettingsClick: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.pendingItems.collectAsState()
@@ -63,6 +65,10 @@ fun InboxScreen(
                     if (isSelectionMode) {
                         IconButton(onClick = { selectedIds = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear Selection")
+                        }
+                    } else {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },

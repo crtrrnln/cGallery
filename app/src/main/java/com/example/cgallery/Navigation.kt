@@ -112,7 +112,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {
@@ -130,7 +130,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {
@@ -158,7 +158,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {
@@ -173,14 +173,15 @@ fun GalleryNavDisplay(
                     },
                     onSettingsClick = {
                         onNavigate(GalleryKey.InboxSettings)
-                    }
+                    },
+                    onBack = onBack
                 )
             }
 
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) { key ->
@@ -203,7 +204,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {
@@ -216,7 +217,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) { key ->
@@ -242,7 +243,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) { key ->
@@ -272,7 +273,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) { key ->
@@ -298,7 +299,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) { key ->
@@ -365,7 +366,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {
@@ -378,7 +379,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.65")
+                        HomeScreen(version = "v0.66")
                     }
                 )
             ) {

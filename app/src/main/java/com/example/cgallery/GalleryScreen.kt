@@ -90,6 +90,7 @@ fun GalleryScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -106,7 +107,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.65",
+                                "v0.66",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -175,7 +176,7 @@ fun GalleryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(4.dp)
+            contentPadding = PaddingValues(2.dp)
         ) {
             itemsIndexed(images, key = { _, image -> image.id }) { index, image ->
                 val isSelected = image.id in selectedIds

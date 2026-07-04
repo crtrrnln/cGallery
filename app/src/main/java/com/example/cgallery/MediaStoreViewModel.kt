@@ -196,10 +196,10 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             _isLoading.value = true
             val result = physicalAlbumManager.createFolder(folderName)
             if (result.isSuccess) {
-                _operationResult.emit("Folder created: $folderName")
+                _operationResult.emit("Album created: $folderName")
                 loadMedia() // Refresh
             } else {
-                _operationResult.emit("Failed to create folder: ${result.exceptionOrNull()?.message}")
+                _operationResult.emit("Failed to create album: ${result.exceptionOrNull()?.message}")
             }
             _isLoading.value = false
         }

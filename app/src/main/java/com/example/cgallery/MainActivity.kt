@@ -141,7 +141,6 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     bottomBar = {
                         if (showBottomBar) {
@@ -182,7 +181,7 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = innerPadding.calculateBottomPadding())
+                            .padding(innerPadding)
                     ) {
                         GalleryNavDisplay(
                             backstack = backstack,
@@ -205,6 +204,9 @@ class MainActivity : ComponentActivity() {
                             onNavigate = onNavigate,
                             onToggleAlbumVisibility = { bucketName ->
                                 mediaStoreViewModel.toggleAlbumVisibility(bucketName)
+                            },
+                            onCreateFolder = { folderName ->
+                                mediaStoreViewModel.createFolder(folderName)
                             },
                             navigator = navigator
                         )

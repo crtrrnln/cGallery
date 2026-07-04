@@ -1,6 +1,7 @@
 package com.example.cgallery
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -20,6 +21,7 @@ fun FavouritesScreen(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Favourites") }
@@ -44,7 +46,7 @@ fun FavouritesScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(4.dp)
+                contentPadding = PaddingValues(2.dp)
             ) {
                 itemsIndexed(favoriteImages, key = { _, it -> it.id }) { index, image ->
                     MediaGridItem(
