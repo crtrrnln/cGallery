@@ -24,7 +24,9 @@ data class MediaItem(
     val uri: Uri,
     val displayName: String,
     val bucketName: String,
+    val bucketPath: String,
     val relativePath: String,
+    val fullPath: String,
     val type: MediaType,
     val duration: Long = 0L,
     val dateAdded: Long = 0L

@@ -16,6 +16,7 @@ class MediaStoreDataSource(private val context: Context) {
             MediaStore.Files.FileColumns.DISPLAY_NAME,
             MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME,
             MediaStore.Files.FileColumns.RELATIVE_PATH,
+            MediaStore.Files.FileColumns.DATA,
             MediaStore.Files.FileColumns.MEDIA_TYPE,
             MediaStore.Files.FileColumns.DATE_ADDED,
             MediaStore.Video.VideoColumns.DURATION
@@ -39,6 +40,7 @@ class MediaStoreDataSource(private val context: Context) {
             val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
             val bucketColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME)
             val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.RELATIVE_PATH)
+            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
             val typeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
             val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
             val durationColumn = cursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION)
@@ -47,6 +49,8 @@ class MediaStoreDataSource(private val context: Context) {
                 val id = cursor.getLong(idColumn)
                 val name = cursor.getString(nameColumn) ?: ""
                 val bucket = cursor.getString(bucketColumn)?.intern() ?: "Unknown"
+                val fullPath = cursor.getString(dataColumn) ?: ""
+                val bucketPath = try { java.io.File(fullPath).parent?.intern() ?: "Unknown" } catch (e: Exception) { "Unknown" }
                 val path = cursor.getString(pathColumn)?.intern() ?: ""
                 val typeInt = cursor.getInt(typeColumn)
                 val dateAdded = cursor.getLong(dateColumn)
@@ -71,7 +75,9 @@ class MediaStoreDataSource(private val context: Context) {
                         uri = contentUri,
                         displayName = name,
                         bucketName = bucket,
+                        bucketPath = bucketPath,
                         relativePath = path,
+                        fullPath = fullPath,
                         type = type,
                         duration = duration,
                         dateAdded = dateAdded

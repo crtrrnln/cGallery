@@ -3,14 +3,12 @@ package com.example.cgallery
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.cgallery.data.FavoritesManager
-import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.MediaStoreDataSource
-import com.example.cgallery.data.PhysicalAlbumManager
+import com.example.cgallery.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.media.MediaScannerConnection
 
 class MediaStoreViewModel(application: Application) : AndroidViewModel(application) {
     private val dataSource = MediaStoreDataSource(application)
@@ -26,7 +24,7 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val mediaByBucket: StateFlow<Map<String, List<MediaItem>>> = _mediaItems
-        .map { items -> items.groupBy { it.bucketName } }
+        .map { items -> items.groupBy { it.bucketPath } }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -50,11 +48,13 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val albumResults: StateFlow<List<String>> = combine(_mediaItems, _searchQuery) { items, query ->
+    val albumResults: StateFlow<List<Pair<String, String>>> = combine(_mediaItems, _searchQuery) { items, query ->
         if (query.isBlank()) emptyList()
         else {
             val lowerQuery = query.lowercase()
-            items.map { it.bucketName }.distinct().filter { it.lowercase().contains(lowerQuery) }
+            items.filter { it.bucketName.lowercase().contains(lowerQuery) }
+                .map { it.bucketName to it.bucketPath }
+                .distinct()
         }
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -65,6 +65,12 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _operationResult = MutableSharedFlow<String>()
+    val operationResult = _operationResult.asSharedFlow()
+
+    val physicalAlbums: StateFlow<List<PhysicalAlbumEntity>> = physicalAlbumManager.allAlbums
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         loadMedia()
@@ -78,15 +84,81 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             
             // Sync physical albums with current MediaStore folders in background
             withContext(Dispatchers.Default) {
-                val bucketNames = items.map { it.bucketName }.distinct()
-                physicalAlbumManager.syncAlbums(bucketNames)
+                // Important: Use full parent paths for synchronization to ensure valid file moves
+                val bucketPaths = items.map { it.bucketPath }.distinct()
+                physicalAlbumManager.syncAlbums(bucketPaths)
             }
             _isLoading.value = false
         }
     }
 
-    fun addMediaToAlbum(albumId: Long, mediaIds: Set<Long>) {
-        // TODO: Implement for physical folders
+    fun moveMediaToAlbum(targetFolderPath: String, mediaIds: Set<Long>) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val itemsToMove = _mediaItems.value.filter { it.id in mediaIds }
+            val movedFiles = mutableListOf<String>()
+            val sourceFiles = itemsToMove.map { it.fullPath }
+            
+            withContext(Dispatchers.IO) {
+                itemsToMove.forEach { item ->
+                    val result = physicalAlbumManager.moveFile(item.fullPath, targetFolderPath)
+                    if (result.isSuccess) {
+                        movedFiles.add(result.getOrThrow())
+                    }
+                }
+            }
+            
+            if (movedFiles.isNotEmpty()) {
+                // Scan new files and old files (to remove from MediaStore)
+                MediaScannerConnection.scanFile(
+                    getApplication(),
+                    (movedFiles + sourceFiles).toTypedArray(),
+                    null
+                ) { _, _ -> }
+                
+                _operationResult.emit("Successfully moved ${movedFiles.size} items")
+                
+                // Give the scanner a tiny bit of time to start before reloading
+                kotlinx.coroutines.delay(500)
+                loadMedia()
+            } else {
+                _operationResult.emit("Failed to move items")
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun copyMediaToAlbum(targetFolderPath: String, mediaIds: Set<Long>) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val itemsToCopy = _mediaItems.value.filter { it.id in mediaIds }
+            val copiedFiles = mutableListOf<String>()
+            
+            withContext(Dispatchers.IO) {
+                itemsToCopy.forEach { item ->
+                    val result = physicalAlbumManager.copyFile(item.fullPath, targetFolderPath)
+                    if (result.isSuccess) {
+                        copiedFiles.add(result.getOrThrow())
+                    }
+                }
+            }
+            
+            if (copiedFiles.isNotEmpty()) {
+                MediaScannerConnection.scanFile(
+                    getApplication(),
+                    copiedFiles.toTypedArray(),
+                    null
+                ) { _, _ -> }
+                
+                _operationResult.emit("Successfully copied ${copiedFiles.size} items")
+                
+                kotlinx.coroutines.delay(500)
+                loadMedia()
+            } else {
+                _operationResult.emit("Failed to copy items")
+                _isLoading.value = false
+            }
+        }
     }
 
     fun toggleAlbumVisibility(bucketName: String) {

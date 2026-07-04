@@ -112,15 +112,48 @@ class PhysicalAlbumManager(context: Context) {
                 return Result.failure(Exception("Target file already exists"))
             }
 
-            sourceFile.copyTo(targetFile, overwrite = false)
-            val deleted = sourceFile.delete()
-            if (deleted) {
+            // Try atomic rename first
+            val renamed = sourceFile.renameTo(targetFile)
+            if (renamed) {
                 Result.success(targetFile.absolutePath)
             } else {
-                // Clean up the copied file if source deletion failed
-                targetFile.delete()
-                Result.failure(Exception("Failed to delete source file"))
+                // Fallback to copy-delete if rename fails (e.g. cross-partition)
+                sourceFile.copyTo(targetFile, overwrite = false)
+                val deleted = sourceFile.delete()
+                if (deleted) {
+                    Result.success(targetFile.absolutePath)
+                } else {
+                    // Clean up the copied file if source deletion failed
+                    targetFile.delete()
+                    Result.failure(Exception("Failed to delete source file after copy"))
+                }
             }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun copyFile(sourcePath: String, targetFolderPath: String): Result<String> {
+        return try {
+            val sourceFile = File(sourcePath)
+            val targetFolder = File(targetFolderPath)
+
+            if (!sourceFile.exists()) {
+                return Result.failure(Exception("Source file does not exist"))
+            }
+
+            if (!targetFolder.exists()) {
+                targetFolder.mkdirs()
+            }
+
+            val targetFile = File(targetFolder, sourceFile.name)
+
+            if (targetFile.exists()) {
+                return Result.failure(Exception("Target file already exists"))
+            }
+
+            sourceFile.copyTo(targetFile, overwrite = false)
+            Result.success(targetFile.absolutePath)
         } catch (e: Exception) {
             Result.failure(e)
         }

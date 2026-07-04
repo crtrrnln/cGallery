@@ -20,11 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -42,8 +37,8 @@ fun MediaGridItem(
     index: Int,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    onItemClick: (Int, Long) -> Unit,
-    onItemLongClick: (Long) -> Unit = { _ -> },
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Optimization: Skip animation calculations when not in selection mode to save UI thread cycles
@@ -58,41 +53,21 @@ fun MediaGridItem(
         ImageRequest.Builder(context)
             .data(image.uri)
             .crossfade(false) // Optimization: Disable crossfade for faster list popping
-            .bitmapConfig(Bitmap.Config.RGB_565) // Optimization: 50% memory saving (2 bytes per pixel instead of 4)
+            .bitmapConfig(Bitmap.Config.RGB_565) // Optimization: 50% memory saving
             .size(180)
             .build()
     }
-
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val checkIcon = rememberVectorPainter(Icons.Default.CheckCircle)
 
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .padding(itemPadding)
             .then(
-                // Optimization: Use drawWithCache for overlay to reduce layout nodes and overdraw
-                if (isSelected) {
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .drawWithCache {
-                            onDrawWithContent {
-                                drawContent()
-                                drawRect(primaryColor.copy(alpha = 0.2f))
-                                val iconSize = 24.dp.toPx()
-                                val padding = 4.dp.toPx()
-                                translate(left = size.width - iconSize - padding, top = padding) {
-                                    with(checkIcon) {
-                                        draw(size = Size(iconSize, iconSize))
-                                    }
-                                }
-                            }
-                        }
-                } else Modifier
+                if (isSelected) Modifier.clip(RoundedCornerShape(12.dp)) else Modifier
             )
             .combinedClickable(
-                onClick = { onItemClick(index, image.id) },
-                onLongClick = { onItemLongClick(image.id) }
+                onClick = onClick,
+                onLongClick = onLongClick
             )
     ) {
         AsyncImage(
@@ -102,7 +77,7 @@ fun MediaGridItem(
             contentScale = ContentScale.Crop
         )
 
-        // Video indicator (small play icon in bottom-right corner)
+        // Video indicator
         if (image.type == MediaType.VIDEO) {
             Icon(
                 Icons.Default.PlayCircle,
@@ -115,7 +90,7 @@ fun MediaGridItem(
             )
         }
 
-        // GIF indicator (small badge in top-left corner)
+        // GIF indicator
         if (image.type == MediaType.GIF) {
             Box(
                 modifier = Modifier
@@ -131,6 +106,24 @@ fun MediaGridItem(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+            )
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(24.dp)
+            )
         }
     }
 }

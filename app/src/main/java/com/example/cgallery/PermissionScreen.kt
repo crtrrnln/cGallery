@@ -1,7 +1,11 @@
 package com.example.cgallery
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Storage
@@ -35,12 +39,19 @@ fun PermissionScreen(
 
     val multiplePermissionsState = rememberMultiplePermissionsState(permissions)
 
-    val allGranted = multiplePermissionsState.allPermissionsGranted
+    val isAllFilesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+    } else {
+        true
+    }
+
+    val allGranted = multiplePermissionsState.allPermissionsGranted && isAllFilesGranted
 
     if (allGranted) {
         onPermissionGranted()
         onPermissionRequest()
     } else {
+        val context = androidx.compose.ui.platform.LocalContext.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -65,16 +76,25 @@ fun PermissionScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "cGallery needs access to your photos to display them in the gallery. Please grant storage access to continue.",
+                    text = "cGallery needs full storage access to move and manage your physical photo folders. Please grant permissions to continue.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
-                    onClick = { multiplePermissionsState.launchMultiplePermissionRequest() }
+                    onClick = {
+                        if (!multiplePermissionsState.allPermissionsGranted) {
+                            multiplePermissionsState.launchMultiplePermissionRequest()
+                        } else if (!isAllFilesGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        }
+                    }
                 ) {
-                    Text("Grant Permission")
+                    Text(if (!multiplePermissionsState.allPermissionsGranted) "Grant Storage Access" else "Grant All Files Access")
                 }
 
                 val shouldShowRationale = multiplePermissionsState.shouldShowRationale

@@ -42,8 +42,11 @@ import com.example.cgallery.data.PhysicalAlbumEntity
 import com.example.cgallery.data.FavoritesManager
 import kotlinx.coroutines.launch
 
+import java.io.File
+
 data class Album(
-    val name: String,
+    val name: String, // This is now the full path
+    val displayName: String, // This is the short name for UI
     val count: Int,
     val coverImage: MediaItem
 )
@@ -68,10 +71,12 @@ enum class SpecialAlbumType {
 @Composable
 fun AlbumsScreen(
     images: List<MediaItem>,
+    mediaByBucket: Map<String, List<MediaItem>>,
     onAlbumClick: (Album) -> Unit,
     onGroupClick: (Long) -> Unit = {},
     onToggleAlbumVisibility: (String) -> Unit = {},
     onSpecialAlbumClick: (SpecialAlbumType) -> Unit = {},
+    selectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -99,8 +104,6 @@ fun AlbumsScreen(
     val favoritesManager = remember { FavoritesManager(context) }
     val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
 
-    val mediaByBucket = remember(images) { images.groupBy { it.bucketName } }
-
     val visibleAlbums = remember(physicalAlbums, isHideShowMode) {
         if (isHideShowMode) {
             physicalAlbums
@@ -120,6 +123,7 @@ fun AlbumsScreen(
             if (imagesInAlbum.isNotEmpty()) {
                 Album(
                     name = albumEntity.bucketName,
+                    displayName = File(albumEntity.bucketName).name,
                     count = imagesInAlbum.size,
                     coverImage = imagesInAlbum.first()
                 )
@@ -139,17 +143,23 @@ fun AlbumsScreen(
         albumsByGroup
     }
 
-    val displayItems = remember(groups, albumsWithDetails, physicalAlbums) {
+    val displayItems = remember(groups, albumsWithDetails, physicalAlbums, selectionMode) {
         val items = mutableListOf<DisplayItem>()
-        // Add special albums
-        items.add(DisplayItem.SpecialAlbum("Recent", SpecialAlbumType.RECENTS))
-        items.add(DisplayItem.SpecialAlbum("Favourites", SpecialAlbumType.FAVOURITES))
+        // Add special albums only when not in selection mode
+        if (!selectionMode) {
+            items.add(DisplayItem.SpecialAlbum("Recent", SpecialAlbumType.RECENTS))
+            items.add(DisplayItem.SpecialAlbum("Favourites", SpecialAlbumType.FAVOURITES))
+        }
         // Add root groups only (groups with no parent), sorted by sortOrder
         groups.filter { it.parentId == null }.sortedBy { it.sortOrder }.forEach { group ->
             items.add(DisplayItem.GroupItem(group))
         }
         // Add ungrouped albums, sorted by sortOrder
-        albumsWithDetails.sortedBy { album ->
+        val relevantAlbums = if (selectionMode) albumsWithDetails else albumsWithDetails.filter { album ->
+            physicalAlbums.find { it.bucketName == album.name }?.groupId == null
+        }
+        
+        relevantAlbums.sortedBy { album ->
             physicalAlbums.find { it.bucketName == album.name }?.sortOrder ?: Int.MAX_VALUE
         }.forEach { album ->
             val entity = physicalAlbums.find { it.bucketName == album.name }
@@ -169,25 +179,27 @@ fun AlbumsScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Albums") },
+                title = { Text(if (selectionMode) "Select Album" else "Albums") },
                 actions = {
-                    IconButton(onClick = { showCreateFolderDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create Folder")
-                    }
-                    IconButton(onClick = { isHideShowMode = !isHideShowMode }) {
-                        Icon(
-                            if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (isHideShowMode) "Exit Hide/Show Mode" else "Enter Hide/Show Mode"
-                        )
-                    }
-                    IconButton(onClick = { showCreateGroupDialog = true }) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
-                    }
-                    IconButton(onClick = {
-                        reorderType = ReorderType.ROOT_ITEMS
-                        showReorderDialog = true
-                    }) {
-                        Icon(Icons.Default.SwapVert, contentDescription = "Reorder")
+                    if (!selectionMode) {
+                        IconButton(onClick = { showCreateFolderDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "Create Folder")
+                        }
+                        IconButton(onClick = { isHideShowMode = !isHideShowMode }) {
+                            Icon(
+                                if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (isHideShowMode) "Exit Hide/Show Mode" else "Enter Hide/Show Mode"
+                            )
+                        }
+                        IconButton(onClick = { showCreateGroupDialog = true }) {
+                            Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
+                        }
+                        IconButton(onClick = {
+                            reorderType = ReorderType.ROOT_ITEMS
+                            showReorderDialog = true
+                        }) {
+                            Icon(Icons.Default.SwapVert, contentDescription = "Reorder")
+                        }
                     }
                 }
             )
@@ -1061,7 +1073,7 @@ fun AlbumItem(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = album.name,
+            text = album.displayName,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             maxLines = 1

@@ -2,13 +2,11 @@ package com.example.cgallery
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
@@ -23,7 +21,7 @@ import com.example.cgallery.ui.MediaGridItem
 fun SearchScreen(
     searchQuery: String,
     searchResults: List<MediaItem>,
-    albumResults: List<String>,
+    albumResults: List<Pair<String, String>>,
     onUpdateSearchQuery: (String) -> Unit,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
@@ -51,11 +49,6 @@ fun SearchScreen(
         }
     ) { innerPadding ->
         val currentOnImageClick by rememberUpdatedState(onImageClick)
-        val onItemClick = remember {
-            { index: Int, _: Long ->
-                currentOnImageClick(GalleryKey.Viewer(index))
-            }
-        }
         
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
@@ -70,10 +63,10 @@ fun SearchScreen(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text("Albums", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
                 }
-                items(albumResults, key = { "album_$it" }, span = { GridItemSpan(maxLineSpan) }) { albumName ->
+                items(albumResults, key = { "album_${it.second}" }, span = { GridItemSpan(maxLineSpan) }) { (albumName, albumPath) ->
                     ListItem(
                         headlineContent = { Text(albumName) },
-                        modifier = Modifier.clickable { currentOnImageClick(GalleryKey.AlbumDetail(albumName)) }
+                        modifier = Modifier.clickable { currentOnImageClick(GalleryKey.AlbumDetail(albumPath)) }
                     )
                 }
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -89,7 +82,9 @@ fun SearchScreen(
                     MediaGridItem(
                         image = image,
                         index = index,
-                        onItemClick = onItemClick
+                        onClick = {
+                            currentOnImageClick(GalleryKey.Viewer(index))
+                        }
                     )
                 }
             }
