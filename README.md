@@ -2,7 +2,7 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.61)
+## Features (v0.62)
 
 ### Inbox System
 - **Inbox Foundation**: Dedicated workflow layer to track and organise newly detected media.

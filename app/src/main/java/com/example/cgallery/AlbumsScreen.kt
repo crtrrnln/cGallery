@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -92,6 +93,7 @@ fun AlbumsScreen(
     var selectedParentGroupId by remember { mutableStateOf<Long?>(null) }
     var showReorderDialog by remember { mutableStateOf(false) }
     var reorderType by remember { mutableStateOf<ReorderType?>(null) }
+    var showDeleteGroupConfirmation by remember { mutableStateOf<AlbumGroupEntity?>(null) }
 
     val groups by groupManager.rootGroups.collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
@@ -405,32 +407,40 @@ fun AlbumsScreen(
                 Column {
                     Text("Move \"${selectedAlbumForGroup?.name}\" to:")
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Option to remove from group
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedGroupId = null
+                    
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        LazyColumn {
+                            // Option to remove from group
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedGroupId = null
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedGroupId == null,
+                                        onClick = { selectedGroupId = null }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Root (No Group)")
+                                }
                             }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedGroupId == null,
-                            onClick = { selectedGroupId = null }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Root (No Group)")
-                    }
-                    // List of groups with nested structure
-                    allGroups.filter { it.parentId == null }.forEach { group ->
-                        GroupSelectionRow(
-                            group = group,
-                            allGroups = allGroups,
-                            selectedGroupId = selectedGroupId,
-                            onGroupSelected = { selectedGroupId = it },
-                            indent = 0
-                        )
+                            // List of groups with nested structure
+                            val rootGroups = allGroups.filter { it.parentId == null }
+                            items(rootGroups, key = { it.id }) { group ->
+                                GroupSelectionRow(
+                                    group = group,
+                                    allGroups = allGroups,
+                                    selectedGroupId = selectedGroupId,
+                                    onGroupSelected = { selectedGroupId = it },
+                                    indent = 0
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -467,37 +477,62 @@ fun AlbumsScreen(
                 selectedGroupForMove = null
                 selectedParentGroupId = null
             },
-            title = { Text("Move Group") },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Move Group")
+                    IconButton(onClick = {
+                        showDeleteGroupConfirmation = selectedGroupForMove
+                        showMoveGroupDialog = false
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Group", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
             text = {
                 Column {
                     Text("Move \"${selectedGroupForMove?.name}\" into:")
                     Spacer(modifier = Modifier.height(8.dp))
-                    // Option to move to root (no parent)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectedParentGroupId = null
+                    
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        LazyColumn {
+                            // Option to move to root (no parent)
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedParentGroupId = null
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedParentGroupId == null,
+                                        onClick = { selectedParentGroupId = null }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Root (No Parent)")
+                                }
                             }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedParentGroupId == null,
-                            onClick = { selectedParentGroupId = null }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Root (No Parent)")
-                    }
-                    // List of other groups with nested structure
-                    groups.filter { it.id != selectedGroupForMove?.id }.forEach { group ->
-                        GroupSelectionRow(
-                            group = group,
-                            allGroups = groups,
-                            selectedGroupId = selectedParentGroupId,
-                            onGroupSelected = { selectedParentGroupId = it },
-                            indent = 0
-                        )
+                            
+                            // List of other groups with nested structure
+                            val otherGroups = allGroups.filter { it.id != selectedGroupForMove?.id }
+                            val rootOtherGroups = otherGroups.filter { it.parentId == null }
+                            
+                            items(rootOtherGroups, key = { it.id }) { group ->
+                                GroupSelectionRow(
+                                    group = group,
+                                    allGroups = otherGroups,
+                                    selectedGroupId = selectedParentGroupId,
+                                    onGroupSelected = { selectedParentGroupId = it },
+                                    indent = 0
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -514,7 +549,7 @@ fun AlbumsScreen(
                                 // Check if the target parent is a descendant of the group being moved
                                 fun isDescendant(groupId: Long, potentialDescendantId: Long): Boolean {
                                     if (groupId == potentialDescendantId) return true
-                                    val children = groups.filter { it.parentId == groupId }
+                                    val children = allGroups.filter { it.parentId == groupId }
                                     return children.any { isDescendant(it.id, potentialDescendantId) }
                                 }
                                 
@@ -538,6 +573,38 @@ fun AlbumsScreen(
                     showMoveGroupDialog = false
                     selectedGroupForMove = null
                     selectedParentGroupId = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteGroupConfirmation != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteGroupConfirmation = null },
+            title = { Text("Delete Group") },
+            text = { Text("Are you sure you want to delete the group \"${showDeleteGroupConfirmation?.name}\"? All albums and sub-groups within will be moved to the root.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            showDeleteGroupConfirmation?.let { group ->
+                                groupManager.deleteGroup(group.id)
+                            }
+                            showDeleteGroupConfirmation = null
+                            selectedGroupForMove = null
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showDeleteGroupConfirmation = null
+                    showMoveGroupDialog = true // Re-open move dialog
                 }) {
                     Text("Cancel")
                 }

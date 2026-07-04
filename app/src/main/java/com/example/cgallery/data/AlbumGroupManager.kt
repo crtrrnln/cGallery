@@ -93,6 +93,26 @@ class AlbumGroupManager(context: Context) {
         groupDao.updateGroupSortOrder(groupId, sortOrder)
     }
 
+    suspend fun deleteGroup(groupId: Long) {
+        // Move all albums in this group back to root
+        val albums = physicalAlbumDao.getAlbumsByGroup(groupId).first()
+        albums.forEach { album ->
+            physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
+        }
+        
+        // Move all child groups back to root
+        val childGroups = groupDao.getChildGroups(groupId).first()
+        childGroups.forEach { child ->
+            groupDao.moveGroup(child.id, null)
+        }
+
+        // Delete the group itself
+        val group = groupDao.getGroupById(groupId).first()
+        if (group != null) {
+            groupDao.deleteGroup(group)
+        }
+    }
+
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {
         return physicalAlbumDao.getAlbumsByGroup(groupId)
     }
