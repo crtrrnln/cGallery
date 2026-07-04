@@ -22,12 +22,10 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.*
+import com.example.cgallery.data.PhysicalAlbumEntity
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +46,7 @@ import kotlinx.coroutines.launch
 fun GalleryScreen(
     images: List<MediaItem>,
     imagesMap: Map<Long, MediaItem>,
-    onAddToAlbum: (Long, Set<Long>) -> Unit = { _, _ -> },
+    onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -56,7 +54,6 @@ fun GalleryScreen(
     val scope = rememberCoroutineScope()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
-    var showAlbumSelection by remember { mutableStateOf(false) }
 
     val currentSelectedIds by rememberUpdatedState(selectedIds)
     val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
@@ -76,16 +73,6 @@ fun GalleryScreen(
         { id: Long ->
             if (currentSelectedIds.isEmpty()) {
                 selectedIds = setOf(id)
-            }
-        }
-    }
-
-    val onItemClick = remember {
-        { index: Int, id: Long ->
-            if (currentIsSelectionMode) {
-                onToggleSelection(id)
-            } else {
-                currentOnImageClick(GalleryKey.Viewer(index))
             }
         }
     }
@@ -119,7 +106,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.54",
+                                "v0.55",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -136,9 +123,16 @@ fun GalleryScreen(
                 actions = {
                     if (isSelectionMode) {
                         IconButton(onClick = {
-                            showAlbumSelection = true
+                            onAddToAlbum(selectedIds, true)
+                            selectedIds = emptySet()
                         }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add to Album")
+                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "Move to Album")
+                        }
+                        IconButton(onClick = {
+                            onAddToAlbum(selectedIds, false)
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Copy to Album")
                         }
                         IconButton(onClick = {
                             val selectedUris = selectedIds.mapNotNull { imagesMap[it]?.uri }
@@ -190,30 +184,18 @@ fun GalleryScreen(
                     index = index,
                     isSelected = isSelected,
                     isSelectionMode = isSelectionMode,
-                    onItemClick = onItemClick,
-                    onItemLongClick = onLongClickItem
+                    onClick = {
+                        if (currentIsSelectionMode) {
+                            onToggleSelection(image.id)
+                        } else {
+                            currentOnImageClick(GalleryKey.Viewer(index))
+                        }
+                    },
+                    onLongClick = {
+                        onLongClickItem(image.id)
+                    }
                 )
             }
         }
-    }
-
-    if (showAlbumSelection) {
-// ...
-        AlertDialog(
-            onDismissRequest = { showAlbumSelection = false },
-            title = { Text("Add to Album") },
-            text = {
-                Text(
-                    "Virtual albums have been removed. This feature will be updated for physical folders.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showAlbumSelection = false }) {
-                    Text("OK")
-                }
-            }
-        )
     }
 }

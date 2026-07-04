@@ -4,10 +4,12 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -49,12 +51,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val isPermissionGranted = remember(permissions) {
+                    val isAllFilesGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        Environment.isExternalStorageManager()
+                    } else {
+                        true
+                    }
                     permissions.all { permission ->
                         ContextCompat.checkSelfPermission(
                             this,
                             permission
                         ) == PackageManager.PERMISSION_GRANTED
-                    }
+                    } && isAllFilesGranted
                 }
 
                 val mediaStoreViewModel: MediaStoreViewModel = viewModel()
@@ -65,6 +72,7 @@ class MainActivity : ComponentActivity() {
                 val searchQuery by mediaStoreViewModel.searchQuery.collectAsState()
                 val searchResults by mediaStoreViewModel.searchResults.collectAsState()
                 val albumResults by mediaStoreViewModel.albumResults.collectAsState()
+                val isLoading by mediaStoreViewModel.isLoading.collectAsState()
 
                 var backstack by remember {
                     mutableStateOf(
@@ -73,6 +81,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 val scope = rememberCoroutineScope()
+                val snackbarHostState = remember { SnackbarHostState() }
+
+                LaunchedEffect(Unit) {
+                    mediaStoreViewModel.operationResult.collect { message ->
+                        snackbarHostState.showSnackbar(message)
+                    }
+                }
+
                 val windowAdaptiveInfo = currentWindowAdaptiveInfo()
                 val isSinglePane = remember(windowAdaptiveInfo) {
                     windowAdaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.COMPACT
@@ -127,6 +143,7 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
                     bottomBar = {
                         if (showBottomBar) {
                             NavigationBar {
@@ -174,8 +191,11 @@ class MainActivity : ComponentActivity() {
                             searchResults = searchResults,
                             albumResults = albumResults,
                             onUpdateSearchQuery = { mediaStoreViewModel.updateSearchQuery(it) },
-                            onAddToAlbum = { albumId, mediaIds ->
-                                mediaStoreViewModel.addMediaToAlbum(albumId, mediaIds)
+                            onAddToAlbum = { albumPath, mediaIds ->
+                                mediaStoreViewModel.copyMediaToAlbum(albumPath, mediaIds)
+                            },
+                            onMoveToAlbum = { albumPath, mediaIds ->
+                                mediaStoreViewModel.moveMediaToAlbum(albumPath, mediaIds)
                             },
                             onReloadMedia = { mediaStoreViewModel.loadMedia() },
                             onBack = onBack,
@@ -185,6 +205,17 @@ class MainActivity : ComponentActivity() {
                             },
                             navigator = navigator
                         )
+
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
                     }
                 }
 

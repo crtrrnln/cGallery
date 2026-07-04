@@ -13,6 +13,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.example.cgallery.data.MediaItem
+import com.example.cgallery.data.PhysicalAlbumEntity
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -36,6 +37,9 @@ sealed interface GalleryKey : NavKey {
     data class AlbumDetail(val id: String) : GalleryKey
 
     @Serializable
+    data class AlbumSelection(val mediaIds: Set<Long>, val isMove: Boolean) : GalleryKey
+
+    @Serializable
     data class GroupDetail(val groupId: Long) : GalleryKey
 
     @Serializable
@@ -52,9 +56,10 @@ fun GalleryNavDisplay(
     favoriteMedia: List<MediaItem>,
     searchQuery: String,
     searchResults: List<MediaItem>,
-    albumResults: List<String>,
+    albumResults: List<Pair<String, String>>,
     onUpdateSearchQuery: (String) -> Unit,
-    onAddToAlbum: (Long, Set<Long>) -> Unit,
+    onAddToAlbum: (String, Set<Long>) -> Unit,
+    onMoveToAlbum: (String, Set<Long>) -> Unit,
     onReloadMedia: () -> Unit = {},
     onBack: () -> Unit,
     onNavigate: (GalleryKey) -> Unit,
@@ -82,14 +87,16 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) {
                 GalleryScreen(
                     images = mediaItems,
                     imagesMap = mediaItemsMap,
-                    onAddToAlbum = onAddToAlbum,
+                    onAddToAlbum = { ids, isMove ->
+                        onNavigate(GalleryKey.AlbumSelection(ids, isMove))
+                    },
                     onImageClick = onNavigate
                 )
             }
@@ -97,12 +104,13 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) {
                 AlbumsScreen(
                     images = mediaItems,
+                    mediaByBucket = mediaByBucket,
                     onAlbumClick = { album ->
                         onNavigate(GalleryKey.AlbumDetail(album.name))
                     },
@@ -112,9 +120,31 @@ fun GalleryNavDisplay(
                     onToggleAlbumVisibility = onToggleAlbumVisibility,
                     onSpecialAlbumClick = { type ->
                         when (type) {
-                            com.example.cgallery.SpecialAlbumType.RECENTS -> onNavigate(GalleryKey.Gallery)
-                            com.example.cgallery.SpecialAlbumType.FAVOURITES -> onNavigate(GalleryKey.Favourites)
+                            SpecialAlbumType.RECENTS -> onNavigate(GalleryKey.Gallery)
+                            SpecialAlbumType.FAVOURITES -> onNavigate(GalleryKey.Favourites)
                         }
+                    }
+                )
+            }
+
+            entry<GalleryKey.AlbumSelection>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = {
+                        HomeScreen(version = "v0.55")
+                    }
+                )
+            ) { key ->
+                AlbumsScreen(
+                    images = mediaItems,
+                    mediaByBucket = mediaByBucket,
+                    selectionMode = true,
+                    onAlbumClick = { album ->
+                        if (key.isMove) {
+                            onMoveToAlbum(album.name, key.mediaIds)
+                        } else {
+                            onAddToAlbum(album.name, key.mediaIds)
+                        }
+                        onBack()
                     }
                 )
             }
@@ -122,7 +152,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) { key ->
@@ -133,6 +163,9 @@ fun GalleryNavDisplay(
                 AlbumDetailScreen(
                     bucketName = key.id,
                     images = albumImages,
+                    onAddToAlbum = { ids, isMove ->
+                        onNavigate(GalleryKey.AlbumSelection(ids, isMove))
+                    },
                     onImageClick = onNavigate,
                     onBack = onBack
                 )
@@ -141,13 +174,14 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) { key ->
                 GroupDetailScreen(
                     groupId = key.groupId,
                     images = mediaItems,
+                    mediaByBucket = mediaByBucket,
                     onAlbumClick = { albumName ->
                         onNavigate(GalleryKey.AlbumDetail(albumName))
                     },
@@ -161,7 +195,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) {
@@ -174,7 +208,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.54")
+                        HomeScreen(version = "v0.55")
                     }
                 )
             ) {

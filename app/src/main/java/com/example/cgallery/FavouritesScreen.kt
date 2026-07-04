@@ -8,9 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.cgallery.data.FavoritesManager
 import com.example.cgallery.data.MediaItem
 import com.example.cgallery.ui.MediaGridItem
 
@@ -29,12 +27,6 @@ fun FavouritesScreen(
         }
     ) { innerPadding ->
         val currentOnImageClick by rememberUpdatedState(onImageClick)
-        val onItemClick = remember {
-            { index: Int, _: Long ->
-                currentOnImageClick(GalleryKey.Viewer(index))
-            }
-        }
-
         if (favoriteImages.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -58,7 +50,9 @@ fun FavouritesScreen(
                     MediaGridItem(
                         image = image,
                         index = index,
-                        onItemClick = onItemClick
+                        onClick = {
+                            currentOnImageClick(GalleryKey.Viewer(index))
+                        }
                     )
                 }
             }

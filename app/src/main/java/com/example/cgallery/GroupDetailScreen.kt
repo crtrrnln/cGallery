@@ -41,6 +41,7 @@ sealed class GroupDisplayItem {
 fun GroupDetailScreen(
     groupId: Long,
     images: List<MediaItem>,
+    mediaByBucket: Map<String, List<MediaItem>>,
     onAlbumClick: (String) -> Unit,
     onGroupClick: (Long) -> Unit = {},
     onBack: () -> Unit
@@ -63,8 +64,6 @@ fun GroupDetailScreen(
     val albumsInGroup by groupManager.getAlbumsByGroup(groupId).collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
 
-    val mediaByBucket = remember(images) { images.groupBy { it.bucketName } }
-
     // Get child groups of this group
     val childGroups = remember(allGroups, groupId) {
         allGroups.filter { it.parentId == groupId }
@@ -82,6 +81,7 @@ fun GroupDetailScreen(
             if (imagesInAlbum.isNotEmpty()) {
                 val album = Album(
                     name = albumEntity.bucketName,
+                    displayName = java.io.File(albumEntity.bucketName).name,
                     count = imagesInAlbum.size,
                     coverImage = imagesInAlbum.first()
                 )
