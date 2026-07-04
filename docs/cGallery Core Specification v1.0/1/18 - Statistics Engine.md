@@ -1,49 +1,46 @@
 # 18 - Statistics Engine
 
 ## Purpose
-The Statistics Engine monitors the health of the media library and the performance of the system's engines. It provides data for the "Developer Mode" and internal optimization.
+The Statistics Engine provides telemetry on the library's health and the efficiency of the Inbox workflow. It persists data in the `inbox_stats` table for use in the UI and optimization.
 
 ## Metrics Categories
 
-### 1. Library Health
-*   **Total Assets:** Count of `MediaItems` by state (`MANAGED`, `INBOX`, `ARCHIVED`).
-*   **Storage Distribution:** Space used by MIME type (Photos vs. Videos).
-*   **Inbox Age:** Average time a `MediaItem` spends in the `INBOX` state.
-*   **Grouping Efficiency:** % of items that are part of an Album vs. Loose.
+### 1. Workflow Telemetry (`InboxStatsEntity`)
+*   **Total Detected:** Lifetime count of all media identified by the Discovery Engine.
+*   **Total Completed:** Count of successfully triaged items (MOVE/COPY finished).
+*   **Total Failed:** Count of items that encountered I/O errors during triage.
+*   **Total Ignored:** Items explicitly removed from the Inbox by the user.
 
-### 2. Engine Performance
-*   **Ingestion Latency:** Time from file discovery to `INBOX` availability.
-*   **Inference Accuracy:** Ratio of "Confirmed" vs. "Rejected" suggested groupings.
-*   **Processing Backlog:** Number of items waiting in `UNPROCESSED` state.
-*   **IO Throughput:** Speed of file moves and metadata writes.
+### 2. Performance Tracking
+*   **Processing Efficiency:** Calculated as `totalProcessingTimeMs / totalCompleted`. This measures the average time for the Enforcement Engine to finalize a triage request.
+*   **Error Rate:** % of total detections that result in a `Failed` state.
 
-### 3. Visual Analytics
-*   **Color Distribution:** Predominant colors in the library (useful for "Search by Color").
-*   **Temporal Heatmap:** When most media is captured (by hour/day/month).
-*   **Spatial Density:** Geographical clusters of media.
+### 3. Logistical Distribution
+*   **Source Folder Counts:** A frequency map of where new media is being discovered (e.g., "70% from Downloads").
+*   **Destination Folder Counts:** A frequency map of where users are organizing their media, identifying the most "Active" albums in the managed root.
 
 ## Data Persistence
-Statistics are stored in a dedicated `StatisticsLog` table, aggregated hourly or daily to save space.
+Statistics are stored in a single-row `inbox_stats` table for high-speed updates.
 
-### Schema: `DailySummary`
+### Schema: `InboxStatsEntity`
 | Field | Description |
 | :--- | :--- |
-| `date` | Primary Key. |
-| `new_items_count` | Number of items ingested today. |
-| `manual_edits_count` | Number of user corrections. |
-| `total_storage_mb` | Snapshot of library size. |
-| `avg_inference_confidence` | Mean confidence score from Detection Engine. |
+| `id` | PK (Constant 1). |
+| `totalDetected` | Total unique `mediaStoreId`s ingested. |
+| `totalCompleted` | Success count. |
+| `totalFailed` | Failure count. |
+| `totalIgnored` | Suppression count. |
+| `totalProcessingTimeMs` | Aggregated I/O and Sync time. |
+| `sourceFolderCounts` | JSON-serialized map of source paths. |
+| `destinationFolderCounts` | JSON-serialized map of target paths. |
 
-## Event Triggers
-The Statistics Engine subscribes to **Workflow Engine** events:
-*   `ON_STATE_CHANGE` -> Update state counts.
-*   `ON_ALBUM_CREATED` -> Update grouping stats.
-*   `ON_ERROR` -> Increment error counters for specific engines.
+## Update Cycle
+The Statistics Engine does not run on a timer; it is reactive to **Workflow Engine** events:
+1.  **On Discovery:** Increment `totalDetected`.
+2.  **On Completion:** Increment `totalCompleted`, add duration to `totalProcessingTimeMs`, and update frequency maps.
+3.  **On Failure:** Increment `totalFailed`.
 
 ## Usage in UI
-*   **Settings/Storage:** Show breakdown of space used and potential savings from deleting duplicates.
-*   **Dashboard:** High-level summary of "How organized is your life?"
-*   **Developer Mode:** Real-time performance graphs for each engine.
-
-## Pruning Policy
-Raw statistics logs are kept for 90 days. Aggregated daily summaries are kept for 2 years.
+*   **Dashboard:** Shows "Library Health" (Completed vs. Total).
+*   **Inbox Detail:** Can show average processing speed to the user.
+*   **Export/Import:** The statistics are included in the organization export (v0.61) to preserve library history.

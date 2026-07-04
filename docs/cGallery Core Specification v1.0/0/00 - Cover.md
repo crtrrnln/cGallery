@@ -1,10 +1,10 @@
 # cGallery Core Specification v1.0
 
-**Title:** cGallery: Self-Organizing Media Intelligence System
-**Version:** 1.0.0
+**Title:** cGallery: Physical-First Media Curation System
+**Version:** 1.0.0 (Aligns with App v0.7pre1)
 **Status:** Active Design
-**Last Updated:** July 2026
-**Confidentiality:** Internal Design Document
+**Last Updated:** 4 July 2026
+**Author:** Architect (Reflecting crtrrnln's Implementation)
 
 ---
 
@@ -22,7 +22,7 @@ This specification defines the complete technical architecture, data models, and
     *   12 - Album System
     *   13 - Inbox System
     *   14 - Workflow Engine
-    *   15 - Detection Engine
+    *   15 - Discovery Engine
     *   16 - Enforcement Engine
     *   17 - File Operations
     *   18 - Statistics Engine

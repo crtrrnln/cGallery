@@ -2,7 +2,7 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.69)
+## Features (v0.7pre1)
 
 ### Startup & UX
 - **Cinematic Startup Experience**: Added a session-based startup animation featuring a sequence of brand-aligned descriptors (crafted, custom, curated...) ending with a smooth wipe-up reveal of the main gallery.
@@ -27,6 +27,16 @@ cGallery is a fast, local-first Android gallery application designed with advanc
 ### Core Gallery
 - **Persona Red Theme**: Custom vibrant red branding with high-performance drawing optimisations.
 - **Full-Screen Viewer**: Immersive viewing with swipe-down-to-exit and auto-pausing video support.
+
+## Roadmap
+
+- ✅ **v0.1: Foundations** - Project initialization and establishment of the core architectural skeleton.
+- ✅ **v0.2: Media Discovery** - Implementation of the initial read-only gallery grid for high-speed media viewing.
+- ✅ **v0.3: Immersive Viewing** - Development of the full-screen media viewer with integrated file management.
+- ✅ **v0.4: Basic Collections** - Introduction of user-defined albums and favorites for simple media grouping.
+- ✅ **v0.5: Hierarchical Organization** - Major revamp of the album system to support nesting, groups, and hidden collections.
+- ✅ **v0.6: Inbox** - Launch of the Inbox system for processing newly detected media with multi-destination support.
+- ☐ **v0.7: Inbox Enforcement** - Automating the organization lifecycle through background scanning and forcing the user to organise newly discovered media.
 
 ---
 *Developed with a focus on speed, stability, and simplicity.*

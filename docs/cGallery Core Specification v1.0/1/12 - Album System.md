@@ -16,7 +16,7 @@ The Album System manages the organizational hierarchy of cGallery. It bridges th
 *   **Logic:** Can exist as a "root" item or be assigned to a `groupId`.
 
 ## Mixed Content Sorting
-A core feature of cGallery v0.69+ is that **Groups** and **Albums** intermingle.
+A core feature of cGallery v0.7pre1+ is that **Groups** and **Albums** intermingle.
 *   **Implementation:** The UI layer queries both tables, combines the results into a unified list, and sorts them by `sortOrder` then `name`.
 *   **UI Grid:** Groups and Albums are indistinguishable at the top level except for the "Group" badge or collage cover.
 

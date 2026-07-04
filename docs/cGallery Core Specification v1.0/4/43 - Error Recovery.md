@@ -13,41 +13,33 @@ Digital assets are precious. cGallery must prioritize data integrity and provide
 
 ### 2. Database Errors
 *   **Error:** SQLite Constraint Violation.
-*   **Response:** Rollback transaction, log the conflict, mark the item as `ERROR_STATE`.
+*   **Response:** Rollback transaction, log the conflict, and mark the operation as `Failed`.
 *   **Error:** Database Corruption.
-*   **Response:** Restore from the most recent metadata export (if available) or trigger a full library re-scan (`UNPROCESSED` flow).
+*   **Response:** Use the "Import Structure" (v0.61) feature to restore organization from a previous backup.
 
-### 3. Inference Engine Failures
-*   **Error:** ML Model crash/out-of-memory.
-*   **Response:** Kill the process, retry once with reduced complexity, then fall back to basic heuristic clustering (Timestamp-only).
+### 3. File Operation Failures (Enforcement Engine)
+*   **Error:** File disappeared during move or rename.
+*   **Response:** Verify destination existence. If missing, mark `InboxItemEntity` as `Failed` and do not delete the source record.
 
 ### 4. Lifecycle Conflicts
-*   **Error:** File disappeared during move.
-*   **Response:** Check if it exists at the destination. If not, mark as `MISSING`. Do not delete the database record yet.
+*   **Error:** Source file modified during triage.
+*   **Response:** Abort the current MOVE/COPY command, re-verify file size/hash, and prompt the user.
 
 ## Automatic Self-Healing (The "Janitor")
-A background process that runs weekly or on-demand:
-1.  **Orphan Check:** Find `MediaItems` with no physical file.
-2.  **Zombie Check:** Find files in managed folders with no DB entry.
-3.  **Hash Verification:** Re-calculate hashes for a random 1% of the library to detect silent corruption.
-4.  **Consistency Check:** Ensure every `MANAGED` item belongs to an active album.
+A process (triggered by "Scan Now") that ensures consistency:
+1.  **Orphan Check:** Find albums in the database whose physical bucket path no longer exists.
+2.  **Zombie Check:** Find files in the managed root that are not yet indexed.
+3.  **Sync Check:** Ensure `MediaScannerConnection` is triggered for all recent I/O.
 
 ## User-Facing Recovery Tools
-*   **"Reset Library":** Deletes the database but *not* the photos. Useful for a fresh start with the "Brain."
-*   **"Fix Broken Links":** Triggers the Orpan/Zombie check manually.
-*   **"Export Logs":** For technical support.
+*   **"Export/Import Structure":** Allows users to backup their logical grouping and organization history to a JSON file.
+*   **"Fix Broken Links":** Re-runs the `syncAlbums` logic to align with MediaStore.
+*   **"Export Debug Bundle":** Zips internal logs and the database (excluding media) for technical support.
 
 ## Logging & Auditing
-Every error is logged in the `ErrorLog` table:
-| Field | Description |
-| :--- | :--- |
-| `timestamp` | When it happened. |
-| `module` | `DETECTION`, `ENFORCEMENT`, etc. |
-| `severity` | `WARNING`, `CRITICAL`, `FATAL`. |
-| `context` | `media_id`, `path`, etc. |
-| `stack_trace` | Technical details. |
+Every significant error is recorded in the `notes` field of the `inbox_items` or the `EnforcementLog` (if implemented).
 
 ## Recovery Priority
 1.  **Safety First:** Never delete a file if its status is uncertain.
-2.  **Metadata Second:** Re-indexing is cheap; physical files are irreplaceable.
-3.  **UI Continuity:** Don't crash the app; show a "Reduced Functionality" state.
+2.  **User Intent Second:** If an operation fails, keep the item in the `Failed` state for manual intervention.
+3.  **Persistence:** Use Room migrations to preserve data across app updates.

@@ -119,7 +119,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.69",
+                                "v0.7pre1",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )

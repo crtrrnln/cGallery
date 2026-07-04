@@ -43,4 +43,4 @@ The UI presents the user with a choice:
 ## UX Design
 *   **Inbox Navigation:** A dedicated workflow with a clear exit/back button.
 *   **Scan Now:** A prominent action in the administrative menu to trigger manual detection.
-*   **Efficiency:** Designed to handle "batch" decisions, though v0.69 focuses on per-item processing.
+*   **Efficiency:** Designed to handle "batch" decisions, though v0.7pre1 focuses on per-item processing.

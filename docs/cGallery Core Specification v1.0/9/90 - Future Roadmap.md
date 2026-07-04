@@ -1,29 +1,29 @@
 # 90 - Future Roadmap
 
 ## Purpose
-This document outlines the long-term vision for cGallery beyond the initial v1.0 release.
+This document outlines the long-term vision for cGallery, focusing on physical organization, performance, and user-driven curation.
 
-## Phase 2: Enhanced Intelligence (v1.1 - v1.5)
-*   **Deep Scene Search:** Natural language search for photos (e.g., "Me at the beach with a dog").
-*   **Automatic Collage & Highlights:** AI-generated memory movies and grid layouts.
-*   **Video Understanding:** Detecting key moments within video files to generate dynamic previews.
-*   **Face Recognition (Local):** Grouping people into a "People" section without cloud involvement.
+## Phase 2: Workflow Refinement (v1.1 - v1.5)
+*   **Batch Inbox Actions:** Ability to select multiple items in the Inbox and apply destinations in one gesture.
+*   **Inbox Scheduling:** User-defined "Triage Times" where the app prompts the user to clear their backlog.
+*   **Visual Bursts:** Automatic visual stacking of near-identical photos in the grid to reduce clutter.
+*   **Search Enhancements:** Fast metadata-based search (date, location, file type).
 
 ## Phase 3: Ecosystem & Connectivity (v2.0)
-*   **Desktop Companion:** A sister app for macOS/Windows that syncs the organization state.
-*   **Private Cloud Sync:** End-to-end encrypted backup to personal S3 buckets or NAS (Nextcloud/Synology).
-*   **Collaborative Albums:** Shared organization between family members while maintaining local privacy.
+*   **Organization Sync:** Exporting/Importing organization states across devices via local backup files.
+*   **Private Cloud Integration:** Automated backup to personal cloud storage (S3, Nextcloud) while preserving the physical folder structure.
+*   **External SD Support:** Improved handling and enforcement for high-capacity removable storage.
 
 ## Phase 4: Pro-Grade Tools (v3.0)
-*   **RAW Support:** Full support for high-fidelity photo editing and metadata management.
-*   **Automated Backup Enforcement:** Rules to ensure specific albums are always backed up to physical cold storage.
-*   **AI-Assistant:** A chat-based interface to ask questions about the library (e.g., "When was the last time I saw a movie with Jane?").
+*   **RAW Support:** Full support for high-fidelity photo viewing and management.
+*   **Advanced File Enforcement:** User-defined "Rules" for automatic physical movement based on file attributes (e.g., "Move all .dng to RAW folder").
+*   **Library Auditing:** Tools to identify and clean up physical duplicates and empty directories.
 
 ## Ongoing Technical Goals
-*   **KMP Migration:** Moving the core engines to Kotlin Multiplatform for use on non-Android platforms.
-*   **On-Device LLM:** Integrating a small, local Large Language Model for better metadata generation and natural language processing.
-*   **Zero-Battery Impact:** Moving more of the processing to dedicated AI chips (NPUs) on modern smartphones.
+*   **Performance:** Maintaining 120 FPS scrolling even with massive libraries.
+*   **Storage Efficiency:** Optimizing the local thumbnail cache to minimize app storage footprint.
+*   **Architecture:** Decoupling core organization logic for potential cross-platform use.
 
 ## Community & Open Source
-*   **Plugin System:** Allowing third-party developers to write their own "Detection Modules" (e.g., a "Bird Species Identifier").
-*   **Public API:** A local Intent-based API for other apps to query the cGallery brain.
+*   **Custom Organization Scripts:** Allowing users to define custom logic for file placement.
+*   **Open Metadata:** Ensuring all organizational data is exportable in standard formats.

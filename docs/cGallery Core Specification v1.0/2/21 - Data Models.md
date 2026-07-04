@@ -1,110 +1,107 @@
 # 21 - Data Models
 
 ## Purpose
-This document defines the core Kotlin data classes and enums used across the application. These models bridge the gap between the Database (Room) and the UI/Business Logic.
+This document defines the Room entities and Enums that constitute the core data layer of cGallery, reflecting the actual implementation in `VirtualAlbum.kt` and `InboxModels.kt`.
 
 ## Core Enums
 
-### `MediaItemState`
-Defines the lifecycle stage of a media item.
+### `InboxStatus`
+Defines the state of an item within the triage workflow.
 ```kotlin
-enum class MediaItemState {
-    UNPROCESSED,    // Just discovered
-    ANALYZING,      // Detection Engine is working
-    INBOX,          // Waiting for user/auto-promotion
-    MANAGED,        // Assigned to an album
-    ARCHIVED,       // Hidden
-    TRASHED,        // Marked for deletion
-    ERROR_STATE     // System failed to process
+enum class InboxStatus {
+    Pending,
+    Processing,
+    Completed,
+    Failed,
+    Ignored
 }
 ```
 
-### `AlbumType`
+### `InboxOperation`
 ```kotlin
-enum class AlbumType {
-    DYNAMIC,        // Inferred by Brain
-    STATIC,         // Manually created
-    SMART,          // Rule-based
-    SYSTEM_INBOX,   // Special virtual album
-    SYSTEM_TRASH    // Special virtual album
+enum class InboxOperation {
+    COPY,
+    MOVE
 }
 ```
 
-## Data Entities (Room)
+## Room Entities
 
-### `MediaItem`
+### `PhysicalAlbumEntity`
+Represents a physical MediaStore bucket.
 ```kotlin
-data class MediaItem(
-    val id: String = UUID.randomUUID().toString(),
-    val hash: String,
-    val mimeType: String,
-    val originalPath: String,
-    val currentPath: String?,
-    val size: Long,
-    val width: Int?,
-    val height: Int?,
-    val timestamp: Long,
-    val isTimestampEstimated: Boolean = false,
-    val latitude: Double? = null,
-    val longitude: Double? = null,
-    val state: MediaItemState = MediaItemState.UNPROCESSED,
-    val qualityScore: Float? = null,
-    val version: Int = 1
+data class PhysicalAlbumEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bucketName: String, // Unique Index
+    val isHidden: Boolean = false,
+    val groupId: Long? = null,
+    val sortOrder: Int = 0,
+    val customCoverUri: String? = null,
+    val customCoverCrop: String? = null // "left,top,right,bottom"
 )
 ```
 
-### `Album`
+### `AlbumGroupEntity`
+A logical hierarchy for nesting albums.
 ```kotlin
-data class Album(
-    val id: String = UUID.randomUUID().toString(),
+data class AlbumGroupEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val description: String? = null,
-    val type: AlbumType,
-    val status: AlbumStatus = AlbumStatus.PROPOSED,
-    val coverItemId: String? = null,
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis(),
-    val constraints: AlbumConstraints? = null
+    val parentId: Long? = null,
+    val sortOrder: Int = 0,
+    val customCoverUri: String? = null,
+    val customCoverCrop: String? = null
 )
 ```
 
-## Value Objects (Domain Models)
-
-### `InferenceSignal`
+### `InboxItemEntity`
+Tracks the lifecycle of a detected media item.
 ```kotlin
-data class InferenceSignal(
-    val mediaId: String,
-    val type: SignalType,
-    val confidence: Float,
-    val payload: Map<String, Any>
+data class InboxItemEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val mediaStoreId: Long, // Unique Index
+    val mediaUri: String,
+    val filename: String,
+    val sourcePath: String,
+    val detectedTimestamp: Long,
+    val processingTimestamp: Long? = null,
+    val status: InboxStatus = InboxStatus.Pending,
+    val destinationPaths: List<String> = emptyList(),
+    val operationType: InboxOperation = InboxOperation.MOVE,
+    val retryCount: Int = 0,
+    val notes: String? = null
 )
 ```
 
-### `AlbumConstraints` (for Smart Albums)
+### `MonitoredFolderEntity`
+A physical path monitored for new media.
 ```kotlin
-data class AlbumConstraints(
-    val dateRange: LongRange? = null,
-    val locations: List<CircleArea>? = null,
-    val tags: List<String> = emptyList(),
-    val minQuality: Float? = null
+data class MonitoredFolderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val folderPath: String, // Unique Index
+    val displayName: String,
+    val isEnabled: Boolean = true,
+    val ignoreBeforeTimestamp: Long = 0L
 )
 ```
 
-## UI Models (MVI/MVVM)
-
-### `GalleryThumbnail`
-A lightweight model for grid rendering.
+### `InboxStatsEntity`
+Telemetry for the Inbox workflow.
 ```kotlin
-data class GalleryThumbnail(
-    val id: String,
-    val uri: Uri,
-    val state: MediaItemState,
-    val isSelected: Boolean = false,
-    val stackCount: Int = 1 // For burst grouping
+data class InboxStatsEntity(
+    @PrimaryKey val id: Int = 1,
+    val totalDetected: Int = 0,
+    val totalCompleted: Int = 0,
+    val totalFailed: Int = 0,
+    val totalIgnored: Int = 0,
+    val totalProcessingTimeMs: Long = 0L,
+    val sourceFolderCounts: Map<String, Int> = emptyMap(),
+    val destinationFolderCounts: Map<String, Int> = emptyMap()
 )
 ```
 
-## Mapping Logic
-*   `toEntity()`: Domain model to Room entity.
-*   `toDomain()`: Room entity to Domain model.
-*   `toUiModel()`: Domain model to UI-specific state.
+## Data Transformation
+The system uses **Type Converters** to serialize complex types into SQLite-compatible formats using `kotlinx.serialization`:
+*   `List<String>` -> JSON String.
+*   `Map<String, Int>` -> JSON String.
+*   `Enums` -> String.name.

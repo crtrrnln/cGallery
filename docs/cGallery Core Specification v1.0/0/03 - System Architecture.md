@@ -9,7 +9,7 @@ cGallery is built as a set of interacting managers and engines centered around a
 *   **Components:** `MediaStoreDataSource`, `PhysicalAlbumManager`.
 *   **Action:** Syncs physical bucket names with the `physical_albums` table.
 
-### 2. Detection Engine (Inbox Trigger)
+### 2. Discovery Engine (Inbox Trigger)
 *   **Responsibility:** Monitors `monitored_folders` for new media.
 *   *Detection Logic:* Compares `MediaStore.dateAdded` against the folder's `ignoreBeforeTimestamp`.
 *   **Output:** Creates `InboxItemEntity` records in a `Pending` state.
@@ -37,7 +37,7 @@ cGallery is built as a set of interacting managers and engines centered around a
 graph TD
     MS[MediaStore / Disk] -->|Scan| ML[Media Layer]
     ML -->|Bucket Names| AS[Album System]
-    MS -->|New Media Detect| DE[Detection Engine]
+    MS -->|New Media Detect| DE[Discovery Engine]
     DE -->|Pending Item| WE[Workflow Engine]
     WE -->|User Decision| UI[Inbox UI]
     UI -->|Execute Move/Copy| EE[Enforcement Engine]

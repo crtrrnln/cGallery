@@ -53,11 +53,11 @@ fun StartupAnimation(
             val lineHeight = 36.dp
             
             // To keep 'c' static and centered relative to the final brand:
-            // We create a container that is sized by the final text "cGallery v0.69"
+            // We create a container that is sized by the final text "cGallery v0.7pre1"
             Box(modifier = Modifier.wrapContentSize()) {
                 // Anchor text (invisible)
                 Text(
-                    text = "cGallery v0.69",
+                    text = "cGallery v0.7pre1",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 28.sp
@@ -87,7 +87,7 @@ fun StartupAnimation(
                                 )
                             )
                             Text(
-                                text = word.substring(1) + (if (isLast) " v0.69" else ""),
+                                text = word.substring(1) + (if (isLast) " v0.7pre1" else ""),
                                 style = MaterialTheme.typography.headlineMedium.copy(
                                     fontWeight = FontWeight.Light,
                                     fontSize = 26.sp,

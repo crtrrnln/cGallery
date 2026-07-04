@@ -1,50 +1,38 @@
 # 40 - Performance
 
 ## Purpose
-This document defines the performance targets and optimization strategies to ensure cGallery remains responsive even with libraries of 100,000+ items.
+cGallery is built for speed. This document defines the performance targets and optimization strategies required to handle high-density media grids and intensive file operations.
 
 ## Performance Targets
 
 | Metric | Target | Condition |
 | :--- | :--- | :--- |
-| **App Launch (Cold)** | < 800ms | 10k items library |
-| **Grid Scroll** | 60 FPS (Stable) | 120Hz support where available |
-| **Thumbnail Load** | < 50ms | Once in viewport |
-| **Search Query** | < 100ms | DB indexed |
-| **Engine Overhead** | < 5% CPU | Idle/Background |
-| **Inference Latency** | < 2s | Single item analysis |
+| **Startup Animation** | 60 FPS | Session-based cinematic reveal |
+| **Grid Scroll** | 120 FPS | On supported devices |
+| **Bucket Sync** | < 200ms | Library with 50+ buckets |
+| **Inbox Scan** | < 1s | 5,000+ total media items |
+| **Move/Rename** | < 50ms | Atomic operation (same partition) |
 
 ## Optimization Strategies
 
-### 1. Database Optimization
-*   **Indexing:** All columns used in `WHERE` or `ORDER BY` clauses (state, timestamp, album_id) must be indexed.
-*   **Projection:** Never use `SELECT *`. Only query the columns needed for the specific UI component.
-*   **Batching:** All writes to the DB must be batched using transactions (e.g., 50 inserts per transaction).
+### 1. High-Density Rendering (Compose)
+*   **Grid Spacing:** Use 2dp padding to maximize visual throughput.
+*   **Lazy Loading:** Strict use of `LazyVerticalGrid` with key-based item tracking.
+*   **Corner Optimization:** Pre-calculating 24dp rounded clip paths to avoid GPU overdraw.
 
-### 2. UI Rendering (Compose)
-*   **Lazy Loading:** Use `LazyVerticalGrid` and `LazyColumn`.
-*   **Sub-composition:** Minimize recomposition by using `remember` and `derivedStateOf`.
-*   **Image Pipeline:** Use **Coil** or **Glide** with a custom `Fetcher` that prioritizes the **Media Layer's** local thumbnail cache.
+### 2. Database & I/O
+*   **Unique Indexing:** Strict indexing on `bucketName` and `mediaStoreId` to ensure `O(1)` lookups during discovery scans.
+*   **Serialization:** Using `kotlinx.serialization` for JSON maps in `InboxStats` to minimize reflection overhead.
+*   **Async Triage:** All MOVE/COPY operations are delegated to `Dispatchers.IO` to ensure the UI remains interactive during multi-destination processing.
 
-### 3. Background Engine Management
-*   **Priority Queuing:**
-    *   `IMMEDIATE`: State changes triggered by user.
-    *   `HIGH`: Ingestion of new files.
-    *   `LOW`: Deep ML inference and stats.
-*   **Resource Throttling:** Engines pause when the UI is "Active" and the library is being scrolled to prevent frame drops.
+### 3. MediaStore Sync
+*   **Batch Scanning:** Instead of scanning every file individually, use batch `MediaScannerConnection` calls where possible.
+*   **Metadata Caching:** Relying on MediaStore's pre-indexed metadata for the "Discovery Engine" rather than deep-reading physical file headers.
 
 ### 4. Memory Management
-*   **Bitmaps:** Use `RGB_565` for thumbnails to save 50% RAM vs `ARGB_8888`.
-*   **Caching:** 
-    *   L1: Memory cache (LRU).
-    *   L2: Disk cache (Internal storage).
-    *   L3: Physical files (Originals).
-
-### 5. Disk I/O
-*   Avoid frequent small writes. Buffer `EnforcementLog` entries and commit in chunks.
-*   Use `FileChannel` or `BufferedSource` for metadata extraction.
+*   **Persistent Cropping:** Storing crop strings rather than transformed bitmaps to save storage and RAM.
+*   **Collage covers:** Dynamically generating group covers from child album items using a prioritized LRU cache.
 
 ## Monitoring
-*   **Tracepoints:** Use `androidx.tracing` to mark engine start/stop events.
-*   **LeakCanary:** Integrated in debug builds to detect memory leaks.
-*   **Firebase Performance:** (Optional) Track real-world metrics on diverse hardware.
+*   **Developer Mode (v0.7):** Heartbeat monitors for Discovery and Enforcement engines.
+*   **Debug Logs:** Detailed tracking of cross-partition fallback moves (Copy + Delete).
