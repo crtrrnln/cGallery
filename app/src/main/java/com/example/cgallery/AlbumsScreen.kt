@@ -72,7 +72,10 @@ fun AlbumsScreen(
     onToggleAlbumVisibility: (String) -> Unit = {},
     onSpecialAlbumClick: (SpecialAlbumType) -> Unit = {},
     onInboxClick: () -> Unit = {},
+    onCreateFolder: (String) -> Unit = {},
     selectionMode: Boolean = false,
+    externalSelectedAlbums: Set<String>? = null,
+    onToggleAlbumSelection: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -80,7 +83,8 @@ fun AlbumsScreen(
     val groupManager = remember { AlbumGroupManager(context) }
     val physicalAlbumManager = remember { PhysicalAlbumManager(context) }
 
-    var selectedAlbumsForAction by remember { mutableStateOf(setOf<String>()) }
+    var localSelectedAlbumsForAction by remember { mutableStateOf(setOf<String>()) }
+    val selectedAlbumsForAction = externalSelectedAlbums ?: localSelectedAlbumsForAction
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -305,10 +309,14 @@ fun AlbumsScreen(
                             entity = item.entity,
                             onClick = {
                                 if (selectionMode) {
-                                    selectedAlbumsForAction = if (isSelected) {
-                                        selectedAlbumsForAction - item.album.name
+                                    if (externalSelectedAlbums != null) {
+                                        onToggleAlbumSelection(item.album.name)
                                     } else {
-                                        selectedAlbumsForAction + item.album.name
+                                        localSelectedAlbumsForAction = if (isSelected) {
+                                            localSelectedAlbumsForAction - item.album.name
+                                        } else {
+                                            localSelectedAlbumsForAction + item.album.name
+                                        }
                                     }
                                 } else if (isHideShowMode) {
                                     onToggleAlbumVisibility(item.album.name)
@@ -377,13 +385,9 @@ fun AlbumsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     if (newFolderName.isNotBlank()) {
-                        scope.launch {
-                            val result = physicalAlbumManager.createFolder(newFolderName)
-                            if (result.isSuccess) {
-                                newFolderName = ""
-                                showCreateFolderDialog = false
-                            }
-                        }
+                        onCreateFolder(newFolderName)
+                        newFolderName = ""
+                        showCreateFolderDialog = false
                     }
                 }) {
                     Text("Create")

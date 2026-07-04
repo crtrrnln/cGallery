@@ -1,6 +1,7 @@
 package com.example.cgallery.data
 
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.os.Environment
 import java.io.File
 import kotlinx.coroutines.flow.Flow
@@ -96,6 +97,9 @@ class PhysicalAlbumManager(context: Context) {
                             groupId = null
                         )
                     )
+                    // Trigger MediaStore scan
+                    MediaScannerConnection.scanFile(context, arrayOf(newFolder.absolutePath), null, null)
+
                     Result.success(newFolder.absolutePath)
                 } else {
                     Result.failure(Exception("Failed to create folder"))

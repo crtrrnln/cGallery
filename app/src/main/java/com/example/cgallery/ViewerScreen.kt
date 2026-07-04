@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -38,6 +40,9 @@ import com.example.cgallery.data.MediaStoreDataSource
 import com.example.cgallery.data.MediaType
 import com.example.cgallery.data.FavoritesManager
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +61,9 @@ fun ViewerScreen(
     var images by remember(mediaItems, filteredMedia) {
         mutableStateOf(filteredMedia ?: mediaItems)
     }
+
+    var showInfoSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
     if (images.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -185,14 +193,25 @@ fun ViewerScreen(
                                 change.consume()
                                 scope.launch {
                                     offsetY.snapTo(offsetY.value + dragAmount.y)
-                                    val newScale = (1f - (kotlin.math.abs(offsetY.value) / 1500f)).coerceIn(0.7f, 1f)
-                                    scale.snapTo(newScale)
+                                    // Scale only when dragging down
+                                    if (offsetY.value > 0) {
+                                        val newScale = (1f - (offsetY.value / 1500f)).coerceIn(0.7f, 1f)
+                                        scale.snapTo(newScale)
+                                    } else {
+                                        scale.snapTo(1f)
+                                    }
                                 }
                             }
                         },
                         onDragEnd = {
-                            if (kotlin.math.abs(offsetY.value) > 300f) {
+                            if (offsetY.value > 300f) {
                                 onBack()
+                            } else if (offsetY.value < -200f) {
+                                showInfoSheet = true
+                                scope.launch {
+                                    launch { offsetY.animateTo(0f, tween(200)) }
+                                    launch { scale.animateTo(1f, tween(200)) }
+                                }
                             } else {
                                 scope.launch {
                                     launch { offsetY.animateTo(0f, tween(200)) }
@@ -236,5 +255,67 @@ fun ViewerScreen(
                 }
             }
         }
+    }
+
+    if (showInfoSheet && currentImage != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showInfoSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            ImageInfoContent(image = currentImage!!)
+        }
+    }
+}
+
+@Composable
+fun ImageInfoContent(image: MediaItem) {
+    val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault()) }
+    val dateString = remember(image.dateAdded) { 
+        if (image.dateAdded > 0) dateFormatter.format(Date(image.dateAdded * 1000)) else "Unknown"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .navigationBarsPadding()
+    ) {
+        Text(
+            text = "Details",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        InfoRow(label = "Filename", value = image.displayName)
+        InfoRow(label = "Date Added", value = dateString)
+        InfoRow(label = "Album", value = File(image.bucketName).name)
+        InfoRow(label = "Path", value = image.fullPath)
+        
+        if (image.duration > 0) {
+            val minutes = image.duration / 60000
+            val seconds = (image.duration % 60000) / 1000
+            InfoRow(label = "Duration", value = String.format("%02d:%02d", minutes, seconds))
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun InfoRow(label: String, value: String) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }

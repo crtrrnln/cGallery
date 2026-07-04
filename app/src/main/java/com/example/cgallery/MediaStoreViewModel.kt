@@ -191,6 +191,20 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun createFolder(folderName: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = physicalAlbumManager.createFolder(folderName)
+            if (result.isSuccess) {
+                _operationResult.emit("Folder created: $folderName")
+                loadMedia() // Refresh
+            } else {
+                _operationResult.emit("Failed to create folder: ${result.exceptionOrNull()?.message}")
+            }
+            _isLoading.value = false
+        }
+    }
+
     fun toggleAlbumVisibility(bucketName: String) {
         viewModelScope.launch {
             physicalAlbumManager.toggleAlbumVisibility(bucketName)

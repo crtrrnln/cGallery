@@ -9,6 +9,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -47,6 +51,11 @@ fun GroupDetailScreen(
     onAlbumClick: (String) -> Unit,
     onGroupClick: (Long) -> Unit = {},
     onChangeCover: () -> Unit = {},
+    onCreateFolder: (String) -> Unit = {},
+    selectionMode: Boolean = false,
+    selectedAlbums: Set<String> = emptySet(),
+    onToggleAlbumSelection: (String) -> Unit = {},
+    onConfirmSelection: (List<String>) -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -63,6 +72,12 @@ fun GroupDetailScreen(
     var showReorderDialog by remember { mutableStateOf(false) }
     var reorderType by remember { mutableStateOf<com.example.cgallery.ReorderType?>(null) }
     var showMenu by remember { mutableStateOf(false) }
+    var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var selectedGroupForMove by remember { mutableStateOf<AlbumGroupEntity?>(null) }
+    var showMoveGroupDialog by remember { mutableStateOf(false) }
+    var selectedParentGroupId by remember { mutableStateOf<Long?>(null) }
+    var showDeleteGroupConfirmation by remember { mutableStateOf<AlbumGroupEntity?>(null) }
 
     val group by groupManager.getGroupById(groupId).collectAsState(initial = null)
     val albumsInGroup by groupManager.getAlbumsByGroup(groupId).collectAsState(initial = emptyList())
@@ -108,46 +123,69 @@ fun GroupDetailScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(group?.name ?: "Group") },
+                title = { 
+                    if (selectionMode) {
+                        Text("${selectedAlbums.size} Selected")
+                    } else {
+                        Text(group?.name ?: "Group")
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(if (selectionMode) Icons.Default.Close else Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
+                    if (selectionMode) {
+                        IconButton(
+                            onClick = { onConfirmSelection(selectedAlbums.toList()) },
+                            enabled = selectedAlbums.isNotEmpty()
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Change Cover") },
+                            Icon(Icons.Default.Done, contentDescription = "Confirm")
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Change Cover") },
+                                    onClick = {
+                                        showMenu = false
+                                        onChangeCover()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                text = { Text("Create Folder") },
                                 onClick = {
                                     showMenu = false
-                                    onChangeCover()
+                                    showCreateFolderDialog = true
                                 },
-                                leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) }
+                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Create Group") },
-                                onClick = {
-                                    showMenu = false
-                                    showCreateGroupDialog = true
-                                },
-                                leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Reorder") },
-                                onClick = {
-                                    showMenu = false
-                                    reorderType = com.example.cgallery.ReorderType.ROOT_ITEMS
-                                    showReorderDialog = true
-                                },
-                                leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) }
-                            )
+                                    onClick = {
+                                        showMenu = false
+                                        showCreateGroupDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reorder") },
+                                    onClick = {
+                                        showMenu = false
+                                        reorderType = com.example.cgallery.ReorderType.ROOT_ITEMS
+                                        showReorderDialog = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) }
+                                )
+                            }
                         }
                     }
                 }
@@ -192,7 +230,11 @@ fun GroupDetailScreen(
                                 mediaByBucket = mediaByBucketInternal,
                                 allGroups = emptyList(),
                                 getAlbumsByGroup = { emptyList() },
-                                onClick = { onGroupClick(item.group.id) }
+                                onClick = { onGroupClick(item.group.id) },
+                                onLongClick = {
+                                    selectedGroupForMove = item.group
+                                    showMoveGroupDialog = true
+                                }
                             )
                         }
                         is GroupDisplayItem.AlbumItem -> {
@@ -202,14 +244,25 @@ fun GroupDetailScreen(
                             val currentIndex = albumsWithIndex.indexOfFirst { it.first.bucketName == item.album.name }
                             val canMoveUp = currentIndex > 0
                             val canMoveDown = currentIndex < albumsWithIndex.size - 1
+                            val isSelected = item.album.name in selectedAlbums
 
                             AlbumItem(
                                 album = item.album,
-                                onClick = { onAlbumClick(item.album.name) },
+                                onClick = {
+                                    if (selectionMode) {
+                                        onToggleAlbumSelection(item.album.name)
+                                    } else {
+                                        onAlbumClick(item.album.name)
+                                    }
+                                },
                                 entity = item.entity,
+                                isSelected = isSelected,
+                                selectionMode = selectionMode,
                                 onLongClick = {
-                                    selectedAlbumForGroup = item.album
-                                    showMoveToGroupDialog = true
+                                    if (!selectionMode) {
+                                        selectedAlbumForGroup = item.album
+                                        showMoveToGroupDialog = true
+                                    }
                                 },
                                 onMoveUp = {
                                     if (canMoveUp) {
@@ -238,6 +291,170 @@ fun GroupDetailScreen(
                 }
             }
         }
+    }
+
+    if (showCreateFolderDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateFolderDialog = false },
+            title = { Text("New Folder") },
+            text = {
+                TextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    placeholder = { Text("Folder Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newFolderName.isNotBlank()) {
+                        onCreateFolder(newFolderName)
+                        newFolderName = ""
+                        showCreateFolderDialog = false
+                    }
+                }) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateFolderDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showMoveGroupDialog && selectedGroupForMove != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showMoveGroupDialog = false
+                selectedGroupForMove = null
+                selectedParentGroupId = null
+            },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Move Group")
+                    IconButton(onClick = {
+                        showDeleteGroupConfirmation = selectedGroupForMove
+                        showMoveGroupDialog = false
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Group", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            text = {
+                Column {
+                    Text("Move \"${selectedGroupForMove?.name}\" into:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        LazyColumn {
+                            // Option to move to root (no parent)
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedParentGroupId = null
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedParentGroupId == null,
+                                        onClick = { selectedParentGroupId = null }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Root (No Parent)")
+                                }
+                            }
+                            
+                            // List of other groups with nested structure
+                            val otherGroups = allGroups.filter { it.id != selectedGroupForMove?.id }
+                            val rootOtherGroups = otherGroups.filter { it.parentId == null }
+                            
+                            items(rootOtherGroups, key = { it.id }) { group ->
+                                GroupDetailSelectionRow(
+                                    group = group,
+                                    allGroups = otherGroups,
+                                    selectedGroupId = selectedParentGroupId,
+                                    onGroupSelected = { selectedParentGroupId = it },
+                                    indent = 0
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            selectedGroupForMove?.let { group ->
+                                if (selectedParentGroupId == group.id) return@launch
+                                fun isDescendant(groupId: Long, potentialDescendantId: Long): Boolean {
+                                    if (groupId == potentialDescendantId) return true
+                                    val children = allGroups.filter { it.parentId == groupId }
+                                    return children.any { isDescendant(it.id, potentialDescendantId) }
+                                }
+                                if (selectedParentGroupId != null && isDescendant(group.id, selectedParentGroupId!!)) return@launch
+                                groupManager.moveGroup(group.id, selectedParentGroupId)
+                            }
+                            showMoveGroupDialog = false
+                            selectedGroupForMove = null
+                            selectedParentGroupId = null
+                        }
+                    }
+                ) {
+                    Text("Move")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showMoveGroupDialog = false
+                    selectedGroupForMove = null
+                    selectedParentGroupId = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteGroupConfirmation != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteGroupConfirmation = null },
+            title = { Text("Delete Group") },
+            text = { Text("Are you sure you want to delete the group \"${showDeleteGroupConfirmation?.name}\"? All albums and sub-groups within will be moved to the root.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            showDeleteGroupConfirmation?.let { group ->
+                                groupManager.deleteGroup(group.id)
+                            }
+                            showDeleteGroupConfirmation = null
+                            selectedGroupForMove = null
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showDeleteGroupConfirmation = null
+                    showMoveGroupDialog = true 
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showMoveToGroupDialog && selectedAlbumForGroup != null) {

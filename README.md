@@ -2,19 +2,16 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.63)
+## Features (v0.65)
 
-### Customisation
-- **Custom Album Covers**: Set any photo in an album as its cover.
-- **Custom Crop**: Interactively adjust the zoom and position (crop) for your custom covers.
-- **Custom Group Covers**: Change the cover of an album group, with a preview logic that respects custom album covers within the hierarchy.
+### UI Layout Fixes
+- **Eliminated Ghost Padding**: Fixed a double-padding issue that caused excessive empty space at the top and bottom of most screens.
+- **Unified Inset Handling**: Screens now correctly handle status and navigation bars independently of the main app container.
 
 ### Album Management
-- **Interactive Multi-Selection**: Select multiple destination folders when moving or copying files.
-- **Physical Sync**: Direct filesystem synchronisation with automatic MediaStore scanning.
-- **Import/Export Structure**: Save and restore your entire album organisation (groups, nested groups, and sort orders) to a single JSON file. Now includes **Custom Covers** and **Inbox Monitors**.
-- **Album Groups**: Hierarchical groups for organised collections with unlimited nesting.
-- **Delete Groups**: Remove groups with a single tap (albums inside are safely moved to the root).
+- **Universal Folder Creation**: Added "Create Folder" to the Album Group detail screen, allowing you to create new physical albums directly inside a group.
+- **Fixed Creation Logic**: Refined the folder creation process to immediately trigger a MediaStore scan and provide visual feedback via snackbars.
+- **Hierarchical Group Operations**: Enabled Move and Delete operations for album groups located inside other groups.
 
 ### Inbox System
 - **Inbox Foundation**: Dedicated workflow layer to track and organise newly detected media.
