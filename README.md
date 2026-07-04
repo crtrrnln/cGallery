@@ -1,174 +1,32 @@
 # cGallery
 
-cGallery is a local-first Android gallery application built for people
-who keep large, highly organised media libraries.
+cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-Unlike traditional gallery apps, cGallery separates **viewing** from
-**organisation**. It provides a fast gallery experience while
-introducing an Inbox workflow that helps process newly downloaded media
-before it becomes part of your permanent collection.
+## Features (v0.69)
 
-The application is designed to remain responsive even with libraries
-containing tens of thousands of images and videos, while giving users
-complete control over how their media is organised.
+### Startup & UX
+- **Cinematic Startup Experience**: Added a session-based startup animation featuring a sequence of brand-aligned descriptors (crafted, custom, curated...) ending with a smooth wipe-up reveal of the main gallery.
+- **Robust Navigation**: Fixed navigation glitches where the backstack would desync from UI panes. System and in-app back buttons now properly pop the navigation state.
+- **System Integration**: Now appears in the "Open with" menu for images/videos and functions as a standard media picker for other applications.
 
-------------------------------------------------------------------------
+### Samsung-Inspired UI
+- **Modern Aesthetics**: Updated all covers with 24dp rounded corners and refined grid spacing (12dp/16dp gaps) for a premium look and feel.
+- **Tightened Media Grid**: Reduced photo spacing to 2dp in gallery and album views for a dense, high-performance visual experience.
+- **Clean Management**: Administrative tools are tucked into a 3-dot overflow menu, keeping the interface focused and clutter-free.
 
-## Features
+### Advanced Organisation
+- **Smarter Group Covers**: Group collage covers now react to item reordering and correctly pull representative images from nested album groups, respecting custom crops and positions.
+- **Mixed Content Sorting**: Albums and Album Groups now intermingle based on sort order and name, rather than groups being pinned to the top.
+- **Robust Creation**: Fixed empty album creation; new albums persist and show up immediately even before media is added.
 
-### Gallery
+### Inbox System
+- **Inbox Navigation**: Added a dedicated back button to exit the Inbox workflow.
+- **Multi-Destination Logic**: Organise a single photo into multiple physical folders simultaneously (MOVE or COPY).
+- **Manual Scan**: Trigger immediate detection of new media via the "Scan Now" feature.
 
--   Fast MediaStore-backed gallery with smooth scrolling for large
-    libraries.
--   Full-screen image and video viewer.
--   Multi-select support.
--   Search across media and albums.
--   Favorites.
--   Adaptive layouts using Material 3.
+### Core Gallery
+- **Persona Red Theme**: Custom vibrant red branding with high-performance drawing optimisations.
+- **Full-Screen Viewer**: Immersive viewing with swipe-down-to-exit and auto-pausing video support.
 
-### Album Organisation
-
--   User-defined albums independent of physical storage locations.
--   Album Groups with nested hierarchies.
--   Automatic collage generation for album groups.
--   Custom album cover positioning with persistent normalized
-    coordinates.
--   Import and export of album metadata using cGallery's JSON backup
-    format (`BACKUP_ALBUM_DB.txt`).
-
-### Inbox Workflow
-
-The Inbox is one of cGallery's core concepts.
-
-Instead of leaving downloaded media scattered across folders, monitored
-folders can be scanned for new files and routed into an Inbox where they
-can be organised before becoming part of the main library.
-
-Current capabilities include:
-
--   Monitored folders
--   Detection of newly added media
--   Manual processing workflow
--   Processing statistics
--   Support for assigning media to multiple destination folders by
-    creating additional copies where required
-
-This workflow is intended to make ongoing organisation practical instead
-of requiring occasional large cleanup sessions.
-
-### Performance
-
-Performance has been a major focus throughout development.
-
-Current optimisations include:
-
--   Efficient MediaStore queries
--   Thumbnail downsampling using RGB_565 where appropriate
--   Lazy Compose grids
--   Optimised image loading through Coil
--   Reduced unnecessary recomposition
--   Stable scrolling on lower-memory devices
--   Background processing for media operations
-
-------------------------------------------------------------------------
-
-## Technology
-
-Component          Technology
-  ------------------ -------------------------
-Language           Kotlin
-UI                 Jetpack Compose
-Design System      Material 3
-Adaptive Layouts   Material 3 Adaptive
-Navigation         Navigation 3
-Database           Room
-Image Loading      Coil
-Video Playback     Media3 ExoPlayer
-Serialization      Kotlinx Serialization
-Build System       Gradle Version Catalogs
-
-------------------------------------------------------------------------
-
-## Project Structure
-
-``` text
-app/
-├── data/
-│   ├── database/
-│   ├── managers/
-│   ├── datastore/
-│   ├── models/
-│   └── MediaStore integration
-│
-├── ui/
-│   ├── screens/
-│   ├── components/
-│   ├── theme/
-│   └── navigation/
-│
-└── util/
-
-docs/
-```
-
-(The exact structure may evolve as the project grows.)
-
-------------------------------------------------------------------------
-
-## Building
-
-### Requirements
-
--   JDK 17
--   Android Studio Ladybug or newer
--   Android SDK 34+
-
-Clone the repository:
-
-``` bash
-git clone <repository>
-```
-
-Build:
-
-``` bash
-./gradlew assembleDebug
-```
-
-Run directly from Android Studio or install the generated APK.
-
-------------------------------------------------------------------------
-
-## Importing Album Data
-
-cGallery can import previously exported organisational metadata.
-
-1.  Generate a `BACKUP_ALBUM_DB.txt` export.
-2.  Copy it to the device.
-3.  Open the Albums screen.
-4.  Choose **Import Metadata**.
-5.  Select the backup file.
-
-Only album organisation metadata is imported. Media files themselves are
-not modified.
-
-------------------------------------------------------------------------
-
-## Project Goals
-
-The long-term direction of cGallery is:
-
--   Fast local-first gallery
--   Advanced organisational tools
--   Flexible album management
--   Powerful Inbox workflow
--   Excellent performance on both flagship and lower-end devices
--   No cloud dependency required for core functionality
-
-------------------------------------------------------------------------
-
-## License
-
-Licensed under the MIT License.
-
-See the `LICENSE` file for details.
+---
+*Developed with a focus on speed, stability, and simplicity.*

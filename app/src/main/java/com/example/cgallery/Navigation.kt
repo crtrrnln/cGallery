@@ -85,6 +85,9 @@ fun GalleryNavDisplay(
     onBack: () -> Unit,
     onNavigate: (GalleryKey) -> Unit,
     onToggleAlbumVisibility: (String) -> Unit = {},
+    onMediaSelected: (List<Uri>) -> Unit = {},
+    isExternalPicker: Boolean = false,
+    pickerAllowMultiple: Boolean = false,
     navigator: ThreePaneScaffoldNavigator<Any>
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<GalleryKey>()
@@ -112,7 +115,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
@@ -123,14 +126,17 @@ fun GalleryNavDisplay(
                         selectionViewModel.clearSelection()
                         onNavigate(GalleryKey.AlbumSelection(ids, isMove))
                     },
-                    onImageClick = onNavigate
+                    onImageClick = onNavigate,
+                    onMediaSelected = onMediaSelected,
+                    isExternalPicker = isExternalPicker,
+                    allowMultiple = pickerAllowMultiple
                 )
             }
 
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
@@ -158,7 +164,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
@@ -181,7 +187,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) { key ->
@@ -204,7 +210,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
@@ -217,7 +223,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) { key ->
@@ -243,7 +249,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) { key ->
@@ -273,7 +279,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) { key ->
@@ -299,7 +305,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) { key ->
@@ -365,7 +371,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
@@ -378,7 +384,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.68")
+                        HomeScreen(version = "v0.69")
                     }
                 )
             ) {
