@@ -32,6 +32,7 @@ data class InboxItemEntity(
     val notes: String? = null
 )
 
+@Serializable
 @Entity(tableName = "monitored_folders", indices = [Index(value = ["folderPath"], unique = true)])
 data class MonitoredFolderEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

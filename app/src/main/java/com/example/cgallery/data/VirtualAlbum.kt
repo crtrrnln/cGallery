@@ -16,7 +16,9 @@ data class PhysicalAlbumEntity(
     val bucketName: String,
     val isHidden: Boolean = false,
     val groupId: Long? = null,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val customCoverUri: String? = null,
+    val customCoverCrop: String? = null // Store crop as "left,top,right,bottom"
 )
 
 @Serializable
@@ -25,7 +27,9 @@ data class AlbumGroupEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val parentId: Long? = null,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val customCoverUri: String? = null,
+    val customCoverCrop: String? = null
 )
 
 @Dao
@@ -53,6 +57,9 @@ interface PhysicalAlbumDao {
 
     @Query("UPDATE physical_albums SET sortOrder = :sortOrder WHERE id = :albumId")
     suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int)
+
+    @Query("UPDATE physical_albums SET customCoverUri = :uri, customCoverCrop = :crop WHERE bucketName = :bucketName")
+    suspend fun updateAlbumCover(bucketName: String, uri: String?, crop: String?)
 
     @Query("SELECT * FROM physical_albums WHERE groupId = :groupId ORDER BY sortOrder")
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>>
@@ -86,6 +93,9 @@ interface AlbumGroupDao {
 
     @Query("UPDATE album_groups SET sortOrder = :sortOrder WHERE id = :groupId")
     suspend fun updateGroupSortOrder(groupId: Long, sortOrder: Int)
+
+    @Query("UPDATE album_groups SET customCoverUri = :uri, customCoverCrop = :crop WHERE id = :groupId")
+    suspend fun updateGroupCover(groupId: Long, uri: String?, crop: String?)
 }
 
 @Dao
@@ -172,7 +182,7 @@ class Converters {
         MonitoredFolderEntity::class,
         InboxStatsEntity::class
     ],
-    version = 7
+    version = 8
 )
 @TypeConverters(Converters::class)
 abstract class VirtualAlbumDatabase : RoomDatabase() {

@@ -118,4 +118,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             _operationResult.emit("Item ignored")
         }
     }
+
+    fun updateAlbumCover(bucketName: String, uri: String?, crop: String?) {
+        viewModelScope.launch {
+            physicalAlbumManager.updateAlbumCover(bucketName, uri, crop)
+        }
+    }
+
+    fun updateGroupCover(groupId: Long, uri: String?, crop: String?) {
+        viewModelScope.launch {
+            physicalAlbumManager.updateGroupCover(groupId, uri, crop)
+        }
+    }
 }

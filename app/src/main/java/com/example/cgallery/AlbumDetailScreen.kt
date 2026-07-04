@@ -37,6 +37,7 @@ fun AlbumDetailScreen(
     bucketName: String,
     images: List<MediaItem>,
     onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> },
+    onChangeCover: () -> Unit = {},
     onImageClick: (GalleryKey) -> Unit,
     onBack: () -> Unit,
     albumImages: List<MediaItem>? = null,
@@ -44,6 +45,7 @@ fun AlbumDetailScreen(
 ) {
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
+    var showMenu by remember { mutableStateOf(false) }
 
     val currentSelectedIds by rememberUpdatedState(selectedIds)
     val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
@@ -106,6 +108,25 @@ fun AlbumDetailScreen(
                             selectedIds = emptySet()
                         }) {
                             Icon(Icons.Default.Add, contentDescription = "Copy to Album")
+                        }
+                    } else {
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Settings")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Change Cover") },
+                                    onClick = {
+                                        showMenu = false
+                                        onChangeCover()
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) }
+                                )
+                            }
                         }
                     }
                 }

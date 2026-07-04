@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,6 +46,7 @@ fun GroupDetailScreen(
     mediaByBucket: Map<String, List<MediaItem>>,
     onAlbumClick: (String) -> Unit,
     onGroupClick: (Long) -> Unit = {},
+    onChangeCover: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -59,17 +62,28 @@ fun GroupDetailScreen(
     var newGroupName by remember { mutableStateOf("") }
     var showReorderDialog by remember { mutableStateOf(false) }
     var reorderType by remember { mutableStateOf<com.example.cgallery.ReorderType?>(null) }
+    var showMenu by remember { mutableStateOf(false) }
 
     val group by groupManager.getGroupById(groupId).collectAsState(initial = null)
     val albumsInGroup by groupManager.getAlbumsByGroup(groupId).collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
+
+    val mediaByBucketInternal = remember(images) {
+        images.groupBy { item ->
+            try {
+                java.io.File(item.fullPath).parent ?: "Unknown"
+            } catch (e: Exception) {
+                "Unknown"
+            }
+        }
+    }
 
     // Get child groups of this group
     val childGroups = remember(allGroups, groupId) {
         allGroups.filter { it.parentId == groupId }
     }
 
-    val displayItems = remember(childGroups, albumsInGroup, mediaByBucket) {
+    val displayItems = remember(childGroups, albumsInGroup, mediaByBucketInternal) {
         val items = mutableListOf<GroupDisplayItem>()
         // Add child groups
         childGroups.forEach { childGroup ->
@@ -77,7 +91,7 @@ fun GroupDetailScreen(
         }
         // Add albums in this group
         albumsInGroup.forEach { albumEntity ->
-            val imagesInAlbum = mediaByBucket[albumEntity.bucketName] ?: emptyList()
+            val imagesInAlbum = mediaByBucketInternal[albumEntity.bucketName] ?: emptyList()
             if (imagesInAlbum.isNotEmpty()) {
                 val album = Album(
                     name = albumEntity.bucketName,
@@ -101,14 +115,40 @@ fun GroupDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showCreateGroupDialog = true }) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = "Create Group")
-                    }
-                    IconButton(onClick = {
-                        reorderType = com.example.cgallery.ReorderType.ROOT_ITEMS
-                        showReorderDialog = true
-                    }) {
-                        Icon(Icons.Default.SwapVert, contentDescription = "Reorder")
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Change Cover") },
+                                onClick = {
+                                    showMenu = false
+                                    onChangeCover()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Create Group") },
+                                onClick = {
+                                    showMenu = false
+                                    showCreateGroupDialog = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Reorder") },
+                                onClick = {
+                                    showMenu = false
+                                    reorderType = com.example.cgallery.ReorderType.ROOT_ITEMS
+                                    showReorderDialog = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) }
+                            )
+                        }
                     }
                 }
             )
@@ -149,7 +189,7 @@ fun GroupDetailScreen(
                             GroupAlbumItem(
                                 group = item.group,
                                 albumsInGroup = albumsInChildGroup,
-                                mediaByBucket = mediaByBucket,
+                                mediaByBucket = mediaByBucketInternal,
                                 allGroups = emptyList(),
                                 getAlbumsByGroup = { emptyList() },
                                 onClick = { onGroupClick(item.group.id) }
@@ -166,6 +206,7 @@ fun GroupDetailScreen(
                             AlbumItem(
                                 album = item.album,
                                 onClick = { onAlbumClick(item.album.name) },
+                                entity = item.entity,
                                 onLongClick = {
                                     selectedAlbumForGroup = item.album
                                     showMoveToGroupDialog = true

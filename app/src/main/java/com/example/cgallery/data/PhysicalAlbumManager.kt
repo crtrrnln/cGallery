@@ -16,7 +16,14 @@ class PhysicalAlbumManager(context: Context) {
     private val db = VirtualAlbumDatabase.getDatabase(context)
     private val physicalAlbumDao = db.physicalAlbumDao()
     private val groupDao = db.albumGroupDao()
+    private val folderDao = db.monitoredFolderDao()
     private val context = context
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        encodeDefaults = true
+    }
 
     val allAlbums: Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAllAlbums()
 
@@ -167,19 +174,21 @@ class PhysicalAlbumManager(context: Context) {
 
     @Serializable
     data class StructureExport(
-        val groups: List<AlbumGroupEntity>,
-        val albums: List<PhysicalAlbumEntity>
+        val groups: List<AlbumGroupEntity> = emptyList(),
+        val albums: List<PhysicalAlbumEntity> = emptyList(),
+        val monitoredFolders: List<MonitoredFolderEntity> = emptyList()
     )
 
     suspend fun exportStructure(): String = withContext(Dispatchers.IO) {
         val groups = groupDao.getAllGroups().first()
         val albums = physicalAlbumDao.getAllAlbums().first()
-        Json.encodeToString(StructureExport(groups, albums))
+        val folders = folderDao.getAllFolders().first()
+        json.encodeToString(StructureExport(groups, albums, folders))
     }
 
-    suspend fun importStructure(json: String) = withContext(Dispatchers.IO) {
+    suspend fun importStructure(jsonStr: String) = withContext(Dispatchers.IO) {
         try {
-            val data = Json.decodeFromString<StructureExport>(json)
+            val data = json.decodeFromString<StructureExport>(jsonStr)
             val existingAlbums = physicalAlbumDao.getAllAlbums().first()
             val existingAlbumPaths = existingAlbums.map { it.bucketName }.toSet()
 
@@ -218,14 +227,29 @@ class PhysicalAlbumManager(context: Context) {
                             existing.copy(
                                 groupId = newGroupId,
                                 sortOrder = importedAlbum.sortOrder,
-                                isHidden = importedAlbum.isHidden
+                                isHidden = importedAlbum.isHidden,
+                                customCoverUri = importedAlbum.customCoverUri,
+                                customCoverCrop = importedAlbum.customCoverCrop
                             )
                         )
                     }
                 }
             }
+
+            // 3. Import monitored folders
+            data.monitoredFolders.forEach { importedFolder ->
+                folderDao.insertFolder(importedFolder.copy(id = 0))
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    suspend fun updateAlbumCover(bucketName: String, uri: String?, crop: String?) {
+        physicalAlbumDao.updateAlbumCover(bucketName, uri, crop)
+    }
+
+    suspend fun updateGroupCover(groupId: Long, uri: String?, crop: String?) {
+        groupDao.updateGroupCover(groupId, uri, crop)
     }
 }

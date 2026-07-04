@@ -48,6 +48,9 @@ sealed interface GalleryKey : NavKey {
     data class AlbumDetail(val id: String) : GalleryKey
 
     @Serializable
+    data class CoverPicker(val bucketName: String?, val groupId: Long?) : GalleryKey
+
+    @Serializable
     data class AlbumSelection(val mediaIds: Set<Long>, val isMove: Boolean) : GalleryKey
 
     @Serializable
@@ -100,7 +103,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {
@@ -117,7 +120,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {
@@ -144,7 +147,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {
@@ -165,7 +168,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) { key ->
@@ -187,7 +190,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {
@@ -200,7 +203,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) { key ->
@@ -221,7 +224,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) { key ->
@@ -246,7 +249,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) { key ->
@@ -260,6 +263,9 @@ fun GalleryNavDisplay(
                     onAddToAlbum = { ids, isMove ->
                         onNavigate(GalleryKey.AlbumSelection(ids, isMove))
                     },
+                    onChangeCover = {
+                        onNavigate(GalleryKey.CoverPicker(bucketName = key.id, groupId = null))
+                    },
                     onImageClick = onNavigate,
                     onBack = onBack
                 )
@@ -268,7 +274,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) { key ->
@@ -282,6 +288,34 @@ fun GalleryNavDisplay(
                     onGroupClick = { childGroupId ->
                         onNavigate(GalleryKey.GroupDetail(childGroupId))
                     },
+                    onChangeCover = {
+                        onNavigate(GalleryKey.CoverPicker(bucketName = null, groupId = key.groupId))
+                    },
+                    onBack = onBack
+                )
+            }
+
+            entry<GalleryKey.CoverPicker>(
+                metadata = ListDetailSceneStrategy.detailPane()
+            ) { key ->
+                val albumImages = remember(key, mediaByBucket, mediaItems) {
+                    if (key.bucketName != null) {
+                        mediaByBucket[key.bucketName] ?: emptyList()
+                    } else {
+                        mediaItems
+                    }
+                }
+
+                CoverPickerScreen(
+                    images = albumImages,
+                    onCoverSelected = { uri, crop ->
+                        if (key.bucketName != null) {
+                            inboxViewModel.updateAlbumCover(key.bucketName, uri, crop)
+                        } else if (key.groupId != null) {
+                            inboxViewModel.updateGroupCover(key.groupId, uri, crop)
+                        }
+                        onBack()
+                    },
                     onBack = onBack
                 )
             }
@@ -289,7 +323,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {
@@ -302,7 +336,7 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
                     detailPlaceholder = {
-                        HomeScreen(version = "v0.62")
+                        HomeScreen(version = "v0.63")
                     }
                 )
             ) {

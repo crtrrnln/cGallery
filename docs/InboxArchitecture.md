@@ -1,4 +1,4 @@
-# Inbox Architecture - v0.62
+# Inbox Architecture - v0.63
 
 ## System Overview
 The Inbox system is a decoupled workflow layer designed to handle newly detected media from specific physical folders (Monitored Folders). It tracks the lifecycle of these items from detection to final organisation into user-selected destinations.
@@ -13,6 +13,10 @@ The system uses the following entities (persisted via Room):
 - **MonitoredFolderEntity**: User-defined physical paths to scan for new media.
     - `ignoreBeforeTimestamp`: Unix timestamp (seconds). Items added to MediaStore before this time are ignored.
 - **InboxStatsEntity**: Local metrics for workflow analysis.
+
+## Customisation (v0.63)
+- **Custom Covers**: Both `PhysicalAlbumEntity` and `AlbumGroupEntity` support custom cover images via `customCoverUri`.
+- **Persistent Cropping**: Users can interactively select a 1:1 crop for their covers, which is stored as a transformation string and applied during rendering.
 
 ## Workflow Phases
 
