@@ -2,34 +2,34 @@ package com.example.cgallery.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light Theme Vibrant Colors
-val PrimaryLight = Color(0xFF9C4300)
+// Light Theme - Persona Red Palette
+val PrimaryLight = Color(0xFFBA1A1A)
 val OnPrimaryLight = Color(0xFFFFFFFF)
-val PrimaryContainerLight = Color(0xFFFFDBCA)
-val OnPrimaryContainerLight = Color(0xFF331200)
+val PrimaryContainerLight = Color(0xFFFFDAD6)
+val OnPrimaryContainerLight = Color(0xFF410002)
 
-val SecondaryLight = Color(0xFF775849)
+val SecondaryLight = Color(0xFF775656)
 val OnSecondaryLight = Color(0xFFFFFFFF)
-val SecondaryContainerLight = Color(0xFFFFDBCA)
-val OnSecondaryContainerLight = Color(0xFF2B160B)
+val SecondaryContainerLight = Color(0xFFFFDAD6)
+val OnSecondaryContainerLight = Color(0xFF2C1516)
 
-val TertiaryLight = Color(0xFF676033)
+val TertiaryLight = Color(0xFF755A2F)
 val OnTertiaryLight = Color(0xFFFFFFFF)
-val TertiaryContainerLight = Color(0xFFEFE4AB)
-val OnTertiaryContainerLight = Color(0xFF201C00)
+val TertiaryContainerLight = Color(0xFFFFDDAE)
+val OnTertiaryContainerLight = Color(0xFF281800)
 
-// Dark Theme Vibrant Colors
-val PrimaryDark = Color(0xFFFFB68F)
-val OnPrimaryDark = Color(0xFF542100)
-val PrimaryContainerDark = Color(0xFF773100)
-val OnPrimaryContainerDark = Color(0xFFFFDBCA)
+// Dark Theme - Persona Red Palette
+val PrimaryDark = Color(0xFFFFB4AB)
+val OnPrimaryDark = Color(0xFF690005)
+val PrimaryContainerDark = Color(0xFF93000A)
+val OnPrimaryContainerDark = Color(0xFFFFDAD6)
 
-val SecondaryDark = Color(0xFFE6BEAC)
-val OnSecondaryDark = Color(0xFF432A1C)
-val SecondaryContainerDark = Color(0xFF5D4032)
-val OnSecondaryContainerDark = Color(0xFFFFDBCA)
+val SecondaryDark = Color(0xFFE7BDBB)
+val OnSecondaryDark = Color(0xFF44292A)
+val SecondaryContainerDark = Color(0xFF5D3F3F)
+val OnSecondaryContainerDark = Color(0xFFFFDAD6)
 
-val TertiaryDark = Color(0xFFD2C891)
-val OnTertiaryDark = Color(0xFF373108)
-val TertiaryContainerDark = Color(0xFF4F481D)
-val OnTertiaryContainerDark = Color(0xFFEFE4AB)
+val TertiaryDark = Color(0xFFE5C18D)
+val OnTertiaryDark = Color(0xFF422C05)
+val TertiaryContainerDark = Color(0xFF5B421A)
+val OnTertiaryContainerDark = Color(0xFFFFDDAE)

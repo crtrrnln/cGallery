@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            CGalleryTheme {
+            CGalleryTheme(dynamicColor = false) {
                 val navigator = rememberListDetailPaneScaffoldNavigator<Any>()
                 val permissions = remember {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

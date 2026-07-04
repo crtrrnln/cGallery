@@ -2,7 +2,7 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organizational features for large media libraries.
 
-## Features (v0.55)
+## Features (v0.56)
 
 ### Core Gallery
 - **Optimized Image Grid**: Smooth 60 FPS scrolling with stable keys, reduced recomposition, and cached image requests.
@@ -23,7 +23,7 @@ cGallery is a fast, local-first Android gallery application designed with advanc
 - **Hide/Show Albums**: Toggle visibility without deleting.
 - **Album Management**: Create folders and move files directly in-app.
 
-### Performance & Stability (v0.54-v0.55)
+### Performance & Stability (v0.54-v0.56)
 - **Zero O(N) Grid Operations**: Eliminated all list searches during grid rendering for butter-smooth scrolling even in massive libraries.
 - **Background Search & Grouping**: Search results and album groupings calculated on `Dispatchers.Default`.
 - **String Interning**: Reduced memory footprint by interning repetitive bucket names and paths.
