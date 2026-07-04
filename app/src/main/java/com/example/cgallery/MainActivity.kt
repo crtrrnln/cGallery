@@ -1,6 +1,8 @@
 package com.example.cgallery
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,9 +11,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.EaseOutQuart
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
@@ -23,6 +31,8 @@ import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaf
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -72,11 +82,42 @@ class MainActivity : ComponentActivity() {
                 val albumResults by mediaStoreViewModel.albumResults.collectAsState()
                 val isLoading by mediaStoreViewModel.isLoading.collectAsState()
 
+                val isExternalPicker = remember {
+                    intent.action == Intent.ACTION_GET_CONTENT || 
+                    intent.action == Intent.ACTION_PICK ||
+                    intent.action == "android.provider.action.PICK_IMAGES"
+                }
+                val isExternalView = remember {
+                    intent.action == Intent.ACTION_VIEW
+                }
+                val pickerAllowMultiple = remember {
+                    intent.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                }
+
+                var showStartupAnimation by remember { mutableStateOf(!isExternalPicker && !isExternalView) }
+
                 var backstack by remember {
                     mutableStateOf(
-                        if (isPermissionGranted) listOf(GalleryKey.Gallery)
-                        else listOf(GalleryKey.Permission)
+                        if (!isPermissionGranted) listOf(GalleryKey.Permission)
+                        else if (isExternalView) listOf(GalleryKey.Gallery) // We'll jump to viewer once items load
+                        else listOf(GalleryKey.Gallery)
                     )
+                }
+
+                // Handle external view jumping to correct item
+                LaunchedEffect(isPermissionGranted, mediaItems) {
+                    if (isPermissionGranted && isExternalView && mediaItems.isNotEmpty()) {
+                        val viewUri = intent.data
+                        if (viewUri != null) {
+                            val index = mediaItems.indexOfFirst { it.uri == viewUri || it.fullPath == viewUri.path }
+                            if (index != -1) {
+                                backstack = listOf(GalleryKey.Gallery, GalleryKey.Viewer(index))
+                            } else {
+                                // External URI not in current list (maybe a specific file picker opened it)
+                                // For now, just show the gallery or implement a standalone viewer
+                            }
+                        }
+                    }
                 }
                 val scope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -133,14 +174,26 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val onClearSelectionBackstack: () -> Unit = {
+                    val firstSelectionIndex = backstack.indexOfFirst { 
+                        it is GalleryKey.AlbumSelection || it is GalleryKey.InboxAlbumSelection 
+                    }
+                    if (firstSelectionIndex != -1) {
+                        backstack = backstack.take(firstSelectionIndex)
+                    } else if (backstack.size > 1) {
+                        backstack = backstack.dropLast(1)
+                    }
+                }
+
                 val showBottomBar = isPermissionGranted && 
-                    (!isSinglePane || backstack.lastOrNull() !is GalleryKey.Viewer)
+                    (!isSinglePane || backstack.lastOrNull() !is GalleryKey.Viewer) &&
+                    !isExternalPicker
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     bottomBar = {
-                        if (showBottomBar) {
+                        if (showBottomBar && !showStartupAnimation) {
                             NavigationBar {
                                 val currentBase = backstack.firstOrNull {
                                     it is GalleryKey.Gallery || it is GalleryKey.Albums ||
@@ -175,10 +228,27 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
+                    val revealAlpha by animateFloatAsState(
+                        targetValue = if (showStartupAnimation) 0f else 1f,
+                        animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing),
+                        label = "galleryFadeIn"
+                    )
+
+                    val revealScale by animateFloatAsState(
+                        targetValue = if (showStartupAnimation) 0.95f else 1f,
+                        animationSpec = tween(durationMillis = 1000, easing = LinearOutSlowInEasing),
+                        label = "galleryScaleIn"
+                    )
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
+                            .graphicsLayer {
+                                alpha = revealAlpha
+                                scaleX = revealScale
+                                scaleY = revealScale
+                            }
                     ) {
                         GalleryNavDisplay(
                             backstack = backstack,
@@ -205,10 +275,37 @@ class MainActivity : ComponentActivity() {
                             onCreateFolder = { folderName ->
                                 mediaStoreViewModel.createFolder(folderName)
                             },
+                            onClearSelectionBackstack = onClearSelectionBackstack,
+                            isExternalPicker = isExternalPicker,
+                            pickerAllowMultiple = pickerAllowMultiple,
+                            onMediaSelected = { uris ->
+                                if (uris.isNotEmpty()) {
+                                    val resultIntent = Intent().apply {
+                                        if (pickerAllowMultiple && uris.size > 1) {
+                                            val clipData = android.content.ClipData.newUri(
+                                                contentResolver,
+                                                "Selected Media",
+                                                uris[0]
+                                            )
+                                            for (i in 1 until uris.size) {
+                                                clipData.addItem(android.content.ClipData.Item(uris[i]))
+                                            }
+                                            this.clipData = clipData
+                                        } else {
+                                            data = uris[0]
+                                        }
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    setResult(RESULT_OK, resultIntent)
+                                } else {
+                                    setResult(RESULT_CANCELED)
+                                }
+                                finish()
+                            },
                             navigator = navigator
                         )
 
-                        if (isLoading) {
+                        if (isLoading && !showStartupAnimation) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -218,6 +315,12 @@ class MainActivity : ComponentActivity() {
                                 CircularProgressIndicator()
                             }
                         }
+                    }
+
+                    if (showStartupAnimation) {
+                        StartupAnimation(onAnimationComplete = {
+                            showStartupAnimation = false
+                        })
                     }
                 }
 

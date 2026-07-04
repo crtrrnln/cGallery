@@ -48,12 +48,15 @@ fun GalleryScreen(
     imagesMap: Map<Long, MediaItem>,
     onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {},
+    isExternalPicker: Boolean = false,
+    allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
-    val isSelectionMode = selectedIds.isNotEmpty()
+    val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
 
     val currentSelectedIds by rememberUpdatedState(selectedIds)
     val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
@@ -61,10 +64,14 @@ fun GalleryScreen(
 
     val onToggleSelection = remember {
         { id: Long ->
-            selectedIds = if (id in currentSelectedIds) {
-                currentSelectedIds - id
+            if (isExternalPicker && !allowMultiple) {
+                imagesMap[id]?.uri?.let { onMediaSelected(listOf(it)) }
             } else {
-                currentSelectedIds + id
+                selectedIds = if (id in currentSelectedIds) {
+                    currentSelectedIds - id
+                } else {
+                    currentSelectedIds + id
+                }
             }
         }
     }
@@ -94,9 +101,14 @@ fun GalleryScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    if (isSelectionMode) {
+                    if (isSelectionMode && !isExternalPicker) {
                         Text(
                             "${selectedIds.size} Selected",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    } else if (isExternalPicker) {
+                        Text(
+                            if (allowMultiple) "${selectedIds.size} Selected" else "Select Item",
                             style = MaterialTheme.typography.titleLarge
                         )
                     } else {
@@ -107,7 +119,7 @@ fun GalleryScreen(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "v0.68",
+                                "v0.69",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -115,14 +127,28 @@ fun GalleryScreen(
                     }
                 },
                 navigationIcon = {
-                    if (isSelectionMode) {
+                    if (isSelectionMode && !isExternalPicker) {
                         IconButton(onClick = { selectedIds = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear Selection")
+                        }
+                    } else if (isExternalPicker) {
+                        IconButton(onClick = { onMediaSelected(emptyList()) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Cancel")
                         }
                     }
                 },
                 actions = {
-                    if (isSelectionMode) {
+                    if (isExternalPicker && allowMultiple) {
+                        IconButton(
+                            onClick = {
+                                val uris = selectedIds.mapNotNull { imagesMap[it]?.uri }
+                                onMediaSelected(uris)
+                            },
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = "Confirm Selection")
+                        }
+                    } else if (isSelectionMode && !isExternalPicker) {
                         IconButton(onClick = {
                             onAddToAlbum(selectedIds, true)
                             selectedIds = emptySet()
