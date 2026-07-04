@@ -83,6 +83,7 @@ fun GroupDetailScreen(
     val group by groupManager.getGroupById(groupId).collectAsState(initial = null)
     val albumsInGroup by groupManager.getAlbumsByGroup(groupId).collectAsState(initial = emptyList())
     val allGroups by groupManager.allGroups.collectAsState(initial = emptyList())
+    val allPhysicalAlbums by physicalAlbumManager.allAlbums.collectAsState(initial = emptyList())
 
     val mediaByBucketInternal = remember(images) {
         images.groupBy { item ->
@@ -244,10 +245,10 @@ fun GroupDetailScreen(
                         is GroupDisplayItem.GroupItem -> {
                             GroupAlbumItem(
                                 group = item.group,
-                                albumsInGroup = groupManager.getAlbumsByGroup(item.group.id).collectAsState(initial = emptyList()).value,
+                                albumsInGroup = allPhysicalAlbums.filter { it.groupId == item.group.id },
                                 mediaByBucket = mediaByBucketInternal,
                                 allGroups = allGroups,
-                                getAlbumsByGroup = { gid -> allGroups.filter { it.parentId == gid }.flatMap { g -> listOf<PhysicalAlbumEntity>() } /* Simplified for now as it's complex to get recursive albums here */ },
+                                getAlbumsByGroup = { gid -> allPhysicalAlbums.filter { it.groupId == gid } },
                                 onClick = { onGroupClick(item.group.id) },
                                 onLongClick = {
                                     selectedGroupForMove = item.group

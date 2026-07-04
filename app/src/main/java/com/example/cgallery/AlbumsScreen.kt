@@ -938,41 +938,79 @@ fun GroupAlbumItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
-    // Recursively get all albums from this group and its nested groups
-    val allAlbumsInHierarchy = remember(albumsInGroup, allGroups, group.id, getAlbumsByGroup) {
-        val allAlbums = mutableListOf<PhysicalAlbumEntity>()
-        val addedAlbumIds = mutableSetOf<Long>()
+    // Correctly get representative images for the collage, respecting sort order and nested groups
+    val representativeImages = remember(group.id, albumsInGroup, allGroups, mediaByBucket) {
+        val childGroups = allGroups.filter { it.parentId == group.id }
         
-        // Add albums directly in this group
-        albumsInGroup.forEach { album ->
-            if (album.id !in addedAlbumIds) {
-                allAlbums.add(album)
-                addedAlbumIds.add(album.id)
+        // Direct children (albums and groups) sorted by sortOrder
+        val directChildren = (albumsInGroup + childGroups).sortedWith(compareBy({
+            when (it) {
+                is PhysicalAlbumEntity -> it.sortOrder
+                is AlbumGroupEntity -> it.sortOrder
+                else -> Int.MAX_VALUE
             }
+        }, {
+            when (it) {
+                is PhysicalAlbumEntity -> it.bucketName
+                is AlbumGroupEntity -> it.name
+                else -> ""
+            }
+        }))
+
+        val images = mutableListOf<String>()
+
+        fun getFirstImageOfAlbum(album: PhysicalAlbumEntity): String? {
+            return album.customCoverUri ?: mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
         }
 
-        fun addAlbumsFromGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()) {
-            if (groupId in visited) return
+        fun getFirstImageOfGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()): String? {
+            if (groupId in visited) return null
             visited.add(groupId)
 
-            val childGroups = allGroups.filter { it.parentId == groupId }
-            childGroups.forEach { childGroup ->
-                // Get albums directly in this child group
-                val childAlbums = getAlbumsByGroup(childGroup.id)
-                if (childAlbums.isNotEmpty()) {
-                    val firstAlbum = childAlbums.first()
-                    if (firstAlbum.id !in addedAlbumIds) {
-                        allAlbums.add(firstAlbum)
-                        addedAlbumIds.add(firstAlbum.id)
+            val albums = getAlbumsByGroup(groupId).sortedBy { it.sortOrder }
+            val children = allGroups.filter { it.parentId == groupId }.sortedBy { it.sortOrder }
+            
+            val nestedChildren = (albums + children).sortedWith(compareBy({
+                when (it) {
+                    is PhysicalAlbumEntity -> it.sortOrder
+                    is AlbumGroupEntity -> it.sortOrder
+                    else -> Int.MAX_VALUE
+                }
+            }, {
+                when (it) {
+                    is PhysicalAlbumEntity -> it.bucketName
+                    is AlbumGroupEntity -> it.name
+                    else -> ""
+                }
+            }))
+
+            for (item in nestedChildren) {
+                when (item) {
+                    is PhysicalAlbumEntity -> {
+                        val img = getFirstImageOfAlbum(item)
+                        if (img != null) return img
+                    }
+                    is AlbumGroupEntity -> {
+                        val img = getFirstImageOfGroup(item.id, visited)
+                        if (img != null) return img
                     }
                 }
-                // Recursively add albums from nested groups
-                addAlbumsFromGroup(childGroup.id, visited)
             }
+            return null
         }
 
-        addAlbumsFromGroup(group.id)
-        allAlbums
+        for (child in directChildren) {
+            if (images.size >= 4) break
+            when (child) {
+                is PhysicalAlbumEntity -> {
+                    getFirstImageOfAlbum(child)?.let { images.add(it) }
+                }
+                is AlbumGroupEntity -> {
+                    getFirstImageOfGroup(child.id)?.let { images.add(it) }
+                }
+            }
+        }
+        images
     }
 
     Column(
@@ -1013,7 +1051,7 @@ fun GroupAlbumItem(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                when (allAlbumsInHierarchy.size) {
+                when (representativeImages.size) {
                     0 -> {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -1028,18 +1066,74 @@ fun GroupAlbumItem(
                         }
                     }
                     1 -> {
-                        val album = allAlbumsInHierarchy.first()
-                        val coverItem = if (album.customCoverUri != null) {
-                            album.customCoverUri
-                        } else {
-                            mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
+                        val coverItem = representativeImages.first()
+                        val context = LocalContext.current
+                        val request = remember(coverItem) {
+                            ImageRequest.Builder(context)
+                                .data(coverItem)
+                                .crossfade(false)
+                                .bitmapConfig(Bitmap.Config.RGB_565)
+                                .size(180)
+                                .build()
                         }
-                        
-                        if (coverItem != null) {
+                        AsyncImage(
+                            model = request,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    2 -> {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            representativeImages.take(2).forEach { coverItem ->
+                                val context = LocalContext.current
+                                val request = remember(coverItem) {
+                                    ImageRequest.Builder(context)
+                                        .data(coverItem)
+                                        .crossfade(false)
+                                        .bitmapConfig(Bitmap.Config.RGB_565)
+                                        .size(180)
+                                        .build()
+                                }
+                                AsyncImage(
+                                    model = request,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                    3 -> {
+                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                representativeImages.take(2).forEach { coverItem ->
+                                    val context = LocalContext.current
+                                    val request = remember(coverItem) {
+                                        ImageRequest.Builder(context)
+                                            .data(coverItem)
+                                            .crossfade(false)
+                                            .bitmapConfig(Bitmap.Config.RGB_565)
+                                            .size(180)
+                                            .build()
+                                    }
+                                    AsyncImage(
+                                        model = request,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                            val coverItem3 = representativeImages[2]
                             val context = LocalContext.current
-                            val request = remember(coverItem) {
+                            val request = remember(coverItem3) {
                                 ImageRequest.Builder(context)
-                                    .data(coverItem)
+                                    .data(coverItem3)
                                     .crossfade(false)
                                     .bitmapConfig(Bitmap.Config.RGB_565)
                                     .size(180)
@@ -1048,20 +1142,18 @@ fun GroupAlbumItem(
                             AsyncImage(
                                 model = request,
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .weight(0.5f)
+                                    .fillMaxHeight(),
                                 contentScale = ContentScale.Crop
                             )
                         }
                     }
-                    2 -> {
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            allAlbumsInHierarchy.take(2).forEach { album ->
-                                val coverItem = if (album.customCoverUri != null) {
-                                    album.customCoverUri
-                                } else {
-                                    mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
-                                }
-                                if (coverItem != null) {
+                    else -> {
+                        // 4+ albums: 2x2 grid
+                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                representativeImages.take(2).forEach { coverItem ->
                                     val context = LocalContext.current
                                     val request = remember(coverItem) {
                                         ImageRequest.Builder(context)
@@ -1081,122 +1173,25 @@ fun GroupAlbumItem(
                                     )
                                 }
                             }
-                        }
-                    }
-                    3 -> {
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                allAlbumsInHierarchy.take(2).forEach { album ->
-                                    val coverItem = if (album.customCoverUri != null) {
-                                        album.customCoverUri
-                                    } else {
-                                        mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
-                                    }
-                                    if (coverItem != null) {
-                                        val context = LocalContext.current
-                                        val request = remember(coverItem) {
-                                            ImageRequest.Builder(context)
-                                                .data(coverItem)
-                                                .crossfade(false)
-                                                .bitmapConfig(Bitmap.Config.RGB_565)
-                                                .size(180)
-                                                .build()
-                                        }
-                                        AsyncImage(
-                                            model = request,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxWidth(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                }
-                            }
-                            val album3 = allAlbumsInHierarchy[2]
-                            val coverItem3 = if (album3.customCoverUri != null) {
-                                album3.customCoverUri
-                            } else {
-                                mediaByBucket[album3.bucketName]?.firstOrNull()?.uri?.toString()
-                            }
-                            if (coverItem3 != null) {
-                                val context = LocalContext.current
-                                val request = remember(coverItem3) {
-                                    ImageRequest.Builder(context)
-                                        .data(coverItem3)
-                                        .crossfade(false)
-                                        .bitmapConfig(Bitmap.Config.RGB_565)
-                                        .size(180)
-                                        .build()
-                                }
-                                AsyncImage(
-                                    model = request,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .weight(0.5f)
-                                        .fillMaxHeight(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                    }
-                    else -> {
-                        // 4+ albums: 2x2 grid
-                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                allAlbumsInHierarchy.take(2).forEach { album ->
-                                    val coverItem = if (album.customCoverUri != null) {
-                                        album.customCoverUri
-                                    } else {
-                                        mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
+                                representativeImages.drop(2).take(2).forEach { coverItem ->
+                                    val context = LocalContext.current
+                                    val request = remember(coverItem) {
+                                        ImageRequest.Builder(context)
+                                            .data(coverItem)
+                                            .crossfade(false)
+                                            .bitmapConfig(Bitmap.Config.RGB_565)
+                                            .size(180)
+                                            .build()
                                     }
-                                    if (coverItem != null) {
-                                        val context = LocalContext.current
-                                        val request = remember(coverItem) {
-                                            ImageRequest.Builder(context)
-                                                .data(coverItem)
-                                                .crossfade(false)
-                                                .bitmapConfig(Bitmap.Config.RGB_565)
-                                                .size(180)
-                                                .build()
-                                        }
-                                        AsyncImage(
-                                            model = request,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                }
-                            }
-                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                allAlbumsInHierarchy.drop(2).take(2).forEach { album ->
-                                    val coverItem = if (album.customCoverUri != null) {
-                                        album.customCoverUri
-                                    } else {
-                                        mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
-                                    }
-                                    if (coverItem != null) {
-                                        val context = LocalContext.current
-                                        val request = remember(coverItem) {
-                                            ImageRequest.Builder(context)
-                                                .data(coverItem)
-                                                .crossfade(false)
-                                                .bitmapConfig(Bitmap.Config.RGB_565)
-                                                .size(180)
-                                                .build()
-                                        }
-                                        AsyncImage(
-                                            model = request,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
+                                    AsyncImage(
+                                        model = request,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
                                 }
                             }
                         }
