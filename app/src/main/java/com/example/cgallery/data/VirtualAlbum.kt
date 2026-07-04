@@ -34,7 +34,7 @@ data class AlbumGroupEntity(
 
 @Dao
 interface PhysicalAlbumDao {
-    @Query("SELECT * FROM physical_albums")
+    @Query("SELECT * FROM physical_albums ORDER BY sortOrder")
     fun getAllAlbums(): Flow<List<PhysicalAlbumEntity>>
 
     @Query("SELECT * FROM physical_albums WHERE bucketName = :bucketName")

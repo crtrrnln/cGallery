@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.cgallery"
         minSdk = 29
         targetSdk = 37
-        versionCode = 52
-        versionName = "0.52"
+        versionCode = 67
+        versionName = "0.67"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

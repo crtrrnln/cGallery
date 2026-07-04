@@ -2,7 +2,7 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.66)
+## Features (v0.67)
 
 ### Samsung-Inspired UI
 - **Modern Aesthetics**: Updated all covers with 24dp rounded corners and refined grid spacing (8dp/12dp gaps) for a premium look and feel.
@@ -11,6 +11,7 @@ cGallery is a fast, local-first Android gallery application designed with advanc
 - **Rich Details**: Added image and video counts to album headers and grid items.
 
 ### Advanced Organisation
+- **Smarter Group Covers**: Group collage covers now react to item reordering and correctly pull representative images from nested album groups.
 - **Mixed Content Sorting**: Albums and Album Groups now intermingle based on sort order and name, rather than groups being pinned to the top.
 - **Robust Creation**: Fixed empty album creation; new albums now persist and show up immediately even before media is added.
 - **Auto-Ellipsis**: Long album and group names are now smartly truncated with "..." to prevent layout breakage.
