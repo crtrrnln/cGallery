@@ -2,25 +2,22 @@
 
 cGallery is a fast, local-first Android gallery application designed with advanced organisational features for large media libraries.
 
-## Features (v0.67)
+## Features (v0.68)
+
+### Navigation & UX
+- **Robust Backstack Management**: Fixed a critical navigation glitch where the backstack would desync from the UI panes. System and in-app back buttons now properly pop the navigation state.
+- **Enhanced Cover Cropping**: Completely rewritten cover adjustment tool. Covers now feature intelligent clamping to prevent empty space and high-precision edge snapping for perfect alignment.
+- **Normalized Scaling**: Coordinate storage has been standardized, ensuring custom covers look identical regardless of device screen density or resolution.
 
 ### Samsung-Inspired UI
-- **Modern Aesthetics**: Updated all covers with 24dp rounded corners and refined grid spacing (8dp/12dp gaps) for a premium look and feel.
+- **Modern Aesthetics**: Updated all covers with 24dp rounded corners and refined grid spacing (12dp/16dp gaps) for a premium look and feel.
 - **Tightened Media Grid**: Reduced photo spacing to 2dp in gallery and album views for a dense, high-performance visual experience.
-- **Clean Management**: Moved administrative tools to a 3-dot overflow menu, keeping the primary "Albums" interface focused and clutter-free.
-- **Rich Details**: Added image and video counts to album headers and grid items.
+- **Clean Management**: Administrative tools are tucked into a 3-dot overflow menu, keeping the interface focused and clutter-free.
 
 ### Advanced Organisation
 - **Smarter Group Covers**: Group collage covers now react to item reordering and correctly pull representative images from nested album groups.
 - **Mixed Content Sorting**: Albums and Album Groups now intermingle based on sort order and name, rather than groups being pinned to the top.
-- **Robust Creation**: Fixed empty album creation; new albums now persist and show up immediately even before media is added.
-- **Auto-Ellipsis**: Long album and group names are now smartly truncated with "..." to prevent layout breakage.
-
-### Inbox System
-- **Inbox Navigation**: Added a dedicated back button to exit the Inbox workflow.
-- **Multi-Destination Logic**: Organise a single photo into multiple physical folders simultaneously (MOVE or COPY).
-- **"Inbox, not Everything Box"**: Automatically ignores existing folder contents when monitoring starts.
-- **Manual Scan**: Trigger immediate detection of new media via the "Scan Now" feature.
+- **Robust Creation**: Fixed empty album creation; new albums persist and show up immediately even before media is added.
 
 ### Core Gallery
 - **Persona Red Theme**: Custom vibrant red branding with high-performance drawing optimisations.

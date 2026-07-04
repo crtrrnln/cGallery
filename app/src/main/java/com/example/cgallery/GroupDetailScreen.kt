@@ -1,15 +1,14 @@
 package com.example.cgallery
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
@@ -48,7 +47,6 @@ sealed class GroupDisplayItem {
 fun GroupDetailScreen(
     groupId: Long,
     images: List<MediaItem>,
-    mediaByBucket: Map<String, List<MediaItem>>,
     onAlbumClick: (String) -> Unit,
     onGroupClick: (Long) -> Unit = {},
     onChangeCover: () -> Unit = {},
@@ -57,21 +55,21 @@ fun GroupDetailScreen(
     selectedAlbums: Set<String> = emptySet(),
     onToggleAlbumSelection: (String) -> Unit = {},
     onConfirmSelection: (List<String>) -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val groupManager = remember { AlbumGroupManager(context) }
     val physicalAlbumManager = remember { PhysicalAlbumManager(context) }
 
-    var showMoveToGroupDialog by remember { mutableStateOf(false) }
+    var showMoveToGroupDialog by remember { mutableStateOf(value = false) }
     var selectedAlbumForGroup by remember { mutableStateOf<Album?>(null) }
     var selectedGroupId by remember { mutableStateOf<Long?>(null) }
-    var isReorderMode by remember { mutableStateOf(false) }
+    var isReorderMode by remember { mutableStateOf(value = false) }
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
     var showReorderDialog by remember { mutableStateOf(false) }
-    var reorderType by remember { mutableStateOf<com.example.cgallery.ReorderType?>(null) }
+    var reorderType by remember { mutableStateOf<ReorderType?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
@@ -89,7 +87,7 @@ fun GroupDetailScreen(
         images.groupBy { item ->
             try {
                 java.io.File(item.fullPath).parent ?: "Unknown"
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 "Unknown"
             }
         }
@@ -114,23 +112,28 @@ fun GroupDetailScreen(
                 name = albumEntity.bucketName,
                 displayName = java.io.File(albumEntity.bucketName).name,
                 count = imagesInAlbum.size,
-                coverImage = imagesInAlbum.firstOrNull()
+                coverImage = imagesInAlbum.firstOrNull(),
             )
             combined.add(GroupDisplayItem.AlbumItem(album, albumEntity))
         }
         
         // Sort combined list by sortOrder, then by name
-        combined.sortedWith(compareBy({ 
-            when (it) {
-                is GroupDisplayItem.GroupItem -> it.group.sortOrder
-                is GroupDisplayItem.AlbumItem -> it.entity.sortOrder
-            }
-        }, {
-            when (it) {
-                is GroupDisplayItem.GroupItem -> it.group.name
-                is GroupDisplayItem.AlbumItem -> it.album.displayName
-            }
-        })).forEach { items.add(it) }
+        combined.sortedWith(
+            compareBy(
+                { 
+                    when (it) {
+                        is GroupDisplayItem.GroupItem -> it.group.sortOrder
+                        is GroupDisplayItem.AlbumItem -> it.entity.sortOrder
+                    }
+                },
+                {
+                    when (it) {
+                        is GroupDisplayItem.GroupItem -> it.group.name
+                        is GroupDisplayItem.AlbumItem -> it.album.displayName
+                    }
+                }
+            )
+        ).forEach { items.add(it) }
         
         items
     }
@@ -152,7 +155,7 @@ fun GroupDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(if (selectionMode) Icons.Default.Close else Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(if (selectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -200,7 +203,7 @@ fun GroupDetailScreen(
                                     text = { Text("Reorder") },
                                     onClick = {
                                         showMenu = false
-                                        reorderType = com.example.cgallery.ReorderType.ROOT_ITEMS
+                                        reorderType = ReorderType.ROOT_ITEMS
                                         showReorderDialog = true
                                     },
                                     leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) }
@@ -258,11 +261,14 @@ fun GroupDetailScreen(
                         }
                         is GroupDisplayItem.AlbumItem -> {
                             val albumsWithIndex = remember(albumsInGroup) {
-                                albumsInGroup.sortedBy { it.sortOrder }.mapIndexed { index, entity -> entity to index }
+                                albumsInGroup.asSequence()
+                                    .sortedBy { it.sortOrder }
+                                    .mapIndexed { index, entity -> entity to index }
+                                    .toList()
                             }
                             val currentIndex = albumsWithIndex.indexOfFirst { it.first.bucketName == item.album.name }
                             val canMoveUp = currentIndex > 0
-                            val canMoveDown = currentIndex < albumsWithIndex.size - 1
+                            val canMoveDown = currentIndex < (albumsWithIndex.size - 1)
                             val isSelected = item.album.name in selectedAlbums
 
                             AlbumItem(
@@ -274,15 +280,15 @@ fun GroupDetailScreen(
                                         onAlbumClick(item.album.name)
                                     }
                                 },
-                                entity = item.entity,
-                                isSelected = isSelected,
-                                selectionMode = selectionMode,
                                 onLongClick = {
                                     if (!selectionMode) {
                                         selectedAlbumForGroup = item.album
                                         showMoveToGroupDialog = true
                                     }
                                 },
+                                entity = item.entity,
+                                isSelected = isSelected,
+                                selectionMode = selectionMode,
                                 onMoveUp = {
                                     if (canMoveUp) {
                                         scope.launch {
@@ -343,7 +349,7 @@ fun GroupDetailScreen(
         )
     }
 
-    if (showMoveGroupDialog && selectedGroupForMove != null) {
+    if (showMoveGroupDialog && (selectedGroupForMove != null)) {
         AlertDialog(
             onDismissRequest = {
                 showMoveGroupDialog = false
@@ -581,9 +587,9 @@ fun GroupDetailScreen(
         )
     }
 
-    if (showReorderDialog && reorderType != null) {
+        if (showReorderDialog && reorderType != null) {
         val itemsToReorder = when (reorderType) {
-            com.example.cgallery.ReorderType.ROOT_ITEMS -> {
+            ReorderType.ROOT_ITEMS -> {
                 // Create a unified list of groups and albums with their sort orders
                 val childGroupsSorted = childGroups.sortedBy { it.sortOrder }
                 val albumsInGroupSorted = albumsInGroup.sortedBy { it.sortOrder }
@@ -604,7 +610,7 @@ fun GroupDetailScreen(
                 }
                 unifiedList
             }
-            null -> emptyList()
+            else -> emptyList()
         }
 
         AlertDialog(
