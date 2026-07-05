@@ -18,31 +18,34 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val enforcementSettings = EnforcementSettingsRepository(application)
     private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
     val mediaItems: StateFlow<List<MediaItem>> = combine(_mediaItems, inboxDao.getAllItems(), enforcementSettings.settingsFlow) { items, inboxItems, settings ->
+        if (items.isEmpty()) return@combine emptyList()
         val pendingIds = if (settings.isEnforcementEnabled) {
             inboxItems.filter { it.status != InboxStatus.Completed && it.status != InboxStatus.Ignored }.map { it.mediaStoreId }.toSet()
         } else emptySet()
         val completedMap = inboxItems.filter { it.status == InboxStatus.Completed }.associateBy({ it.mediaStoreId }, { it.destinationPaths.firstOrNull() })
-        items.filter { it.id !in pendingIds }.map { item ->
+        
+        if (pendingIds.isEmpty() && completedMap.isEmpty()) items
+        else items.filter { it.id !in pendingIds }.map { item ->
             completedMap[item.id]?.let { newPath ->
                 val f = File(newPath)
                 item.copy(fullPath = newPath, bucketPath = f.parent ?: item.bucketPath, bucketName = f.parentFile?.name ?: item.bucketName)
             } ?: item
         }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val mediaItemsMap: StateFlow<Map<Long, MediaItem>> = _mediaItems.map { it.associateBy { i -> i.id } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-    val mediaByBucket: StateFlow<Map<String, List<MediaItem>>> = _mediaItems.map { it.groupBy { i -> i.bucketPath } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val mediaItemsMap: StateFlow<Map<Long, MediaItem>> = _mediaItems.map { it.associateBy { i -> i.id } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+    val mediaByBucket: StateFlow<Map<String, List<MediaItem>>> = mediaItems.map { it.groupBy { i -> i.bucketPath } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
     val favouriteIds: StateFlow<Set<Long>> = favouritesManager.favouriteIds.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
-    val favouriteMedia: StateFlow<List<MediaItem>> = combine(_mediaItems, favouriteIds) { items, ids ->
+    val favouriteMedia: StateFlow<List<MediaItem>> = combine(mediaItems, favouriteIds) { items, ids ->
         if (ids.isEmpty()) emptyList() else items.filter { it.id in ids }
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
-    val searchResults: StateFlow<List<MediaItem>> = combine(_mediaItems, _searchQuery) { items, query ->
-        if (query.isBlank()) emptyList() else items.filter { it.displayName.lowercase().contains(query.lowercase()) }
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val albumResults: StateFlow<List<Pair<String, String>>> = combine(_mediaItems, _searchQuery) { items, query ->
-        if (query.isBlank()) emptyList() else items.filter { it.bucketName.lowercase().contains(query.lowercase()) }.map { it.bucketName to it.bucketPath }.distinct()
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val searchResults: StateFlow<List<MediaItem>> = combine(mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) emptyList() else items.filter { it.displayName.contains(query, ignoreCase = true) }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val albumResults: StateFlow<List<Pair<String, String>>> = combine(mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) emptyList() else items.filter { it.bucketName.contains(query, ignoreCase = true) }.map { it.bucketName to it.bucketPath }.distinct()
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     fun updateSearchQuery(query: String) { _searchQuery.value = query }
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

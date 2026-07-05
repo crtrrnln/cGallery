@@ -35,12 +35,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
+    private val _needsRefresh = MutableStateFlow(false)
+    val needsRefresh = _needsRefresh.asStateFlow()
+
     private val _operationResult = MutableSharedFlow<String>()
     val operationResult = _operationResult.asSharedFlow()
 
     init {
         loadMediaFolders()
     }
+
+    fun clearRefreshFlag() { _needsRefresh.value = false }
 
     fun loadMediaFolders() {
         viewModelScope.launch {
@@ -101,6 +106,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
             _isScanning.value = true 
+            _needsRefresh.value = true
             val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
             
             // Mark as Queued immediately to stop EnforcementEngine from re-triggering

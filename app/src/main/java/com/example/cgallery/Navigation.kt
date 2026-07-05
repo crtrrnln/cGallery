@@ -170,6 +170,7 @@ fun GalleryNavDisplay(
                     }
                 )
             ) { key ->
+                val needsRefresh by inboxViewModel.needsRefresh.collectAsState()
                 InboxScreen(
                     viewModel = inboxViewModel,
                     isEnforcementSession = key.isEnforcementSession,
@@ -187,7 +188,10 @@ fun GalleryNavDisplay(
                         onNavigate(GalleryKey.Diagnostics)
                     },
                     onBack = {
-                        onReloadMedia()
+                        if (needsRefresh) {
+                            onReloadMedia()
+                            inboxViewModel.clearRefreshFlag()
+                        }
                         onBack()
                     }
                 )
