@@ -17,9 +17,6 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val physicalAlbumManager = PhysicalAlbumManager(application)
     private val enforcementRepository = EnforcementSettingsRepository(application)
 
-    val stats = statsDao.getStats()
-    val enforcementSettings = enforcementRepository.settingsFlow
-
     val pendingItems: StateFlow<List<InboxItemEntity>> = inboxDao.getPendingItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -28,6 +25,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     val physicalAlbums: StateFlow<List<PhysicalAlbumEntity>> = physicalAlbumManager.allAlbums
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val stats = statsDao.getStats()
+    val enforcementSettings = enforcementRepository.settingsFlow
 
     private val _allMediaFolders = MutableStateFlow<List<MediaFolder>>(emptyList())
     val allMediaFolders = _allMediaFolders.asStateFlow()
@@ -53,18 +53,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             _isScanning.value = true
             val newCount = manager.scanNow()
             _isScanning.value = false
-            _operationResult.emit(if (newCount > 0) "Detected $newCount new items" else "Scan complete")
+            _operationResult.emit(if (newCount > 0) "found $newCount items" else "scan done")
         }
     }
 
     fun addMonitoredFolder(path: String, name: String) {
         viewModelScope.launch {
-            // Set ignoreBeforeTimestamp to current time so old files are ignored
             folderDao.insertFolder(
                 MonitoredFolderEntity(
                     folderPath = path,
                     displayName = name,
-                    ignoreBeforeTimestamp = System.currentTimeMillis() / 1000 // MediaStore uses seconds
+                    ignoreBeforeTimestamp = System.currentTimeMillis() / 1000
                 )
             )
         }
@@ -92,16 +91,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val success = manager.processItem(item, destinations, operation)
             if (success) {
-                _operationResult.emit("Successfully processed ${item.filename}")
+                _operationResult.emit("done: ${item.filename}")
             } else {
-                _operationResult.emit("Failed to process ${item.filename}")
+                _operationResult.emit("fail: ${item.filename}")
             }
         }
     }
 
     fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
-            _isScanning.value = true // Reusing scanning for general work
+            _isScanning.value = true 
             val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
             var successCount = 0
             val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
@@ -113,14 +112,14 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             _isScanning.value = false
-            _operationResult.emit("Processed $successCount/${ids.size} items")
+            _operationResult.emit("processed $successCount/${ids.size}")
         }
     }
 
     fun ignoreItem(item: InboxItemEntity) {
         viewModelScope.launch {
             manager.ignoreItem(item)
-            _operationResult.emit("Item ignored")
+            _operationResult.emit("ignored")
         }
     }
 

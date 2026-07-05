@@ -36,6 +36,7 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         val completedMap = inboxItems.filter { it.status == InboxStatus.Completed }
             .associateBy({ it.mediaStoreId }, { it.destinationPaths.firstOrNull() })
 
+        // filter out stuff in the inbox so it doesn't show up in the main gallery
         items.filter { it.id !in pendingIds }
             .map { item ->
                 completedMap[item.id]?.let { newPath ->
@@ -114,9 +115,7 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             val items = dataSource.fetchMedia()
             _mediaItems.value = items
             
-            // Sync physical albums with current MediaStore folders in background
             withContext(Dispatchers.Default) {
-                // Important: Use full parent paths for synchronization to ensure valid file moves
                 val bucketPaths = items.map { it.bucketPath }.distinct()
                 physicalAlbumManager.syncAlbums(bucketPaths)
             }
@@ -229,7 +228,7 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             val result = physicalAlbumManager.createFolder(folderName, groupId = groupId)
             if (result.isSuccess) {
                 _operationResult.emit("Album created: $folderName")
-                loadMedia() // Refresh
+                loadMedia()
             } else {
                 _operationResult.emit("Failed to create album: ${result.exceptionOrNull()?.message}")
             }

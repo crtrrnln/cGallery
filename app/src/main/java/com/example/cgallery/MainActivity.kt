@@ -11,17 +11,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -32,7 +28,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +56,8 @@ class MainActivity : ComponentActivity() {
         if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
             _backstackState.value = listOf(GalleryKey.Inbox(isEnforcementSession = true))
         }
+
+        enableEdgeToEdge()
         setContent {
             CGalleryTheme(dynamicColor = false) {
                 val navigator = rememberListDetailPaneScaffoldNavigator<Any>()
@@ -123,7 +120,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Handle external view jumping to correct item
                 LaunchedEffect(isPermissionGranted, mediaItems) {
                     if (isPermissionGranted && isExternalView && mediaItems.isNotEmpty()) {
                         val viewUri = intent.data
@@ -131,14 +127,10 @@ class MainActivity : ComponentActivity() {
                             val index = mediaItems.indexOfFirst { it.uri == viewUri || it.fullPath == viewUri.path }
                             if (index != -1) {
                                 backstack = listOf(GalleryKey.Gallery, GalleryKey.Viewer(index))
-                            } else {
-                                // External URI not in current list (maybe a specific file picker opened it)
-                                // For now, just show the gallery or implement a standalone viewer
                             }
                         }
                     }
                 }
-                val scope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 LaunchedEffect(Unit) {
@@ -344,7 +336,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Handle back button - Use onBack to ensure backstack and scaffold stay in sync
                 BackHandler(enabled = true) {
                     onBack()
                 }

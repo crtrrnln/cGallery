@@ -32,15 +32,13 @@ class AlbumGroupManager(context: Context) {
     }
 
     suspend fun deleteGroup(group: AlbumGroupEntity) {
-        // Move albums in this group to null (ungrouped)
         val albumsInGroup = physicalAlbumDao.getAlbumsByGroup(group.id).first()
         albumsInGroup.forEach { album ->
             physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
         }
 
-        // Move child groups to root (parentId = null)
-        val allGroups = groupDao.getAllGroups().first()
-        val childGroups = allGroups.filter { it.parentId == group.id }
+        val allGroupsList = groupDao.getAllGroups().first()
+        val childGroups = allGroupsList.filter { it.parentId == group.id }
         childGroups.forEach { childGroup ->
             groupDao.moveGroup(childGroup.id, null)
         }
@@ -94,19 +92,16 @@ class AlbumGroupManager(context: Context) {
     }
 
     suspend fun deleteGroup(groupId: Long) {
-        // Move all albums in this group back to root
         val albums = physicalAlbumDao.getAlbumsByGroup(groupId).first()
         albums.forEach { album ->
             physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
         }
         
-        // Move all child groups back to root
         val childGroups = groupDao.getChildGroups(groupId).first()
         childGroups.forEach { child ->
             groupDao.moveGroup(child.id, null)
         }
 
-        // Delete the group itself
         val group = groupDao.getGroupById(groupId).first()
         if (group != null) {
             groupDao.deleteGroup(group)

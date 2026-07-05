@@ -18,7 +18,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.InboxItemEntity
-import com.example.cgallery.data.MediaType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,18 +29,11 @@ fun InboxProcessingScreen(
     isEnforcementSession: Boolean = false
 ) {
     val items by viewModel.pendingItems.collectAsState()
-    
-    if (items.isEmpty()) {
-        LaunchedEffect(Unit) { onBack() }
-        return
-    }
-
     val pagerState = rememberPagerState(
         initialPage = startIndex.coerceIn(0, items.size - 1),
         pageCount = { items.size }
     )
 
-    // Handle auto-advancing or finishing if the list changes (item processed)
     LaunchedEffect(items.size) {
         if (items.isEmpty()) {
             onBack()
@@ -80,41 +72,27 @@ fun InboxProcessingScreen(
                     actionIconContentColor = Color.White
                 )
             )
-        },
-        containerColor = Color.Black
-    ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
+        }
+    ) { padding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            pageSpacing = 16.dp
-        ) { page ->
-            val item = items.getOrNull(page)
-            if (item != null) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = item.mediaUri,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                    
-                    // Optional: Filename overlay at bottom
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth(),
-                        color = Color.Black.copy(alpha = 0.4f)
-                    ) {
-                        Text(
-                            text = item.filename,
-                            color = Color.White,
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodySmall
+                .background(Color.Black)
+                .padding(padding)
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = 1
+            ) { page ->
+                val item = items.getOrNull(page)
+                if (item != null) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        AsyncImage(
+                            model = item.mediaUri,
+                            contentDescription = item.filename,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
                         )
                     }
                 }

@@ -69,12 +69,12 @@ data class MonitoredFolderEntity(
     val folderPath: String,
     val displayName: String,
     val isEnabled: Boolean = true,
-    val ignoreBeforeTimestamp: Long = 0L // Items added before this will be ignored
+    val ignoreBeforeTimestamp: Long = 0L 
 )
 
 @Entity(tableName = "inbox_stats")
 data class InboxStatsEntity(
-    @PrimaryKey val id: Int = 1, // Only one stats row
+    @PrimaryKey val id: Int = 1,
     val totalDetected: Int = 0,
     val totalCompleted: Int = 0,
     val totalFailed: Int = 0,

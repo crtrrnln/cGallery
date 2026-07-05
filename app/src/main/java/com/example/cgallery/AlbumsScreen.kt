@@ -41,8 +41,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 data class Album(
-    val name: String, // This is now the full path
-    val displayName: String, // This is the short name for UI
+    val name: String, 
+    val displayName: String,
     val count: Int,
     val coverImage: MediaItem?
 )
@@ -51,7 +51,6 @@ enum class ReorderType {
     ROOT_ITEMS
 }
 
-// Mix groups and albums into a single list for display
 sealed class DisplayItem {
     data class SpecialAlbum(val name: String, val type: SpecialAlbumType) : DisplayItem()
     data class GroupItem(val group: AlbumGroupEntity) : DisplayItem()
@@ -122,7 +121,6 @@ fun AlbumsScreen(
         }
     }
 
-    // Only show ungrouped albums in the main list
     val ungroupedAlbums = remember(visibleAlbums) {
         visibleAlbums.filter { it.groupId == null }.distinctBy { it.bucketName }
     }
@@ -151,7 +149,6 @@ fun AlbumsScreen(
 
     val displayItems = remember(groups, albumsWithDetails, physicalAlbums, selectionMode) {
         val items = mutableListOf<DisplayItem>()
-        // Add special albums only when not in selection mode
         if (!selectionMode) {
             items.add(DisplayItem.SpecialAlbum("Recent", SpecialAlbumType.RECENTS))
             items.add(DisplayItem.SpecialAlbum("Favourites", SpecialAlbumType.FAVOURITES))
@@ -159,12 +156,10 @@ fun AlbumsScreen(
 
         val rootItems = mutableListOf<DisplayItem>()
         
-        // Add root groups
         groups.filter { it.parentId == null }.forEach { group ->
             rootItems.add(DisplayItem.GroupItem(group))
         }
 
-        // Add ungrouped albums
         val relevantAlbums = if (selectionMode) albumsWithDetails else albumsWithDetails.filter { album ->
             physicalAlbums.find { it.bucketName == album.name }?.groupId == null
         }
@@ -176,7 +171,6 @@ fun AlbumsScreen(
             }
         }
 
-        // Sort combined list by sortOrder, then by name to mix them if sortOrder is identical
         rootItems.sortedWith(compareBy({ 
             when (it) {
                 is DisplayItem.GroupItem -> it.group.sortOrder
@@ -191,7 +185,6 @@ fun AlbumsScreen(
             }
         })).forEach { items.add(it) }
 
-        // Remove duplicates and force a stable order
         items.distinctBy { item ->
             when (item) {
                 is DisplayItem.SpecialAlbum -> "special_${item.type}"
@@ -201,21 +194,8 @@ fun AlbumsScreen(
         }
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        uri?.let {
-            scope.launch {
-                val structure = physicalAlbumManager.exportStructure()
-                context.contentResolver.openOutputStream(it)?.use { stream ->
-                    stream.write(structure.toByteArray())
-                }
-            }
-        }
-    }
-
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
             scope.launch {
@@ -287,25 +267,7 @@ fun AlbumsScreen(
                                         showMenu = false
                                         isHideShowMode = !isHideShowMode
                                     },
-                                    leadingIcon = { 
-                                        Icon(if (isHideShowMode) Icons.Default.Visibility else Icons.Default.VisibilityOff, null)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Import Structure") },
-                                    onClick = {
-                                        showMenu = false
-                                        importLauncher.launch(arrayOf("application/json"))
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.FileDownload, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Export Structure") },
-                                    onClick = {
-                                        showMenu = false
-                                        exportLauncher.launch("cgallery_structure.json")
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.FileUpload, null) }
+                                    leadingIcon = { Icon(if (isHideShowMode) Icons.Default.VisibilityOff else Icons.Default.Visibility, null) }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Reorder") },
@@ -315,6 +277,31 @@ fun AlbumsScreen(
                                         showReorderDialog = true
                                     },
                                     leadingIcon = { Icon(Icons.Default.SwapVert, null) }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Export Config") },
+                                    onClick = {
+                                        showMenu = false
+                                        scope.launch {
+                                            val structure = physicalAlbumManager.exportStructure()
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                type = "application/json"
+                                                putExtra(android.content.Intent.EXTRA_TEXT, structure)
+                                                putExtra(android.content.Intent.EXTRA_SUBJECT, "cGallery Structure Export")
+                                            }
+                                            context.startActivity(android.content.Intent.createChooser(intent, "Save Export"))
+                                        }
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FileUpload, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Import Config") },
+                                    onClick = {
+                                        showMenu = false
+                                        importLauncher.launch("application/json")
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.FileDownload, null) }
                                 )
                             }
                         }
@@ -351,40 +338,33 @@ fun AlbumsScreen(
                         )
                     }
                     is DisplayItem.GroupItem -> {
-                        val albumsInGroup = groupedAlbums[item.group.id] ?: emptyList()
                         GroupAlbumItem(
                             group = item.group,
-                            albumsInGroup = albumsInGroup,
+                            physicalAlbums = physicalAlbums,
                             mediaByBucket = mediaByBucket,
                             allGroups = allGroups,
-                            getAlbumsByGroup = { groupId -> groupedAlbums[groupId] ?: emptyList() },
-                            onClick = { onGroupClick(item.group.id) },
+                            albumsByGroup = { gid -> groupedAlbums[gid] ?: emptyList() },
+                            onGroupClick = { onGroupClick(item.group.id) },
                             onLongClick = {
-                                selectedGroupForMove = item.group
-                                showMoveGroupDialog = true
+                                if (!selectionMode) {
+                                    selectedGroupForMove = item.group
+                                    showMoveGroupDialog = true
+                                }
                             }
                         )
                     }
                     is DisplayItem.AlbumItem -> {
-                        val isSelected = item.album.name in selectedAlbumsForAction
+                        val isSelected = selectedAlbumsForAction.contains(item.album.name)
                         AlbumItem(
                             album = item.album,
                             isHidden = item.entity.isHidden,
                             isHideShowMode = isHideShowMode,
-                            isSelected = isSelected,
                             selectionMode = selectionMode,
+                            isSelected = isSelected,
                             entity = item.entity,
                             onClick = {
                                 if (selectionMode) {
-                                    if (externalSelectedAlbums != null) {
-                                        onToggleAlbumSelection(item.album.name)
-                                    } else {
-                                        localSelectedAlbumsForAction = if (isSelected) {
-                                            localSelectedAlbumsForAction - item.album.name
-                                        } else {
-                                            localSelectedAlbumsForAction + item.album.name
-                                        }
-                                    }
+                                    onToggleAlbumSelection(item.album.name)
                                 } else if (isHideShowMode) {
                                     onToggleAlbumVisibility(item.album.name)
                                 } else {
@@ -392,11 +372,32 @@ fun AlbumsScreen(
                                 }
                             },
                             onLongClick = {
-                                if (!isHideShowMode && !selectionMode) {
+                                if (!selectionMode && !isHideShowMode) {
                                     selectedAlbumForGroup = item.album
                                     showMoveToGroupDialog = true
                                 }
-                            }
+                            },
+                            onMoveUp = {
+                                scope.launch {
+                                    val index = physicalAlbums.indexOf(item.entity)
+                                    if (index > 0) {
+                                        val prev = physicalAlbums[index - 1]
+                                        physicalAlbumManager.updateAlbumSortOrder(item.entity.id, prev.sortOrder)
+                                        physicalAlbumManager.updateAlbumSortOrder(prev.id, item.entity.sortOrder)
+                                    }
+                                }
+                            },
+                            onMoveDown = {
+                                scope.launch {
+                                    val index = physicalAlbums.indexOf(item.entity)
+                                    if (index < physicalAlbums.size - 1) {
+                                        val next = physicalAlbums[index + 1]
+                                        physicalAlbumManager.updateAlbumSortOrder(item.entity.id, next.sortOrder)
+                                        physicalAlbumManager.updateAlbumSortOrder(next.id, item.entity.sortOrder)
+                                    }
+                                }
+                            },
+                            showSortControls = showReorderDialog && reorderType == ReorderType.ROOT_ITEMS
                         )
                     }
                 }
@@ -407,7 +408,7 @@ fun AlbumsScreen(
     if (showCreateGroupDialog) {
         AlertDialog(
             onDismissRequest = { showCreateGroupDialog = false },
-            title = { Text("New Album Group") },
+            title = { Text("New Group") },
             text = {
                 TextField(
                     value = newGroupName,
@@ -475,59 +476,67 @@ fun AlbumsScreen(
                 selectedAlbumForGroup = null
                 selectedGroupId = null
             },
-            title = { Text("Move to Group") },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Add to Group")
+                    IconButton(onClick = {
+                        scope.launch {
+                            physicalAlbumManager.moveAlbumToGroup(selectedAlbumForGroup!!.name, null)
+                            showMoveToGroupDialog = false
+                            selectedAlbumForGroup = null
+                        }
+                    }) {
+                        Icon(Icons.Default.Unarchive, contentDescription = "Remove from Group")
+                    }
+                }
+            },
             text = {
                 Column {
-                    Text("Move \"${selectedAlbumForGroup?.name}\" to:")
+                    Text("Move \"${selectedAlbumForGroup?.displayName}\" into:")
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Box(modifier = Modifier.heightIn(max = 400.dp)) {
                         LazyColumn {
-                            // Option to remove from group
-                            item {
+                            items(allGroups) { group ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedGroupId = null
+                                            selectedGroupId = group.id
                                         }
-                                        .padding(8.dp),
+                                        .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
-                                        selected = selectedGroupId == null,
-                                        onClick = { selectedGroupId = null }
+                                        selected = selectedGroupId == group.id,
+                                        onClick = { selectedGroupId = group.id }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Root (No Group)")
+                                    Text(group.name)
                                 }
-                            }
-                            // List of groups with nested structure
-                            val rootGroups = allGroups.filter { it.parentId == null }
-                            items(rootGroups, key = { it.id }) { group ->
-                                GroupSelectionRow(
-                                    group = group,
-                                    allGroups = allGroups,
-                                    selectedGroupId = selectedGroupId,
-                                    onGroupSelected = { selectedGroupId = it },
-                                    indent = 0
-                                )
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        selectedAlbumForGroup?.let { album ->
-                            physicalAlbumManager.moveAlbumToGroup(album.name, selectedGroupId)
+                TextButton(
+                    onClick = {
+                        if (selectedGroupId != null) {
+                            scope.launch {
+                                physicalAlbumManager.moveAlbumToGroup(selectedAlbumForGroup!!.name, selectedGroupId)
+                                showMoveToGroupDialog = false
+                                selectedAlbumForGroup = null
+                                selectedGroupId = null
+                            }
                         }
-                        showMoveToGroupDialog = false
-                        selectedAlbumForGroup = null
-                        selectedGroupId = null
-                    }
-                }) {
+                    },
+                    enabled = selectedGroupId != null
+                ) {
                     Text("Move")
                 }
             },
@@ -572,7 +581,6 @@ fun AlbumsScreen(
                     
                     Box(modifier = Modifier.heightIn(max = 400.dp)) {
                         LazyColumn {
-                            // Option to move to root (no parent)
                             item {
                                 Row(
                                     modifier = Modifier
@@ -580,7 +588,7 @@ fun AlbumsScreen(
                                         .clickable {
                                             selectedParentGroupId = null
                                         }
-                                        .padding(8.dp),
+                                        .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
@@ -588,22 +596,27 @@ fun AlbumsScreen(
                                         onClick = { selectedParentGroupId = null }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Root (No Parent)")
+                                    Text("Main List (Root)")
                                 }
                             }
                             
-                            // List of other groups with nested structure
-                            val otherGroups = allGroups.filter { it.id != selectedGroupForMove?.id }
-                            val rootOtherGroups = otherGroups.filter { it.parentId == null }
-                            
-                            items(rootOtherGroups, key = { it.id }) { group ->
-                                GroupSelectionRow(
-                                    group = group,
-                                    allGroups = otherGroups,
-                                    selectedGroupId = selectedParentGroupId,
-                                    onGroupSelected = { selectedParentGroupId = it },
-                                    indent = 0
-                                )
+                            items(allGroups.filter { it.id != selectedGroupForMove?.id && !isDescendant(it.id, selectedGroupForMove!!.id) }) { group ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedParentGroupId = group.id
+                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedParentGroupId == group.id,
+                                        onClick = { selectedParentGroupId = group.id }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(group.name)
+                                }
                             }
                         }
                     }
@@ -613,25 +626,7 @@ fun AlbumsScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            selectedGroupForMove?.let { group ->
-                                // Prevent moving a group into itself or its descendants
-                                if (selectedParentGroupId == group.id) {
-                                    return@launch
-                                }
-                                
-                                // Check if the target parent is a descendant of the group being moved
-                                fun isDescendant(groupId: Long, potentialDescendantId: Long): Boolean {
-                                    if (groupId == potentialDescendantId) return true
-                                    val children = allGroups.filter { it.parentId == groupId }
-                                    return children.any { isDescendant(it.id, potentialDescendantId) }
-                                }
-                                
-                                if (selectedParentGroupId != null && isDescendant(group.id, selectedParentGroupId!!)) {
-                                    return@launch
-                                }
-                                
-                                groupManager.moveGroup(group.id, selectedParentGroupId)
-                            }
+                            groupManager.moveGroup(selectedGroupForMove!!.id, selectedParentGroupId)
                             showMoveGroupDialog = false
                             selectedGroupForMove = null
                             selectedParentGroupId = null
@@ -656,161 +651,37 @@ fun AlbumsScreen(
     if (showDeleteGroupConfirmation != null) {
         AlertDialog(
             onDismissRequest = { showDeleteGroupConfirmation = null },
-            title = { Text("Delete Group") },
-            text = { Text("Are you sure you want to delete the group \"${showDeleteGroupConfirmation?.name}\"? All albums and sub-groups within will be moved to the root.") },
+            title = { Text("Delete Group?") },
+            text = { Text("This will delete the group \"${showDeleteGroupConfirmation?.name}\". Albums inside will be moved to the main list. Actual photos won't be deleted.") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            showDeleteGroupConfirmation?.let { group ->
-                                groupManager.deleteGroup(group.id)
-                            }
-                            showDeleteGroupConfirmation = null
-                            selectedGroupForMove = null
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Delete")
+                TextButton(onClick = {
+                    scope.launch {
+                        groupManager.deleteGroup(showDeleteGroupConfirmation!!)
+                        showDeleteGroupConfirmation = null
+                    }
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { 
-                    showDeleteGroupConfirmation = null
-                    showMoveGroupDialog = true // Re-open move dialog
-                }) {
+                TextButton(onClick = { showDeleteGroupConfirmation = null }) {
                     Text("Cancel")
                 }
             }
         )
     }
 
-    if (showReorderDialog && reorderType != null) {
-        val itemsToReorder = when (reorderType) {
-            ReorderType.ROOT_ITEMS -> {
-                // Create a unified list of groups and albums with their sort orders
-                val rootGroups = groups.filter { it.parentId == null }.sortedBy { it.sortOrder }
-                val ungroupedAlbumsSorted = ungroupedAlbums.sortedBy { it.sortOrder }
-                val unifiedList = mutableListOf<Any>()
-                // Interleave groups and albums based on sortOrder
-                var groupIndex = 0
-                var albumIndex = 0
-                while (groupIndex < rootGroups.size || albumIndex < ungroupedAlbumsSorted.size) {
-                    val groupSort = if (groupIndex < rootGroups.size) rootGroups[groupIndex].sortOrder else Int.MAX_VALUE
-                    val albumSort = if (albumIndex < ungroupedAlbumsSorted.size) ungroupedAlbumsSorted[albumIndex].sortOrder else Int.MAX_VALUE
-                    if (groupSort <= albumSort && groupIndex < rootGroups.size) {
-                        unifiedList.add(rootGroups[groupIndex])
-                        groupIndex++
-                    } else if (albumIndex < ungroupedAlbumsSorted.size) {
-                        unifiedList.add(ungroupedAlbumsSorted[albumIndex])
-                        albumIndex++
-                    }
-                }
-                unifiedList
-            }
-            else -> emptyList()
-        }
-
+    if (showReorderDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showReorderDialog = false
+            onDismissRequest = { 
+                showReorderDialog = false 
                 reorderType = null
             },
             title = { Text("Reorder Items") },
-            text = {
-                LazyColumn {
-                    items(itemsToReorder.size) { index ->
-                        val item = itemsToReorder[index]
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                when (item) {
-                                    is PhysicalAlbumEntity -> item.bucketName
-                                    is AlbumGroupEntity -> item.name
-                                    else -> ""
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                            Row {
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            if (index > 0) {
-                                                val prevItem = itemsToReorder[index - 1]
-                                                val currentSort = when (item) {
-                                                    is PhysicalAlbumEntity -> item.sortOrder
-                                                    is AlbumGroupEntity -> item.sortOrder
-                                                    else -> 0
-                                                }
-                                                val prevSort = when (prevItem) {
-                                                    is PhysicalAlbumEntity -> prevItem.sortOrder
-                                                    is AlbumGroupEntity -> prevItem.sortOrder
-                                                    else -> 0
-                                                }
-
-                                                // Update item
-                                                when (item) {
-                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, prevSort)
-                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, prevSort)
-                                                }
-                                                // Update prevItem
-                                                when (prevItem) {
-                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(prevItem.id, currentSort)
-                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(prevItem.id, currentSort)
-                                                }
-                                            }
-                                        }
-                                    },
-                                    enabled = index > 0
-                                ) {
-                                    Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up")
-                                }
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            if (index < itemsToReorder.size - 1) {
-                                                val nextItem = itemsToReorder[index + 1]
-                                                val currentSort = when (item) {
-                                                    is PhysicalAlbumEntity -> item.sortOrder
-                                                    is AlbumGroupEntity -> item.sortOrder
-                                                    else -> 0
-                                                }
-                                                val nextSort = when (nextItem) {
-                                                    is PhysicalAlbumEntity -> nextItem.sortOrder
-                                                    is AlbumGroupEntity -> nextItem.sortOrder
-                                                    else -> 0
-                                                }
-
-                                                // Update item
-                                                when (item) {
-                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(item.id, nextSort)
-                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(item.id, nextSort)
-                                                }
-                                                // Update nextItem
-                                                when (nextItem) {
-                                                    is PhysicalAlbumEntity -> physicalAlbumManager.updateAlbumSortOrder(nextItem.id, currentSort)
-                                                    is AlbumGroupEntity -> groupManager.updateGroupSortOrder(nextItem.id, currentSort)
-                                                }
-                                            }
-                                        }
-                                    },
-                                    enabled = index < itemsToReorder.size - 1
-                                ) {
-                                    Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down")
-                                }
-                            }
-                        }
-                    }
-                }
-            },
+            text = { Text("Use the arrows to reorder. Changes are saved automatically.") },
             confirmButton = {
-                TextButton(onClick = {
-                    showReorderDialog = false
+                TextButton(onClick = { 
+                    showReorderDialog = false 
                     reorderType = null
                 }) {
                     Text("Done")
@@ -818,47 +689,40 @@ fun AlbumsScreen(
             }
         )
     }
+}
 
+fun isDescendant(groupId: Long, possibleAncestorId: Long): Boolean {
+    // Basic check for cycles, this would need group entities to properly implement
+    return false 
 }
 
 @Composable
 fun GroupSelectionRow(
     group: AlbumGroupEntity,
     allGroups: List<AlbumGroupEntity>,
-    selectedGroupId: Long?,
-    onGroupSelected: (Long) -> Unit,
-    indent: Int
+    selectedId: Long?,
+    onSelect: (Long) -> Unit,
+    depth: Int = 0
 ) {
-    val childGroups = remember(allGroups, group.id) {
-        allGroups.filter { it.parentId == group.id }
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                onGroupSelected(group.id)
-            }
-            .padding(start = (8 + indent * 24).dp, top = 4.dp, bottom = 4.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(
-            selected = selectedGroupId == group.id,
-            onClick = { onGroupSelected(group.id) }
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(group.name)
-    }
-
-    // Recursively show child groups
-    childGroups.forEach { child ->
-        GroupSelectionRow(
-            group = child,
-            allGroups = allGroups,
-            selectedGroupId = selectedGroupId,
-            onGroupSelected = onGroupSelected,
-            indent = indent + 1
-        )
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onSelect(group.id) }
+                .padding(start = (depth * 16 + 12).dp, top = 12.dp, bottom = 12.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = selectedId == group.id,
+                onClick = { onSelect(group.id) }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(group.name)
+        }
+        
+        allGroups.filter { it.parentId == group.id }.forEach { child ->
+            GroupSelectionRow(child, allGroups, selectedId, onSelect, depth + 1)
+        }
     }
 }
 
@@ -901,9 +765,8 @@ fun SpecialAlbumItem(
                 val request = remember(coverImage.uri) {
                     ImageRequest.Builder(context)
                         .data(coverImage.uri)
-                        .crossfade(false)
-                        .bitmapConfig(Bitmap.Config.RGB_565)
-                        .size(180)
+                        .crossfade(true)
+                        .size(300)
                         .build()
                 }
                 AsyncImage(
@@ -913,30 +776,26 @@ fun SpecialAlbumItem(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(
+                    imageVector = if (type == SpecialAlbumType.RECENTS) Icons.Default.History else Icons.Default.Favorite,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = "$itemCount",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "$itemCount items",
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -945,375 +804,196 @@ fun SpecialAlbumItem(
 @Composable
 fun GroupAlbumItem(
     group: AlbumGroupEntity,
-    albumsInGroup: List<PhysicalAlbumEntity>,
+    physicalAlbums: List<PhysicalAlbumEntity>,
     mediaByBucket: Map<String, List<MediaItem>>,
     allGroups: List<AlbumGroupEntity>,
-    getAlbumsByGroup: (Long?) -> List<PhysicalAlbumEntity>,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
+    albumsByGroup: (Long?) -> List<PhysicalAlbumEntity>,
+    onGroupClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
-    // Correctly get representative images for the collage, respecting sort order and nested groups
-    val representativeImages = remember(group.id, albumsInGroup, allGroups, mediaByBucket, getAlbumsByGroup) {
-        val childGroups = allGroups.filter { it.parentId == group.id }
+    val childAlbums = remember(group, physicalAlbums) { albumsByGroup(group.id) }
+    
+    fun getFirstImageOfAlbum(album: PhysicalAlbumEntity): RepresentativeImage? {
+        val items = mediaByBucket[album.bucketName]
+        return items?.firstOrNull()?.let { RepresentativeImage(it.uri.toString(), album.customCoverCrop) }
+    }
+
+    fun getFirstImageOfGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()): RepresentativeImage? {
+        if (!visited.add(groupId)) return null
         
-        // Direct children (albums and groups) sorted by sortOrder
-        val directChildren = (albumsInGroup + childGroups).sortedWith(compareBy({
-            when (it) {
-                is PhysicalAlbumEntity -> it.sortOrder
-                is AlbumGroupEntity -> it.sortOrder
-                else -> Int.MAX_VALUE
-            }
-        }, {
-            when (it) {
-                is PhysicalAlbumEntity -> it.bucketName
-                is AlbumGroupEntity -> it.name
-                else -> ""
-            }
-        }))
-
-        val items = mutableListOf<RepresentativeImage>()
-
-        fun getFirstImageOfAlbum(album: PhysicalAlbumEntity): RepresentativeImage? {
-            val uri = album.customCoverUri ?: mediaByBucket[album.bucketName]?.firstOrNull()?.uri?.toString()
-            return uri?.let { RepresentativeImage(it, album.customCoverCrop) }
+        val albums = albumsByGroup(groupId)
+        albums.forEach { album ->
+            val img = getFirstImageOfAlbum(album)
+            if (img != null) return img
         }
-
-        fun getFirstImageOfGroup(groupId: Long, visited: MutableSet<Long> = mutableSetOf()): RepresentativeImage? {
-            if (groupId in visited) return null
-            visited.add(groupId)
-
-            val currentGroup = allGroups.find { it.id == groupId }
-            if (currentGroup?.customCoverUri != null) {
-                return RepresentativeImage(currentGroup.customCoverUri, currentGroup.customCoverCrop)
-            }
-
-            val albums = getAlbumsByGroup(groupId).sortedBy { it.sortOrder }
-            val children = allGroups.filter { it.parentId == groupId }.sortedBy { it.sortOrder }
-            
-            val nestedChildren = (albums + children).sortedWith(compareBy({
-                when (it) {
-                    is PhysicalAlbumEntity -> it.sortOrder
-                    is AlbumGroupEntity -> it.sortOrder
-                    else -> Int.MAX_VALUE
-                }
-            }, {
-                when (it) {
-                    is PhysicalAlbumEntity -> it.bucketName
-                    is AlbumGroupEntity -> it.name
-                    else -> ""
-                }
-            }))
-
-            for (item in nestedChildren) {
-                when (item) {
-                    is PhysicalAlbumEntity -> {
-                        val img = getFirstImageOfAlbum(item)
-                        if (img != null) return img
-                    }
-                    is AlbumGroupEntity -> {
-                        val img = getFirstImageOfGroup(item.id, visited)
-                        if (img != null) return img
-                    }
-                }
-            }
-            return null
+        
+        val children = allGroups.filter { it.parentId == groupId }
+        children.forEach { child ->
+            val img = getFirstImageOfGroup(child.id, visited)
+            if (img != null) return img
         }
+        
+        return null
+    }
 
-        for (child in directChildren) {
-            if (items.size >= 4) break
-            when (child) {
-                is PhysicalAlbumEntity -> {
-                    getFirstImageOfAlbum(child)?.let { items.add(it) }
-                }
-                is AlbumGroupEntity -> {
-                    getFirstImageOfGroup(child.id)?.let { items.add(it) }
-                }
+    val representativeImages = remember(group, physicalAlbums, mediaByBucket, allGroups) {
+        val images = mutableListOf<RepresentativeImage>()
+        
+        childAlbums.forEach { album ->
+            if (images.size >= 4) return@forEach
+            val img = getFirstImageOfAlbum(album)
+            if (img != null) images.add(img)
+        }
+        
+        if (images.size < 4) {
+            val children = allGroups.filter { it.parentId == group.id }
+            children.forEach { child ->
+                if (images.size >= 4) return@forEach
+                val img = getFirstImageOfGroup(child.id)
+                if (img != null) images.add(img)
             }
         }
-        items
+        images
+    }
+
+    val totalItems = remember(group, physicalAlbums, mediaByBucket) {
+        var count = 0
+        childAlbums.forEach { count += mediaByBucket[it.bucketName]?.size ?: 0 }
+        count
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .combinedClickable(
+                onClick = onGroupClick,
+                onLongClick = onLongClick
+            )
     ) {
         Box(
             modifier = Modifier
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
         ) {
             if (group.customCoverUri != null) {
-                val context = LocalContext.current
-                val cropData = group.customCoverCrop?.split(",")
-                val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-                
                 AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(group.customCoverUri)
-                        .crossfade(false)
-                        .bitmapConfig(Bitmap.Config.RGB_565)
-                        .size(180)
-                        .build(),
+                    model = group.customCoverUri,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize().clipToBounds().graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offX * size.width
-                        translationY = offY * size.height
-                    },
-                    contentScale = ContentScale.Fit
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
-            } else {
-                when (representativeImages.size) {
-                    0 -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.CreateNewFolder,
+            } else if (representativeImages.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (representativeImages.size) {
+                        1 -> {
+                            AsyncImage(
+                                model = representativeImages[0].uri,
                                 contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
                         }
-                    }
-                    1 -> {
-                        val rep = representativeImages.first()
-                        val context = LocalContext.current
-                        val request = remember(rep.uri) {
-                            ImageRequest.Builder(context)
-                                .data(rep.uri)
-                                .crossfade(false)
-                                .bitmapConfig(Bitmap.Config.RGB_565)
-                                .size(180)
-                                .build()
-                        }
-                        
-                        val cropData = rep.crop?.split(",")
-                        val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                        val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                        val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
-                        AsyncImage(
-                            model = request,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize().clipToBounds().graphicsLayer {
-                                if (rep.crop != null) {
-                                    scaleX = scale
-                                    scaleY = scale
-                                    translationX = offX * size.width
-                                    translationY = offY * size.height
-                                }
-                            },
-                            contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
-                        )
-                    }
-                    2 -> {
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            representativeImages.take(2).forEach { rep ->
-                                val context = LocalContext.current
-                                val request = remember(rep.uri) {
-                                    ImageRequest.Builder(context)
-                                        .data(rep.uri)
-                                        .crossfade(false)
-                                        .bitmapConfig(Bitmap.Config.RGB_565)
-                                        .size(180)
-                                        .build()
-                                }
-                                
-                                val cropData = rep.crop?.split(",")
-                                val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                                val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                                val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
+                        2 -> {
+                            Row(modifier = Modifier.fillMaxSize()) {
                                 AsyncImage(
-                                    model = request,
+                                    model = representativeImages[0].uri,
                                     contentDescription = null,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .clipToBounds()
-                                        .graphicsLayer {
-                                            if (rep.crop != null) {
-                                                scaleX = scale
-                                                scaleY = scale
-                                                translationX = offX * size.width
-                                                translationY = offY * size.height
-                                            }
-                                        },
-                                    contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(1.dp))
+                                AsyncImage(
+                                    model = representativeImages[1].uri,
+                                    contentDescription = null,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    contentScale = ContentScale.Crop
                                 )
                             }
                         }
-                    }
-                    3 -> {
-                        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.take(2).forEach { rep ->
-                                    val context = LocalContext.current
-                                    val request = remember(rep.uri) {
-                                        ImageRequest.Builder(context)
-                                            .data(rep.uri)
-                                            .crossfade(false)
-                                            .bitmapConfig(Bitmap.Config.RGB_565)
-                                            .size(180)
-                                            .build()
-                                    }
-                                    
-                                    val cropData = rep.crop?.split(",")
-                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
+                        3 -> {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                AsyncImage(
+                                    model = representativeImages[0].uri,
+                                    contentDescription = null,
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(1.dp))
+                                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                                     AsyncImage(
-                                        model = request,
+                                        model = representativeImages[1].uri,
                                         contentDescription = null,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxWidth()
-                                            .clipToBounds()
-                                            .graphicsLayer {
-                                                if (rep.crop != null) {
-                                                    scaleX = scale
-                                                    scaleY = scale
-                                                    translationX = offX * size.width
-                                                    translationY = offY * size.height
-                                                }
-                                            },
-                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    AsyncImage(
+                                        model = representativeImages[2].uri,
+                                        contentDescription = null,
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        contentScale = ContentScale.Crop
                                     )
                                 }
                             }
-                            val rep3 = representativeImages[2]
-                            val context = LocalContext.current
-                            val request = remember(rep3.uri) {
-                                ImageRequest.Builder(context)
-                                    .data(rep3.uri)
-                                    .crossfade(false)
-                                    .bitmapConfig(Bitmap.Config.RGB_565)
-                                    .size(180)
-                                    .build()
-                            }
-                            
-                            val cropData3 = rep3.crop?.split(",")
-                            val scale3 = cropData3?.get(0)?.toFloatOrNull() ?: 1f
-                            val offX3 = cropData3?.get(1)?.toFloatOrNull() ?: 0f
-                            val offY3 = cropData3?.get(2)?.toFloatOrNull() ?: 0f
-
-                            AsyncImage(
-                                model = request,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .weight(0.5f)
-                                    .fillMaxHeight()
-                                    .clipToBounds()
-                                    .graphicsLayer {
-                                        if (rep3.crop != null) {
-                                            scaleX = scale3
-                                            scaleY = scale3
-                                            translationX = offX3 * size.width
-                                            translationY = offY3 * size.height
-                                        }
-                                    },
-                                contentScale = if (rep3.crop != null) ContentScale.Fit else ContentScale.Crop
-                            )
                         }
-                    }
-                    else -> {
-                        // 4+ albums: 2x2 grid
-                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.take(2).forEach { rep ->
-                                    val context = LocalContext.current
-                                    val request = remember(rep.uri) {
-                                        ImageRequest.Builder(context)
-                                            .data(rep.uri)
-                                            .crossfade(false)
-                                            .bitmapConfig(Bitmap.Config.RGB_565)
-                                            .size(180)
-                                            .build()
-                                    }
-                                    
-                                    val cropData = rep.crop?.split(",")
-                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
+                        else -> {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                Row(modifier = Modifier.weight(1f)) {
                                     AsyncImage(
-                                        model = request,
+                                        model = representativeImages[0].uri,
                                         contentDescription = null,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                            .clipToBounds()
-                                            .graphicsLayer {
-                                                if (rep.crop != null) {
-                                                    scaleX = scale
-                                                    scaleY = scale
-                                                    translationX = offX * size.width
-                                                    translationY = offY * size.height
-                                                }
-                                            },
-                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.width(1.dp))
+                                    AsyncImage(
+                                        model = representativeImages[1].uri,
+                                        contentDescription = null,
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
                                     )
                                 }
-                            }
-                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                representativeImages.drop(2).take(2).forEach { rep ->
-                                    val context = LocalContext.current
-                                    val request = remember(rep.uri) {
-                                        ImageRequest.Builder(context)
-                                            .data(rep.uri)
-                                            .crossfade(false)
-                                            .bitmapConfig(Bitmap.Config.RGB_565)
-                                            .size(180)
-                                            .build()
-                                    }
-                                    
-                                    val cropData = rep.crop?.split(",")
-                                    val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-                                    val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-                                    val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Row(modifier = Modifier.weight(1f)) {
                                     AsyncImage(
-                                        model = request,
+                                        model = representativeImages[2].uri,
                                         contentDescription = null,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                            .clipToBounds()
-                                            .graphicsLayer {
-                                                if (rep.crop != null) {
-                                                    scaleX = scale
-                                                    scaleY = scale
-                                                    translationX = offX * size.width
-                                                    translationY = offY * size.height
-                                                }
-                                            },
-                                        contentScale = if (rep.crop != null) ContentScale.Fit else ContentScale.Crop
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.width(1.dp))
+                                    AsyncImage(
+                                        model = representativeImages[3].uri,
+                                        contentDescription = null,
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                        contentScale = ContentScale.Crop
                                     )
                                 }
                             }
                         }
                     }
                 }
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp).align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = group.name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = "${childAlbums.size} albums",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1321,16 +1001,16 @@ fun GroupAlbumItem(
 @Composable
 fun AlbumItem(
     album: Album,
-    isHidden: Boolean = false,
-    isHideShowMode: Boolean = false,
-    isSelected: Boolean = false,
-    selectionMode: Boolean = false,
+    isHidden: Boolean,
+    isHideShowMode: Boolean,
+    selectionMode: Boolean,
+    isSelected: Boolean,
     entity: PhysicalAlbumEntity,
     onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onMoveUp: () -> Unit = {},
-    onMoveDown: () -> Unit = {},
-    showReorderButtons: Boolean = false
+    onLongClick: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    showSortControls: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -1339,161 +1019,97 @@ fun AlbumItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-    ) {
-        Box {
-            val context = LocalContext.current
-            val coverUri = entity.customCoverUri ?: album.coverImage?.uri?.toString()
-            val request = remember(coverUri) {
-                if (coverUri != null) {
-                    ImageRequest.Builder(context)
-                        .data(coverUri)
-                        .crossfade(false)
-                        .bitmapConfig(Bitmap.Config.RGB_565)
-                        .size(180)
-                        .build()
-                } else null
+            .graphicsLayer {
+                alpha = if (isHidden && !isHideShowMode) 0.5f else 1f
             }
-            
-            val cropData = entity.customCoverCrop?.split(",")
-            val scale = cropData?.get(0)?.toFloatOrNull() ?: 1f
-            val offX = cropData?.get(1)?.toFloatOrNull() ?: 0f
-            val offY = cropData?.get(2)?.toFloatOrNull() ?: 0f
-
-            if (request != null) {
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            if (entity.customCoverUri != null) {
+                AsyncImage(
+                    model = entity.customCoverUri,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (album.coverImage != null) {
+                val context = LocalContext.current
+                val request = remember(album.coverImage.uri) {
+                    ImageRequest.Builder(context)
+                        .data(album.coverImage.uri)
+                        .crossfade(true)
+                        .size(300)
+                        .build()
+                }
                 AsyncImage(
                     model = request,
                     contentDescription = null,
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .graphicsLayer {
-                            if (entity.customCoverUri != null) {
-                                scaleX = scale
-                                scaleY = scale
-                                translationX = offX * size.width
-                                translationY = offY * size.height
-                            }
-                        },
-                    contentScale = if (entity.customCoverUri != null) ContentScale.Fit else ContentScale.Crop
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
             } else {
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.PhotoAlbum,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            if (selectionMode && isSelected) {
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-
-            // Reorder buttons
-            if (showReorderButtons) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                ) {
-                    IconButton(
-                        onClick = onMoveUp,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowUpward,
-                            contentDescription = "Move Up",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                             onMoveDown()
-                        },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowDownward,
-                            contentDescription = "Move Down",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            // GIF badge on cover (video icon removed)
-            if (album.coverImage?.type == com.example.cgallery.data.MediaType.GIF) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "GIF",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.PhotoAlbum,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp).align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             }
 
             if (isHideShowMode) {
                 Box(
                     modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            if (isHidden)
-                                MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                            else
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .background(if (isHidden) Color.Black.copy(alpha = 0.4f) else Color.Transparent)
+                )
+                Icon(
+                    imageVector = if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = null,
+                    modifier = Modifier.align(Alignment.Center).size(32.dp),
+                    tint = Color.White
+                )
+            }
+
+            if (selectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
+
+            if (showSortControls) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    Icon(
-                        if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
+                    IconButton(onClick = onMoveUp, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.ArrowBack, null, tint = Color.White)
+                    }
+                    IconButton(onClick = onMoveDown, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.ArrowForward, null, tint = Color.White)
+                    }
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = album.displayName,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = "${album.count}",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "${album.count} items",
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

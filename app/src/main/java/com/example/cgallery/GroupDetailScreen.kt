@@ -102,10 +102,8 @@ fun GroupDetailScreen(
         val items = mutableListOf<GroupDisplayItem>()
         val combined = mutableListOf<GroupDisplayItem>()
         
-        // Add child groups
         childGroups.forEach { combined.add(GroupDisplayItem.GroupItem(it)) }
         
-        // Add albums
         albumsInGroup.forEach { albumEntity ->
             val imagesInAlbum = mediaByBucketInternal[albumEntity.bucketName] ?: emptyList()
             val album = Album(
@@ -117,7 +115,6 @@ fun GroupDetailScreen(
             combined.add(GroupDisplayItem.AlbumItem(album, albumEntity))
         }
         
-        // Sort combined list by sortOrder, then by name
         combined.sortedWith(
             compareBy(
                 { 
@@ -253,11 +250,11 @@ fun GroupDetailScreen(
                         is GroupDisplayItem.GroupItem -> {
                             GroupAlbumItem(
                                 group = item.group,
-                                albumsInGroup = allPhysicalAlbums.filter { it.groupId == item.group.id },
+                                physicalAlbums = allPhysicalAlbums,
                                 mediaByBucket = mediaByBucketInternal,
                                 allGroups = allGroups,
-                                getAlbumsByGroup = { gid -> allPhysicalAlbums.filter { it.groupId == gid } },
-                                onClick = { onGroupClick(item.group.id) },
+                                albumsByGroup = { gid -> allPhysicalAlbums.filter { it.groupId == gid } },
+                                onGroupClick = { onGroupClick(item.group.id) },
                                 onLongClick = {
                                     selectedGroupForMove = item.group
                                     showMoveGroupDialog = true
@@ -278,6 +275,11 @@ fun GroupDetailScreen(
 
                             AlbumItem(
                                 album = item.album,
+                                isHidden = item.entity.isHidden,
+                                isHideShowMode = false,
+                                selectionMode = selectionMode,
+                                isSelected = isSelected,
+                                entity = item.entity,
                                 onClick = {
                                     if (selectionMode) {
                                         onToggleAlbumSelection(item.album.name)
@@ -291,9 +293,6 @@ fun GroupDetailScreen(
                                         showMoveToGroupDialog = true
                                     }
                                 },
-                                entity = item.entity,
-                                isSelected = isSelected,
-                                selectionMode = selectionMode,
                                 onMoveUp = {
                                     if (canMoveUp) {
                                         scope.launch {
@@ -314,7 +313,7 @@ fun GroupDetailScreen(
                                         }
                                     }
                                 },
-                                showReorderButtons = isReorderMode
+                                showSortControls = isReorderMode
                             )
                         }
                     }

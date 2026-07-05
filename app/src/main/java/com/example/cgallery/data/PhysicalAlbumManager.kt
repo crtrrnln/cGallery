@@ -33,7 +33,6 @@ class PhysicalAlbumManager(context: Context) {
         val existingBucketNames = existingAlbums.map { it.bucketName }.toSet()
         val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
 
-        // Add new albums
         bucketNames.forEachIndexed { index, bucketName ->
             if (!existingBucketNames.contains(bucketName)) {
                 physicalAlbumDao.insertAlbum(
@@ -47,7 +46,6 @@ class PhysicalAlbumManager(context: Context) {
             }
         }
 
-        // Remove albums that no longer exist in MediaStore AND are gone from disk
         existingAlbums.forEach { album ->
             if (!bucketNames.contains(album.bucketName)) {
                 val file = File(album.bucketName)
@@ -92,7 +90,6 @@ class PhysicalAlbumManager(context: Context) {
             } else {
                 val success = newFolder.mkdirs()
                 if (success) {
-                    // Add to database
                     val existingAlbums = physicalAlbumDao.getAllAlbums().first()
                     val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
                     physicalAlbumDao.insertAlbum(
@@ -103,7 +100,6 @@ class PhysicalAlbumManager(context: Context) {
                             sortOrder = maxSortOrder + 1
                         )
                     )
-                    // Trigger MediaStore scan
                     MediaScannerConnection.scanFile(context, arrayOf(newFolder.absolutePath), null, null)
 
                     Result.success(newFolder.absolutePath)
@@ -135,18 +131,15 @@ class PhysicalAlbumManager(context: Context) {
                 return Result.failure(Exception("Target file already exists"))
             }
 
-            // Try atomic rename first
             val renamed = sourceFile.renameTo(targetFile)
             if (renamed) {
                 Result.success(targetFile.absolutePath)
             } else {
-                // Fallback to copy-delete if rename fails (e.g. cross-partition)
                 sourceFile.copyTo(targetFile, overwrite = false)
                 val deleted = sourceFile.delete()
                 if (deleted) {
                     Result.success(targetFile.absolutePath)
                 } else {
-                    // Clean up the copied file if source deletion failed
                     targetFile.delete()
                     Result.failure(Exception("Failed to delete source file after copy"))
                 }
@@ -199,20 +192,16 @@ class PhysicalAlbumManager(context: Context) {
     suspend fun importStructure(jsonStr: String) = withContext(Dispatchers.IO) {
         try {
             val data = json.decodeFromString<StructureExport>(jsonStr)
-            val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-            val existingAlbumPaths = existingAlbums.map { it.bucketName }.toSet()
+            val existingGroups = groupDao.getAllGroups().first()
+            existingGroups.forEach { groupDao.deleteGroup(it) }
 
-            // 1. Re-create groups
-            val allGroups = groupDao.getAllGroups().first()
-            allGroups.forEach { groupDao.deleteGroup(it) }
+            val groupNameMap = mutableMapOf<Long, Long>()
 
-            val groupNameMap = mutableMapOf<Long, Long>() // oldId to newId
             data.groups.forEach { group ->
                 val newId = groupDao.insertGroup(group.copy(id = 0))
                 groupNameMap[group.id] = newId
             }
 
-            // Update parent IDs for nested groups
             data.groups.forEach { group ->
                 if (group.parentId != null) {
                     val oldParentId = group.parentId
@@ -227,7 +216,6 @@ class PhysicalAlbumManager(context: Context) {
                 }
             }
 
-            // 2. Update existing albums
             data.albums.forEach { importedAlbum ->
                 val existing = physicalAlbumDao.getAlbumByBucketName(importedAlbum.bucketName).first()
                 val newGroupId = importedAlbum.groupId?.let { groupNameMap[it] }
@@ -243,7 +231,6 @@ class PhysicalAlbumManager(context: Context) {
                         )
                     )
                 } else {
-                    // Create folder on disk if it doesn't exist to ensure visibility
                     val folder = File(importedAlbum.bucketName)
                     if (!folder.exists()) {
                         folder.mkdirs()
@@ -255,12 +242,10 @@ class PhysicalAlbumManager(context: Context) {
                             groupId = newGroupId
                         )
                     )
-                    // Trigger scan for the newly created empty folder
                     MediaScannerConnection.scanFile(context, arrayOf(importedAlbum.bucketName), null, null)
                 }
             }
 
-            // 3. Import monitored folders
             data.monitoredFolders.forEach { importedFolder ->
                 folderDao.insertFolder(importedFolder.copy(id = 0))
             }

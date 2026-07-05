@@ -101,7 +101,7 @@ class OperationQueue(
         updateOpStatus(op, OperationStatus.Verifying)
         inboxDao.updateStatus(item.id, InboxStatus.Verifying, System.currentTimeMillis())
 
-        val sourceSize = File(item.sourcePath).let { if (it.exists()) it.length() else -1 } // Might be deleted if MOVE succeeded
+        val sourceSize = File(item.sourcePath).let { if (it.exists()) it.length() else -1 }
         
         var allVerified = true
         for (path in createdFiles) {

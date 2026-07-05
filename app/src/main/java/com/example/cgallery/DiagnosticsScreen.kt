@@ -2,7 +2,6 @@ package com.example.cgallery
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -25,10 +24,10 @@ fun DiagnosticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Diagnostics") },
+                title = { Text("Debug Dashboard") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
                     }
                 }
             )
@@ -41,28 +40,28 @@ fun DiagnosticsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item { DiagnosticHeader("Inbox & Workflow") }
-            item { DiagnosticRow("Pending Items", pendingItems.size.toString()) }
-            item { DiagnosticRow("Total Detected", stats?.totalDetected?.toString() ?: "0") }
-            item { DiagnosticRow("Total Completed", stats?.totalCompleted?.toString() ?: "0") }
-            item { DiagnosticRow("Total Failed", stats?.totalFailed?.toString() ?: "0") }
+            item { DebugHeader("Inbox State") }
+            item { DebugRow("Pending", pendingItems.size.toString()) }
+            item { DebugRow("Total Found", stats?.totalDetected?.toString() ?: "0") }
+            item { DebugRow("Total Done", stats?.totalCompleted?.toString() ?: "0") }
+            item { DebugRow("Total Failed", stats?.totalFailed?.toString() ?: "0") }
             
-            item { DiagnosticHeader("Enforcement Engine") }
-            item { DiagnosticRow("Enabled", settings.isEnforcementEnabled.toString()) }
-            item { DiagnosticRow("Shizuku Available", settings.isShizukuEnabled.toString()) }
-            item { DiagnosticRow("Snooze Expiry", settings.snoozeExpirationTime.toString()) }
-            item { DiagnosticRow("Snooze Count", settings.currentSnoozeCount.toString()) }
+            item { DebugHeader("Enforcement") }
+            item { DebugRow("Active", settings.isEnforcementEnabled.toString()) }
+            item { DebugRow("Shizuku", settings.isShizukuEnabled.toString()) }
+            item { DebugRow("Snooze End", settings.snoozeExpirationTime.toString()) }
+            item { DebugRow("Snooze Count", settings.currentSnoozeCount.toString()) }
 
-            item { DiagnosticHeader("Last Activity") }
+            item { DebugHeader("Performance") }
             stats?.let { s ->
-                item { DiagnosticRow("Total Processing Time", "${s.totalProcessingTimeMs} ms") }
+                item { DebugRow("Processing Time", "${s.totalProcessingTimeMs}ms") }
             }
         }
     }
 }
 
 @Composable
-private fun DiagnosticHeader(title: String) {
+private fun DebugHeader(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
@@ -72,7 +71,7 @@ private fun DiagnosticHeader(title: String) {
 }
 
 @Composable
-private fun DiagnosticRow(label: String, value: String) {
+private fun DebugRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween

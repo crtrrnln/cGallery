@@ -1,13 +1,11 @@
 package com.example.cgallery
 
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
@@ -16,15 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.InboxItemEntity
-import java.text.SimpleDateFormat
-import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
     viewModel: InboxViewModel,
@@ -38,14 +34,9 @@ fun InboxScreen(
 ) {
     val items by viewModel.pendingItems.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
-    
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
-
-    BackHandler(enabled = isSelectionMode) {
-        selectedIds = emptySet()
-    }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
         viewModel.operationResult.collect { message ->
@@ -58,19 +49,19 @@ fun InboxScreen(
             CenterAlignedTopAppBar(
                 title = { 
                     if (isSelectionMode) {
-                        Text("${selectedIds.size} Selected")
+                        Text("${selectedIds.size} selected")
                     } else {
-                        Text(if (isEnforcementSession) "Enforcement Session" else "Inbox")
+                        Text(if (isEnforcementSession) "New Media" else "Inbox")
                     }
                 },
                 navigationIcon = {
                     if (isSelectionMode) {
                         IconButton(onClick = { selectedIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear Selection")
+                            Icon(Icons.Default.Close, contentDescription = "clear")
                         }
                     } else if (!isEnforcementSession) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
                         }
                     }
                 },
@@ -78,28 +69,28 @@ fun InboxScreen(
                     if (isEnforcementSession) {
                         var showSnoozeMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showSnoozeMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Snooze Options")
+                            Icon(Icons.Default.MoreVert, contentDescription = "snooze")
                         }
                         DropdownMenu(
                             expanded = showSnoozeMenu,
                             onDismissRequest = { showSnoozeMenu = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Snooze for 1 hour") },
+                                text = { Text("Snooze 1 hour") },
                                 onClick = { 
                                     viewModel.setSnooze(60)
                                     onBack() 
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Snooze for 15 files") },
+                                text = { Text("Snooze 15 files") },
                                 onClick = { 
                                     viewModel.setItemSnooze(15)
                                     onBack() 
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Snooze for 50 files") },
+                                text = { Text("Snooze 50 files") },
                                 onClick = { 
                                     viewModel.setItemSnooze(50)
                                     onBack() 
@@ -111,20 +102,20 @@ fun InboxScreen(
                             onOrganise(selectedIds, true)
                             selectedIds = emptySet()
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "Move to Album")
+                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
                         }
                         IconButton(onClick = {
                             onOrganise(selectedIds, false)
                             selectedIds = emptySet()
                         }) {
-                            Icon(Icons.Default.Add, contentDescription = "Copy to Album")
+                            Icon(Icons.Default.Add, contentDescription = "copy")
                         }
                     } else {
                         IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            Icon(Icons.Default.Settings, contentDescription = "settings")
                         }
                         IconButton(onClick = onDiagnosticsClick) {
-                            Icon(Icons.Default.BugReport, contentDescription = "Diagnostics")
+                            Icon(Icons.Default.BugReport, contentDescription = "debug")
                         }
                     }
                 }
@@ -132,7 +123,7 @@ fun InboxScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!isSelectionMode) {
+            if (!isSelectionMode && !isEnforcementSession) {
                 FloatingActionButton(
                     onClick = { if (!isScanning) viewModel.scanNow() }
                 ) {
@@ -143,33 +134,25 @@ fun InboxScreen(
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "Scan Now")
+                        Icon(Icons.Default.Refresh, contentDescription = "scan")
                     }
                 }
             }
-        },
-        modifier = modifier.fillMaxSize()
+        }
     ) { innerPadding ->
         if (items.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No pending items in your Inbox",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                Text("Inbox is empty", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(120.dp),
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
+                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     val isSelected = item.id in selectedIds
                     InboxListItem(
                         item = item,
@@ -188,14 +171,12 @@ fun InboxScreen(
                             }
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun InboxListItem(
     item: InboxItemEntity,
@@ -204,60 +185,26 @@ fun InboxListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
-    val dateString = remember(item.detectedTimestamp) { dateFormat.format(Date(item.detectedTimestamp)) }
-
-    ListItem(
-        headlineContent = {
-            Text(
-                text = item.filename,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-        },
-        supportingContent = {
-            Column {
-                Text(
-                    text = "Source: ${item.sourcePath}",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
-                )
-                Text(
-                    text = "Detected: $dateString",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        leadingContent = {
-            Box {
-                AsyncImage(
-                    model = item.mediaUri,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .padding(4.dp),
-                    contentScale = ContentScale.Crop
-                )
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                }
-            }
-        },
-        modifier = Modifier.combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            // Long click not working easily with standard clickable, but good enough for now
+    ) {
+        AsyncImage(
+            model = item.mediaUri,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
         )
-    )
+
+        if (isSelectionMode) {
+            Checkbox(
+                checked = isSelected,
+                onCheckedChange = { onClick() },
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+        }
+    }
 }

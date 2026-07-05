@@ -19,7 +19,7 @@ class InboxManager(private val context: Context) {
         val folders = folderDao.getEnabledFoldersSync()
         if (folders.isEmpty()) return@withContext 0
 
-        // If not fullScan, only look at items from the last 24 hours to be efficient
+        // efficient scan: only look at last 24h unless we're doing a full one
         val since = if (fullScan) 0L else (System.currentTimeMillis() / 1000) - (24 * 60 * 60)
         val allMedia = mediaStoreDataSource.fetchMedia(since)
         var newCount = 0
@@ -27,7 +27,6 @@ class InboxManager(private val context: Context) {
         for (item in allMedia) {
             val matchingFolder = folders.find { item.bucketPath.startsWith(it.folderPath) }
             if (matchingFolder != null) {
-                // Only process items added AFTER the folder was set to be monitored
                 if (item.dateAdded > matchingFolder.ignoreBeforeTimestamp) {
                     if (!inboxDao.exists(item.id)) {
                         val inboxItem = InboxItemEntity(
@@ -64,7 +63,6 @@ class InboxManager(private val context: Context) {
 
         try {
             if (operation == InboxOperationType.MOVE) {
-                // First destination: MOVE
                 val firstDest = destinationPaths.first()
                 val moveResult = physicalAlbumManager.moveFile(item.sourcePath, firstDest)
                 if (moveResult.isSuccess) {
@@ -72,7 +70,6 @@ class InboxManager(private val context: Context) {
                     val firstCreatedPath = moveResult.getOrThrow()
                     createdFiles.add(firstCreatedPath)
 
-                    // Additional destinations: COPY from the first created file
                     for (i in 1 until destinationPaths.size) {
                         val copyResult = physicalAlbumManager.copyFile(firstCreatedPath, destinationPaths[i])
                         if (copyResult.isSuccess) {
@@ -82,7 +79,6 @@ class InboxManager(private val context: Context) {
                     }
                 }
             } else {
-                // COPY to all destinations
                 for (dest in destinationPaths) {
                     val copyResult = physicalAlbumManager.copyFile(item.sourcePath, dest)
                     if (copyResult.isSuccess) {
@@ -106,11 +102,10 @@ class InboxManager(private val context: Context) {
                     )
                 )
 
-                // Trigger MediaStore scans
+                // tell mediastore we changed stuff
                 val pathsToScan = (createdFiles + if (operation == InboxOperationType.MOVE) listOf(item.sourcePath) else emptyList())
                 MediaScannerConnection.scanFile(context, pathsToScan.toTypedArray(), null) { _, _ -> }
 
-                // Update Stats
                 updateStats { stats ->
                     val newSourceCounts = stats.sourceFolderCounts.toMutableMap()
                     newSourceCounts[item.sourcePath] = (newSourceCounts[item.sourcePath] ?: 0) + 1

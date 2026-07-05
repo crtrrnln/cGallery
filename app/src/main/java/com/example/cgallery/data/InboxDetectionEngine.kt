@@ -39,14 +39,12 @@ class InboxDetectionEngine(
             contentObserver
         )
 
-        // Monitor folder settings to update file observers
         scope.launch {
             folderDao.getAllFolders().collectLatest { folders ->
                 updateFileObservers(folders.filter { it.isEnabled })
             }
         }
         
-        // Initial full scan
         scope.launch {
             inboxManager.scanNow(fullScan = true)
         }
@@ -55,21 +53,19 @@ class InboxDetectionEngine(
     private fun updateFileObservers(folders: List<MonitoredFolderEntity>) {
         val currentPaths = folders.map { it.folderPath }.toSet()
         
-        // Remove observers for folders no longer monitored
         val toRemove = fileObservers.keys.filter { it !in currentPaths }
         toRemove.forEach { path ->
             fileObservers[path]?.stopWatching()
             fileObservers.remove(path)
         }
 
-        // Add observers for new folders
         folders.forEach { folder ->
             if (!fileObservers.containsKey(folder.folderPath)) {
                 val observer = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
                     object : FileObserver(File(folder.folderPath), CREATE or MOVED_TO) {
                         override fun onEvent(event: Int, path: String?) {
                             scope.launch {
-                                // Delay slightly to allow MediaStore to see the file
+                                // mediastore takes a sec to update so we wait
                                 delay(1500)
                                 inboxManager.scanNow()
                             }

@@ -33,7 +33,6 @@ class ShizukuManager(private val context: Context) {
         if (hasPermission()) {
             try {
                 val command = "am start -n com.example.cgallery/com.example.cgallery.MainActivity --es TARGET_SCREEN INBOX"
-                // Using reflection to access newProcess as it might be restricted in some library versions
                 val method = Shizuku::class.java.getDeclaredMethod(
                     "newProcess", 
                     Array<String>::class.java, 
@@ -41,10 +40,8 @@ class ShizukuManager(private val context: Context) {
                     String::class.java
                 )
                 method.isAccessible = true
-                val process = method.invoke(null, arrayOf("sh", "-c", command), null, null)
-                // We don't necessarily need to wait for it, we just want to fire and forget the launch
+                method.invoke(null, arrayOf("sh", "-c", command), null, null)
             } catch (e: Exception) {
-                // Fallback to standard launch
                 val intent = Intent(context, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     putExtra("TARGET_SCREEN", "INBOX")
