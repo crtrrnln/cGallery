@@ -26,17 +26,22 @@ fun AlbumDetailScreen(
     onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> },
     onChangeCover: () -> Unit = {}, onImageClick: (GalleryKey) -> Unit,
     onBack: () -> Unit, albumImages: List<MediaItem>? = null,
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {},
+    isExternalPicker: Boolean = false,
+    allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
-    val isSelectionMode = selectedIds.isNotEmpty(); var showMenu by remember { mutableStateOf(false) }
+    val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker; var showMenu by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
 
     Scaffold(topBar = {
             CenterAlignedTopAppBar(
                 title = { 
-                    if (isSelectionMode) { Text("${selectedIds.size} selected") } else {
+                    if (isSelectionMode && !isExternalPicker) { Text("${selectedIds.size} selected") } 
+                    else if (isExternalPicker) { Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") }
+                    else {
                         val albumName = remember(bucketName) { File(bucketName).name }
                         val iCount = remember(images) { images.count { it.type == MediaType.IMAGE || it.type == MediaType.GIF } }
                         val vCount = remember(images) { images.count { it.type == MediaType.VIDEO } }
@@ -47,14 +52,17 @@ fun AlbumDetailScreen(
                     }
                 },
                 navigationIcon = {
-                    if (isSelectionMode) { IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } } 
+                    if (isSelectionMode && !isExternalPicker) { IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } } 
+                    else if (isExternalPicker) { IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") } }
                     else { IconButton(onBack) { Icon(Icons.Default.ArrowBack, "back") } }
                 },
                 actions = {
-                    if (isSelectionMode) {
+                    if (isExternalPicker && allowMultiple) {
+                        IconButton({ onMediaSelected(selectedIds.mapNotNull { id -> images.find { it.id == id }?.uri }) }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
+                    } else if (isSelectionMode && !isExternalPicker) {
                         IconButton({ onAddToAlbum(selectedIds, true); selectedIds = emptySet() }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
                         IconButton({ onAddToAlbum(selectedIds, false); selectedIds = emptySet() }) { Icon(Icons.Default.Add, "copy") }
-                    } else {
+                    } else if (!isExternalPicker) {
                         Box {
                             IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "menu") }
                             DropdownMenu(showMenu, { showMenu = false }) {
@@ -72,8 +80,10 @@ fun AlbumDetailScreen(
                 val isSel = img.id in selectedIds
                 MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode,
                     onClick = {
-                        if (isSelectionMode) selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id
-                        else onImageClick(GalleryKey.Viewer(index))
+                        if (isSelectionMode) {
+                            if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))
+                            else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id
+                        } else onImageClick(GalleryKey.Viewer(index))
                     },
                     onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) }
                 )

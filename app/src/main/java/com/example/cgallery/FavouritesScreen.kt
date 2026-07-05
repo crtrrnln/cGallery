@@ -1,8 +1,13 @@
 package com.example.cgallery
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,10 +21,35 @@ import com.example.cgallery.ui.MediaGridItem
 fun FavouritesScreen(
     favouriteImages: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {},
+    isExternalPicker: Boolean = false,
+    allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
+
+    BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
+
     Scaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text("Favourites") }) },
+        topBar = { 
+            CenterAlignedTopAppBar(
+                title = { 
+                    if (isSelectionMode && !isExternalPicker) { Text("${selectedIds.size} selected") } 
+                    else if (isExternalPicker) { Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") }
+                    else { Text("Favourites") }
+                },
+                navigationIcon = {
+                    if (isSelectionMode && !isExternalPicker) { IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } } 
+                    else if (isExternalPicker) { IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") } }
+                },
+                actions = {
+                    if (isExternalPicker && allowMultiple) {
+                        IconButton({ onMediaSelected(selectedIds.mapNotNull { id -> favouriteImages.find { it.id == id }?.uri }) }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
+                    }
+                }
+            ) 
+        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { p ->
         if (favouriteImages.isEmpty()) {
@@ -29,7 +59,16 @@ fun FavouritesScreen(
         } else {
             LazyVerticalGrid(GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
                 itemsIndexed(favouriteImages, key = { _, i -> i.id }) { index, img ->
-                    MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index)) })
+                    val isSel = img.id in selectedIds
+                    MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode,
+                        onClick = {
+                            if (isSelectionMode) {
+                                if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))
+                                else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id
+                            } else onImageClick(GalleryKey.Viewer(index))
+                        },
+                        onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) }
+                    )
                 }
             }
         }

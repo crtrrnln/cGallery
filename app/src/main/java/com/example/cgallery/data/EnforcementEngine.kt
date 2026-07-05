@@ -22,8 +22,9 @@ class EnforcementEngine(
     fun start() {
         scope.launch {
             inboxDao.getPendingItems().collectLatest { items ->
-                if (items.isNotEmpty()) {
-                    checkAndTriggerSession(items)
+                val detectedOnly = items.filter { it.status == InboxStatus.Detected }
+                if (detectedOnly.isNotEmpty()) {
+                    checkAndTriggerSession(detectedOnly)
                 }
             }
         }
