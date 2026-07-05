@@ -245,6 +245,11 @@ fun AlbumsScreen(
                 },
                 actions = {
                     if (selectionMode) {
+                        IconButton(onClick = { 
+                            showCreateFolderDialog = true 
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Create Album")
+                        }
                         IconButton(
                             onClick = { onConfirmSelection(selectedAlbumsForAction.toList()) },
                             enabled = selectedAlbumsForAction.isNotEmpty()

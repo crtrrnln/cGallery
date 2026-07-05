@@ -26,7 +26,8 @@ fun InboxProcessingScreen(
     startIndex: Int,
     viewModel: InboxViewModel,
     onOrganise: (Set<Long>, Boolean) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isEnforcementSession: Boolean = false
 ) {
     val items by viewModel.pendingItems.collectAsState()
     
@@ -52,8 +53,10 @@ fun InboxProcessingScreen(
             TopAppBar(
                 title = { Text("Organise (${pagerState.currentPage + 1}/${items.size})") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    if (!isEnforcementSession) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 },
                 actions = {

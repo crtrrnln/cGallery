@@ -31,7 +31,9 @@ fun InboxScreen(
     onItemClick: (Int) -> Unit,
     onOrganise: (Set<Long>, Boolean) -> Unit,
     onSettingsClick: () -> Unit,
+    onDiagnosticsClick: () -> Unit = {},
     onBack: () -> Unit,
+    isEnforcementSession: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.pendingItems.collectAsState()
@@ -58,7 +60,7 @@ fun InboxScreen(
                     if (isSelectionMode) {
                         Text("${selectedIds.size} Selected")
                     } else {
-                        Text("Inbox")
+                        Text(if (isEnforcementSession) "Enforcement Session" else "Inbox")
                     }
                 },
                 navigationIcon = {
@@ -66,14 +68,45 @@ fun InboxScreen(
                         IconButton(onClick = { selectedIds = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = "Clear Selection")
                         }
-                    } else {
+                    } else if (!isEnforcementSession) {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
                 actions = {
-                    if (isSelectionMode) {
+                    if (isEnforcementSession) {
+                        var showSnoozeMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showSnoozeMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Snooze Options")
+                        }
+                        DropdownMenu(
+                            expanded = showSnoozeMenu,
+                            onDismissRequest = { showSnoozeMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Snooze for 1 hour") },
+                                onClick = { 
+                                    viewModel.setSnooze(60)
+                                    onBack() 
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Snooze for 15 files") },
+                                onClick = { 
+                                    viewModel.setItemSnooze(15)
+                                    onBack() 
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Snooze for 50 files") },
+                                onClick = { 
+                                    viewModel.setItemSnooze(50)
+                                    onBack() 
+                                }
+                            )
+                        }
+                    } else if (isSelectionMode) {
                         IconButton(onClick = {
                             onOrganise(selectedIds, true)
                             selectedIds = emptySet()
@@ -89,6 +122,9 @@ fun InboxScreen(
                     } else {
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                        IconButton(onClick = onDiagnosticsClick) {
+                            Icon(Icons.Default.BugReport, contentDescription = "Diagnostics")
                         }
                     }
                 }

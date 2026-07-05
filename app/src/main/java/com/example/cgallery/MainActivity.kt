@@ -36,14 +36,31 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.cgallery.data.*
 import com.example.cgallery.ui.theme.CGalleryTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private var _backstackState = mutableStateOf<List<GalleryKey>>(listOf(GalleryKey.Gallery))
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
+            _backstackState.value = listOf(GalleryKey.Inbox(isEnforcementSession = true))
+        }
+    }
+
     @OptIn(ExperimentalMaterial3AdaptiveApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        
+        InboxDetectionService.start(this)
+
+        if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
+            _backstackState.value = listOf(GalleryKey.Inbox(isEnforcementSession = true))
+        }
         setContent {
             CGalleryTheme(dynamicColor = false) {
                 val navigator = rememberListDetailPaneScaffoldNavigator<Any>()
@@ -96,12 +113,14 @@ class MainActivity : ComponentActivity() {
 
                 var showStartupAnimation by remember { mutableStateOf(!isExternalPicker && !isExternalView) }
 
-                var backstack by remember {
-                    mutableStateOf(
-                        if (!isPermissionGranted) listOf(GalleryKey.Permission)
-                        else if (isExternalView) listOf(GalleryKey.Gallery) // We'll jump to viewer once items load
-                        else listOf(GalleryKey.Gallery)
-                    )
+                var backstack by remember { _backstackState }
+
+                LaunchedEffect(Unit) {
+                    if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
+                        backstack = listOf(GalleryKey.Inbox(isEnforcementSession = true))
+                    } else if (!isPermissionGranted) {
+                        backstack = listOf(GalleryKey.Permission)
+                    }
                 }
 
                 // Handle external view jumping to correct item
@@ -187,7 +206,8 @@ class MainActivity : ComponentActivity() {
 
                 val showBottomBar = isPermissionGranted && 
                     (!isSinglePane || backstack.lastOrNull() !is GalleryKey.Viewer) &&
-                    !isExternalPicker
+                    !isExternalPicker &&
+                    backstack.none { it is GalleryKey.Inbox && it.isEnforcementSession }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -272,8 +292,8 @@ class MainActivity : ComponentActivity() {
                             onToggleAlbumVisibility = { bucketName ->
                                 mediaStoreViewModel.toggleAlbumVisibility(bucketName)
                             },
-                            onCreateFolder = { folderName ->
-                                mediaStoreViewModel.createFolder(folderName)
+                            onCreateFolder = { folderName, groupId ->
+                                mediaStoreViewModel.createFolder(folderName, groupId)
                             },
                             onClearSelectionBackstack = onClearSelectionBackstack,
                             isExternalPicker = isExternalPicker,

@@ -1,6 +1,7 @@
 package com.example.cgallery
 
 import android.app.Application
+import android.media.MediaScannerConnection
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cgallery.data.*
@@ -8,15 +9,46 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.media.MediaScannerConnection
+import java.io.File
 
 class MediaStoreViewModel(application: Application) : AndroidViewModel(application) {
     private val dataSource = MediaStoreDataSource(application)
     private val physicalAlbumManager = PhysicalAlbumManager(application)
     private val favoritesManager = FavoritesManager(application)
 
+    private val inboxDao = VirtualAlbumDatabase.getDatabase(application).inboxDao()
+    private val enforcementSettings = EnforcementSettingsRepository(application)
+
     private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
-    val mediaItems: StateFlow<List<MediaItem>> = _mediaItems.asStateFlow()
+    
+    val mediaItems: StateFlow<List<MediaItem>> = combine(
+        _mediaItems,
+        inboxDao.getAllItems(),
+        enforcementSettings.settingsFlow
+    ) { items, inboxItems, settings ->
+        val pendingIds = if (settings.isEnforcementEnabled) {
+            inboxItems.filter { it.status != InboxStatus.Completed && it.status != InboxStatus.Ignored }
+                .map { it.mediaStoreId }.toSet()
+        } else {
+            emptySet()
+        }
+
+        val completedMap = inboxItems.filter { it.status == InboxStatus.Completed }
+            .associateBy({ it.mediaStoreId }, { it.destinationPaths.firstOrNull() })
+
+        items.filter { it.id !in pendingIds }
+            .map { item ->
+                completedMap[item.id]?.let { newPath ->
+                    val file = File(newPath)
+                    item.copy(
+                        fullPath = newPath,
+                        bucketPath = file.parent ?: item.bucketPath,
+                        bucketName = file.parentFile?.name ?: item.bucketName
+                    )
+                } ?: item
+            }
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val mediaItemsMap: StateFlow<Map<Long, MediaItem>> = _mediaItems
         .map { items -> items.associateBy { it.id } }
@@ -191,10 +223,10 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun createFolder(folderName: String) {
+    fun createFolder(folderName: String, groupId: Long? = null) {
         viewModelScope.launch {
             _isLoading.value = true
-            val result = physicalAlbumManager.createFolder(folderName)
+            val result = physicalAlbumManager.createFolder(folderName, groupId = groupId)
             if (result.isSuccess) {
                 _operationResult.emit("Album created: $folderName")
                 loadMedia() // Refresh

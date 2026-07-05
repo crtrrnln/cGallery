@@ -44,6 +44,7 @@ moshiKotlin = "1.15.2"
 moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 material = "1.4.+"
+shizukuApi = "13.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -100,6 +101,8 @@ androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.re
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 coil-video = { group = "io.coil-kt", name = "coil-video", version.ref = "coilCompose" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizukuApi" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizukuApi" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -99,12 +99,33 @@ interface AlbumGroupDao {
 }
 
 @Dao
+interface InboxOperationDao {
+    @Query("SELECT * FROM inbox_operations WHERE status = 'Queued' OR status = 'Failed' ORDER BY createdAt ASC")
+    fun getPendingOperations(): Flow<List<InboxOperationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOperation(operation: InboxOperationEntity): Long
+
+    @Update
+    suspend fun updateOperation(operation: InboxOperationEntity)
+
+    @Query("SELECT * FROM inbox_operations WHERE id = :id")
+    suspend fun getOperationById(id: Long): InboxOperationEntity?
+}
+
+@Dao
 interface InboxDao {
-    @Query("SELECT * FROM inbox_items WHERE status = 'Pending' ORDER BY detectedTimestamp DESC")
+    @Query("SELECT * FROM inbox_items WHERE status IN ('Detected', 'Queued', 'Processing', 'Verifying', 'WaitingForUser', 'RetryPending') ORDER BY detectedTimestamp DESC")
     fun getPendingItems(): Flow<List<InboxItemEntity>>
+
+    @Query("SELECT * FROM inbox_items ORDER BY detectedTimestamp DESC")
+    fun getAllItems(): Flow<List<InboxItemEntity>>
 
     @Query("SELECT * FROM inbox_items WHERE status = 'Completed' ORDER BY processingTimestamp DESC")
     fun getCompletedItems(): Flow<List<InboxItemEntity>>
+
+    @Query("SELECT * FROM inbox_items WHERE id = :id")
+    suspend fun getItemById(id: Long): InboxItemEntity?
 
     @Query("SELECT * FROM inbox_items WHERE mediaStoreId = :mediaStoreId")
     suspend fun getItemByMediaStoreId(mediaStoreId: Long): InboxItemEntity?
@@ -169,9 +190,14 @@ class Converters {
     fun toStatus(value: String) = InboxStatus.valueOf(value)
 
     @TypeConverter
-    fun fromOperation(value: InboxOperation) = value.name
+    fun fromOperation(value: InboxOperationType) = value.name
     @TypeConverter
-    fun toOperation(value: String) = InboxOperation.valueOf(value)
+    fun toOperation(value: String) = InboxOperationType.valueOf(value)
+
+    @TypeConverter
+    fun fromOpStatus(value: OperationStatus) = value.name
+    @TypeConverter
+    fun toOpStatus(value: String) = OperationStatus.valueOf(value)
 }
 
 @Database(
@@ -180,9 +206,10 @@ class Converters {
         AlbumGroupEntity::class,
         InboxItemEntity::class,
         MonitoredFolderEntity::class,
-        InboxStatsEntity::class
+        InboxStatsEntity::class,
+        InboxOperationEntity::class
     ],
-    version = 8
+    version = 9
 )
 @TypeConverters(Converters::class)
 abstract class VirtualAlbumDatabase : RoomDatabase() {
@@ -191,6 +218,7 @@ abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun inboxDao(): InboxDao
     abstract fun monitoredFolderDao(): MonitoredFolderDao
     abstract fun inboxStatsDao(): InboxStatsDao
+    abstract fun inboxOperationDao(): InboxOperationDao
 
     companion object {
         @Volatile
