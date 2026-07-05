@@ -7,10 +7,5 @@
 .externalNativeBuild
 .cxx
 
-# IDE metadata
 /.idea/
 
-# Local build artifacts & Agent data
-.agent/
-.artifacts/
-.kotlin/
