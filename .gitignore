@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Build artifacts & Agent data
+.agent/
+.artifacts/
+.kotlin/
+.idea/
+
+# Temporary / Report files
+PERFORMANCE_REPORT.md
+audit_findings.artifact.md
+implementation_plan.artifact.md
+task.artifact.md
+walkthrough.artifact.md
