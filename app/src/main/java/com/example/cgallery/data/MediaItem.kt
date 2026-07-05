@@ -1,0 +1,55 @@
+package com.example.cgallery.data
+
+import android.net.Uri
+import android.os.Parcelable
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+
+import androidx.compose.runtime.Immutable
+
+enum class MediaType {
+    IMAGE, VIDEO, GIF
+}
+
+@Immutable
+@Serializable
+data class MediaItem(
+    val id: Long,
+    @Serializable(with = UriSerializer::class)
+    val uri: Uri,
+    val displayName: String,
+    val bucketName: String,
+    val bucketPath: String,
+    val relativePath: String,
+    val fullPath: String,
+    val type: MediaType,
+    val duration: Long = 0L,
+    val dateAdded: Long = 0L
+)
+
+@Immutable
+@Serializable
+data class MediaFolder(
+    val path: String,
+    val name: String,
+    val itemCount: Int,
+    val lastModified: Long,
+    val coverUri: String
+)
+
+object UriSerializer : KSerializer<Uri> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: Uri) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Uri {
+        return Uri.parse(decoder.decodeString())
+    }
+}
