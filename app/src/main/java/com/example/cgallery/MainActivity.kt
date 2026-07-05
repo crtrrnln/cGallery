@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 val perms = remember { if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE) }
                 val isGranted = remember(perms) { (if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else true) && perms.all { ContextCompat.checkSelfPermission(this, it) == 0 } }
                 val vm: MediaStoreViewModel = viewModel(); val items by vm.mediaItems.collectAsState(); val itemsMap by vm.mediaItemsMap.collectAsState()
-                val byBuck by vm.mediaByBucket.collectAsState(); val favs by vm.favoriteMedia.collectAsState(); val query by vm.searchQuery.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState(); val favourites by vm.favouriteMedia.collectAsState(); val query by vm.searchQuery.collectAsState()
                 val sRes by vm.searchResults.collectAsState(); val aRes by vm.albumResults.collectAsState(); val loading by vm.isLoading.collectAsState()
                 val isPick = remember { intent.action in listOf(Intent.ACTION_GET_CONTENT, Intent.ACTION_PICK, "android.provider.action.PICK_IMAGES") }
                 val isView = remember { intent.action == Intent.ACTION_VIEW }; val pickMult = remember { intent.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE, false) }
@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
                             val base = bStack.firstOrNull { it is GalleryKey.Gallery || it is GalleryKey.Albums || it is GalleryKey.Favourites || it is GalleryKey.Search } ?: GalleryKey.Gallery
                             NavigationBarItem(base is GalleryKey.Gallery, { bStack = listOf(GalleryKey.Gallery) }, { Icon(Icons.Rounded.PhotoLibrary, "gal") }, label = { Text("Gallery") })
                             NavigationBarItem(base is GalleryKey.Albums, { bStack = listOf(GalleryKey.Albums) }, { Icon(Icons.Rounded.Collections, "alb") }, label = { Text("Albums") })
-                            NavigationBarItem(base is GalleryKey.Favourites, { bStack = listOf(GalleryKey.Favourites) }, { Icon(Icons.Rounded.Favorite, "fav") }, label = { Text("Favs") })
+                            NavigationBarItem(base is GalleryKey.Favourites, { bStack = listOf(GalleryKey.Favourites) }, { Icon(Icons.Rounded.Favorite, "fav") }, label = { Text("Favourites") })
                             NavigationBarItem(base is GalleryKey.Search, { bStack = listOf(GalleryKey.Search) }, { Icon(Icons.Rounded.Search, "srch") }, label = { Text("Search") })
                         }
                     }
@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     val alpha by animateFloatAsState(if (showAnim) 0f else 1f, tween(1000, easing = LinearOutSlowInEasing), label = "alpha")
                     val scale by animateFloatAsState(if (showAnim) 0.95f else 1f, tween(1000, easing = LinearOutSlowInEasing), label = "scale")
                     Box(Modifier.fillMaxSize().padding(p).graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale }) {
-                        GalleryNavDisplay(bStack, items, itemsMap, byBuck, favs, query, sRes, aRes, { vm.updateSearchQuery(it) }, { l, s -> vm.copyMediaToAlbum(l, s) }, { l, s -> vm.moveMediaToAlbum(l, s) }, { n, g -> vm.createFolder(n, g) }, { vm.loadMedia() }, onBack, onClearBS, onNav, { vm.toggleAlbumVisibility(it) }, { uris ->
+                        GalleryNavDisplay(bStack, items, itemsMap, byBuck, favourites, query, sRes, aRes, { vm.updateSearchQuery(it) }, { l, s -> vm.copyMediaToAlbum(l, s) }, { l, s -> vm.moveMediaToAlbum(l, s) }, { n, g -> vm.createFolder(n, g) }, { vm.loadMedia() }, onBack, onClearBS, onNav, { vm.toggleAlbumVisibility(it) }, { uris ->
                             if (uris.isNotEmpty()) { val res = Intent().apply { if (pickMult && uris.size > 1) { val clip = android.content.ClipData.newUri(contentResolver, "Media", uris[0]); (1 until uris.size).forEach { clip.addItem(android.content.ClipData.Item(uris[it])) }; this.clipData = clip } else data = uris[0]; addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }; setResult(-1, res) } else setResult(0); finish()
                         }, isPick, pickMult, nav)
                         if (loading && !showAnim) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(0.5f)), Alignment.Center) { CircularProgressIndicator() }

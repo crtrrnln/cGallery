@@ -8,7 +8,7 @@ It’s still in development, but it already works for daily use and I’m improv
 
 ## Current Version
 
-v0.7
+v0.72
 
 ---
 
@@ -40,6 +40,9 @@ enforcement is also optional, so you can choose whether you want to be forced in
 ---
 
 ## What I’m working on next
+
+### v0.7x
+- fixing everything broken in v0.7 😭
 
 ### v0.8
 - cleaning up how folder/group structure works

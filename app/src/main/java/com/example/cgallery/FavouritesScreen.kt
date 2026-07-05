@@ -14,7 +14,7 @@ import com.example.cgallery.ui.MediaGridItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavouritesScreen(
-    favoriteImages: List<MediaItem>,
+    favouriteImages: List<MediaItem>,
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -22,13 +22,13 @@ fun FavouritesScreen(
         topBar = { CenterAlignedTopAppBar(title = { Text("Favourites") }) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { p ->
-        if (favoriteImages.isEmpty()) {
+        if (favouriteImages.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
                 Text("nothing here yet", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
             LazyVerticalGrid(GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
-                itemsIndexed(favoriteImages, key = { _, i -> i.id }) { index, img ->
+                itemsIndexed(favouriteImages, key = { _, i -> i.id }) { index, img ->
                     MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index)) })
                 }
             }

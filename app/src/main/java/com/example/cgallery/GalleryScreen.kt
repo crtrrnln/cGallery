@@ -33,6 +33,7 @@ fun GalleryScreen(
     onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> },
     onImageClick: (GalleryKey) -> Unit,
     onMediaSelected: (List<android.net.Uri>) -> Unit = {},
+    onReloadMedia: () -> Unit = {},
     isExternalPicker: Boolean = false,
     allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
@@ -44,7 +45,7 @@ fun GalleryScreen(
     BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
 
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet() }
+        if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet(); onReloadMedia() }
     }
 
     Scaffold(topBar = {
@@ -56,7 +57,7 @@ fun GalleryScreen(
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("cGallery")
                             Spacer(Modifier.width(4.dp))
-                            Text("v0.71", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                            Text("v0.72", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
                         }
                     }
                 },

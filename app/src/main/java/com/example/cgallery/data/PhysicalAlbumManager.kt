@@ -17,7 +17,7 @@ class PhysicalAlbumManager(context: Context) {
     private val physicalAlbumDao = db.physicalAlbumDao()
     private val groupDao = db.albumGroupDao()
     private val folderDao = db.monitoredFolderDao()
-    private val favoritesManager = FavoritesManager(context)
+    private val favouritesManager = FavouritesManager(context)
     private val context = context
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
     val allAlbums: Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAllAlbums()
@@ -43,6 +43,9 @@ class PhysicalAlbumManager(context: Context) {
         if (album != null) physicalAlbumDao.updateAlbumVisibility(bucketName, !album.isHidden)
     }
     suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?) = physicalAlbumDao.moveAlbumToGroup(bucketName, groupId)
+    suspend fun deleteAlbum(bucketName: String) {
+        physicalAlbumDao.getAlbumByBucketName(bucketName).first()?.let { physicalAlbumDao.deleteAlbum(it) }
+    }
     suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int) = physicalAlbumDao.updateAlbumSortOrder(albumId, sortOrder)
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAlbumsByGroup(groupId)
 
@@ -96,14 +99,14 @@ class PhysicalAlbumManager(context: Context) {
         val groups: List<AlbumGroupEntity> = emptyList(),
         val albums: List<PhysicalAlbumEntity> = emptyList(),
         val monitoredFolders: List<MonitoredFolderEntity> = emptyList(),
-        val favorites: Set<Long> = emptySet()
+        val favourites: Set<Long> = emptySet()
     )
 
     suspend fun exportStructure(): String = withContext(Dispatchers.IO) {
         val groups = groupDao.getAllGroups().first()
         val albums = physicalAlbumDao.getAllAlbums().first()
         val folders = folderDao.getAllFolders().first()
-        val favs = favoritesManager.favoriteIds.first()
+        val favs = favouritesManager.favouriteIds.first()
         json.encodeToString(StructureExport(groups, albums, folders, favs))
     }
 
@@ -133,7 +136,7 @@ class PhysicalAlbumManager(context: Context) {
                 }
             }
             data.monitoredFolders.forEach { folderDao.insertFolder(it.copy(id = 0)) }
-            data.favorites.forEach { favoritesManager.addFavorite(it) }
+            data.favourites.forEach { favouritesManager.addFavourite(it) }
         } catch (e: Exception) { e.printStackTrace() }
     }
     suspend fun updateAlbumCover(b: String, u: String?, c: String?) = physicalAlbumDao.updateAlbumCover(b, u, c)

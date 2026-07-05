@@ -17,6 +17,8 @@ class EnforcementEngine(
     private val db = VirtualAlbumDatabase.getDatabase(context)
     private val inboxDao = db.inboxDao()
 
+    private var lastLaunchTime = 0L
+
     fun start() {
         scope.launch {
             inboxDao.getPendingItems().collectLatest { items ->
@@ -28,6 +30,7 @@ class EnforcementEngine(
     }
 
     private suspend fun checkAndTriggerSession(items: List<InboxItemEntity>) {
+        if (System.currentTimeMillis() - lastLaunchTime < 5000) return
         val settings = settingsRepository.settingsFlow.first()
         
         if (!settings.isEnforcementEnabled) return
@@ -42,6 +45,7 @@ class EnforcementEngine(
 
         if (settings.isShizukuEnabled && shizukuManager.hasPermission() && settings.launchAutomatically) {
             shizukuManager.launchAppToInbox()
+            lastLaunchTime = System.currentTimeMillis()
         }
     }
     

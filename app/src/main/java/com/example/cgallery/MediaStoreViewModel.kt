@@ -13,7 +13,7 @@ import java.io.File
 class MediaStoreViewModel(application: Application) : AndroidViewModel(application) {
     private val dataSource = MediaStoreDataSource(application)
     private val physicalAlbumManager = PhysicalAlbumManager(application)
-    private val favoritesManager = FavoritesManager(application)
+    private val favouritesManager = FavouritesManager(application)
     private val inboxDao = VirtualAlbumDatabase.getDatabase(application).inboxDao()
     private val enforcementSettings = EnforcementSettingsRepository(application)
     private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
@@ -31,8 +31,8 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val mediaItemsMap: StateFlow<Map<Long, MediaItem>> = _mediaItems.map { it.associateBy { i -> i.id } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
     val mediaByBucket: StateFlow<Map<String, List<MediaItem>>> = _mediaItems.map { it.groupBy { i -> i.bucketPath } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-    val favoriteIds: StateFlow<Set<Long>> = favoritesManager.favoriteIds.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
-    val favoriteMedia: StateFlow<List<MediaItem>> = combine(_mediaItems, favoriteIds) { items, ids ->
+    val favouriteIds: StateFlow<Set<Long>> = favouritesManager.favouriteIds.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val favouriteMedia: StateFlow<List<MediaItem>> = combine(_mediaItems, favouriteIds) { items, ids ->
         if (ids.isEmpty()) emptyList() else items.filter { it.id in ids }
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val _searchQuery = MutableStateFlow("")

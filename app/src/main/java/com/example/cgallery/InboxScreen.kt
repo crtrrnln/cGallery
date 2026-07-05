@@ -1,12 +1,13 @@
 package com.example.cgallery
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.InboxItemEntity
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun InboxScreen(
     viewModel: InboxViewModel,
@@ -68,6 +69,21 @@ fun InboxScreen(
                     }
                 },
                 actions = {
+                    if (isSelectionMode) {
+                        IconButton(onClick = {
+                            onOrganise(selectedIds, true)
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
+                        }
+                        IconButton(onClick = {
+                            onOrganise(selectedIds, false)
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "copy")
+                        }
+                    }
+                    
                     if (isEnforcementSession) {
                         var showSnoozeMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showSnoozeMenu = true }) {
@@ -99,20 +115,7 @@ fun InboxScreen(
                                 }
                             )
                         }
-                    } else if (isSelectionMode) {
-                        IconButton(onClick = {
-                            onOrganise(selectedIds, true)
-                            selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
-                        }
-                        IconButton(onClick = {
-                            onOrganise(selectedIds, false)
-                            selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.Default.Add, contentDescription = "copy")
-                        }
-                    } else {
+                    } else if (!isSelectionMode) {
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "settings")
                         }
@@ -143,37 +146,57 @@ fun InboxScreen(
             }
         }
     ) { innerPadding ->
-        if (items.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text("Inbox is empty", style = MaterialTheme.typography.bodyLarge)
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            if (isSelectionMode) {
+                val selectedMedia = remember(selectedIds, items) { items.filter { it.id in selectedIds } }
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(selectedMedia, key = { it.id }) { item ->
+                        AsyncImage(
+                            model = item.mediaUri,
+                            contentDescription = null,
+                            modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+                HorizontalDivider()
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(120.dp),
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentPadding = PaddingValues(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    val isSelected = item.id in selectedIds
-                    InboxListItem(
-                        item = item,
-                        isSelected = isSelected,
-                        isSelectionMode = isSelectionMode,
-                        onClick = {
-                            if (isSelectionMode) {
-                                selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
-                            } else {
-                                onItemClick(index)
+            if (items.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Inbox is empty", style = MaterialTheme.typography.bodyLarge)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(120.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                        val isSelected = item.id in selectedIds
+                        InboxListItem(
+                            item = item,
+                            isSelected = isSelected,
+                            isSelectionMode = isSelectionMode,
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                } else {
+                                    onItemClick(index)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    selectedIds = setOf(item.id)
+                                }
                             }
-                        },
-                        onLongClick = {
-                            if (!isSelectionMode) {
-                                selectedIds = setOf(item.id)
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

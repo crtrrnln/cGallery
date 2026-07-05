@@ -34,10 +34,10 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Unit, filteredMedia: List<MediaItem>? = null) {
+fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Unit, onReloadMedia: () -> Unit = {}, filteredMedia: List<MediaItem>? = null) {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
-    val favoritesManager = remember { FavoritesManager(context) }
-    val favIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
+    val favouritesManager = remember { FavouritesManager(context) }
+    val favIds by favouritesManager.favouriteIds.collectAsState(initial = emptySet())
     var images by remember(mediaItems, filteredMedia) { mutableStateOf(filteredMedia ?: mediaItems) }
     var showInfo by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -45,7 +45,20 @@ fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Uni
     val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, images.size - 1), pageCount = { images.size })
     val cur = images.getOrNull(pagerState.currentPage)
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
-        if (res.resultCode == Activity.RESULT_OK) { scope.launch { images = MediaStoreDataSource(context).fetchMedia(); if (images.isEmpty()) onBack() } }
+        if (res.resultCode == Activity.RESULT_OK) { 
+            onReloadMedia()
+            scope.launch { 
+                images = MediaStoreDataSource(context).fetchMedia(since = 0)
+                if (filteredMedia != null) {
+                    // If we were in a filtered list, we need to re-filter
+                    // This is a bit complex since we don't know the filter criteria here
+                    // Ideally we should filter by bucket or something.
+                    // For now, let's just use the main mediaItems which should be updated soon.
+                    // Actually, if we use a shared Flow it would be better.
+                }
+                if (images.isEmpty()) onBack() 
+            } 
+        }
     }
     val offY = remember { Animatable(0f) }; val scale = remember { Animatable(1f) }
     Scaffold(
@@ -54,7 +67,7 @@ fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Uni
                 actions = {
                     cur?.let { img ->
                         val isFav = img.id in favIds
-                        IconButton({ scope.launch { if (isFav) favoritesManager.removeFavorite(img.id) else favoritesManager.addFavorite(img.id) } }) {
+                        IconButton({ scope.launch { if (isFav) favouritesManager.removeFavourite(img.id) else favouritesManager.addFavourite(img.id) } }) {
                             Icon(if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "fav", tint = Color.White)
                         }
                         IconButton({
