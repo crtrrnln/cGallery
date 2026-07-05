@@ -1,4 +1,5 @@
 package com.example.cgallery
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -34,10 +35,15 @@ fun GroupDetailScreen(
     onChangeCover: () -> Unit = {}, onCreateFolder: (String) -> Unit = {},
     selectionMode: Boolean = false, selectedAlbums: Set<String> = emptySet(),
     onToggleAlbumSelection: (String) -> Unit = {}, onConfirmSelection: (List<String>) -> Unit = {},
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {},
+    isExternalPicker: Boolean = false,
+    pickerAllowMultiple: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current; val scope = rememberCoroutineScope()
     val groupManager = remember { AlbumGroupManager(context) }; val physicalAlbumManager = remember { PhysicalAlbumManager(context) }
+    var selectedMediaIds by remember { mutableStateOf(setOf<Long>()) }
+    val isSelectionMode = selectionMode || selectedMediaIds.isNotEmpty() || isExternalPicker
     var showMoveToG by remember { mutableStateOf(false) }; var selAlbForG by remember { mutableStateOf<Album?>(null) }
     var selGId by remember { mutableStateOf<Long?>(null) }; var isReorder by remember { mutableStateOf(false) }
     var showCreateG by remember { mutableStateOf(false) }; var newGName by remember { mutableStateOf("") }
@@ -60,13 +66,34 @@ fun GroupDetailScreen(
         }
         list.sortedWith(compareBy({ when (it) { is GroupDisplayItem.GroupItem -> it.group.sortOrder; is GroupDisplayItem.AlbumItem -> it.entity.sortOrder } }, { when (it) { is GroupDisplayItem.GroupItem -> it.group.name; is GroupDisplayItem.AlbumItem -> it.album.displayName } }))
     }
+
+    BackHandler(enabled = isSelectionMode) { 
+        if (isExternalPicker) onMediaSelected(emptyList()) else if (selectionMode) onConfirmSelection(emptyList()) else selectedMediaIds = emptySet()
+    }
+
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), topBar = {
-        CenterAlignedTopAppBar(title = { if (selectionMode) Text("${selectedAlbums.size} Selected") else Text(group?.name ?: "Group", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton(onBack) { Icon(if (selectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, "back") } },
+        CenterAlignedTopAppBar(title = { 
+            if (isExternalPicker) Text(if (pickerAllowMultiple) "${selectedMediaIds.size} selected" else "Select Item")
+            else if (selectionMode) Text("${selectedAlbums.size} Selected") 
+            else if (selectedMediaIds.isNotEmpty()) Text("${selectedMediaIds.size} selected")
+            else Text(group?.name ?: "Group", maxLines = 1, overflow = TextOverflow.Ellipsis) 
+        },
+            navigationIcon = { 
+                IconButton({ 
+                    if (isExternalPicker) onMediaSelected(emptyList()) 
+                    else if (selectionMode) onConfirmSelection(emptyList())
+                    else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = emptySet()
+                    else onBack() 
+                }) { Icon(if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, "back") } 
+            },
             actions = {
-                if (selectionMode) {
+                if (isExternalPicker && pickerAllowMultiple) {
+                    IconButton({ onMediaSelected(selectedMediaIds.mapNotNull { id -> images.find { it.id == id }?.uri }) }, enabled = selectedMediaIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
+                } else if (selectionMode) {
                     IconButton({ showCreateF = true }) { Icon(Icons.Default.Add, "new") }
                     IconButton({ onConfirmSelection(selectedAlbums.toList()) }, enabled = selectedAlbums.isNotEmpty()) { Icon(Icons.Default.Done, "ok") }
+                } else if (selectedMediaIds.isNotEmpty()) {
+                    // Standard selection actions could go here (delete, move, etc)
                 } else {
                     Box {
                         IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "more") }
@@ -87,8 +114,25 @@ fun GroupDetailScreen(
                         val curIdx = displayItems.indexOf(item)
                         val canUp = curIdx > 0; val canDown = curIdx < (displayItems.size - 1)
                         when (item) {
-                            is GroupDisplayItem.GroupItem -> GroupAlbumItem(group = item.group, physicalAlbums = physAlbs, mediaByBucket = bucketMap, allGroups = allG, albumsByGroup = { gid -> physAlbs.filter { it.groupId == gid } }, onGroupClick = { onGroupClick(item.group.id) }, onLongClick = { selGForMove = item.group; showMoveG = true }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
-                            is GroupDisplayItem.AlbumItem -> AlbumItem(album = item.album, isHidden = item.entity.isHidden, isHideShowMode = false, selectionMode = selectionMode, isSelected = item.album.name in selectedAlbums, entity = item.entity, onClick = { if (selectionMode) onToggleAlbumSelection(item.album.name) else onAlbumClick(item.album.name) }, onLongClick = { if (!selectionMode) { selAlbForG = item.album; showMoveToG = true } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
+                            is GroupDisplayItem.GroupItem -> GroupAlbumItem(group = item.group, physicalAlbums = physAlbs, mediaByBucket = bucketMap, allGroups = allG, albumsByGroup = { gid -> physAlbs.filter { it.groupId == gid } }, onGroupClick = { if (!isSelectionMode) onGroupClick(item.group.id) }, onLongClick = { if (!isSelectionMode) { selGForMove = item.group; showMoveG = true } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
+                            is GroupDisplayItem.AlbumItem -> AlbumItem(album = item.album, isHidden = item.entity.isHidden, isHideShowMode = false, selectionMode = selectionMode, isSelected = if (selectionMode) item.album.name in selectedAlbums else item.entity.id in selectedMediaIds, entity = item.entity, 
+                                onClick = { 
+                                    if (isExternalPicker) {
+                                        if (pickerAllowMultiple) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id
+                                        else onMediaSelected((bucketMap[item.album.name] ?: emptyList()).map { it.uri }) // Or maybe just open the album? 
+                                        // Picker in a group detail probably means they want to pick items from an album.
+                                        // So clicking an album should probably navigate into it.
+                                        if (!pickerAllowMultiple) onAlbumClick(item.album.name)
+                                    } else if (selectionMode) onToggleAlbumSelection(item.album.name) 
+                                    else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id
+                                    else onAlbumClick(item.album.name) 
+                                }, 
+                                onLongClick = { 
+                                    if (!selectionMode && !isExternalPicker) { 
+                                        if (selectedMediaIds.isEmpty()) selectedMediaIds = setOf(item.entity.id)
+                                        else { selAlbForG = item.album; showMoveToG = true }
+                                    } 
+                                }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
                         }
                     }
                 }

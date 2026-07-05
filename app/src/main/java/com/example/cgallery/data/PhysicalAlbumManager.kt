@@ -24,15 +24,18 @@ class PhysicalAlbumManager(context: Context) {
 
     suspend fun syncAlbums(bucketNames: List<String>) {
         val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-        val existingBucketNames = existingAlbums.map { it.bucketName }.toSet()
+        val existingBucketNames = existingAlbums.associateBy { it.bucketName }
+        val newBuckets = bucketNames.toSet()
+        
         val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
-        bucketNames.forEachIndexed { index, bucketName ->
-            if (!existingBucketNames.contains(bucketName)) {
-                physicalAlbumDao.insertAlbum(PhysicalAlbumEntity(bucketName = bucketName, isHidden = false, groupId = null, sortOrder = maxSortOrder + 1 + index))
-            }
+        val toInsert = bucketNames.filter { !existingBucketNames.containsKey(it) }.distinct()
+        
+        toInsert.forEachIndexed { index, bucketName ->
+            physicalAlbumDao.insertAlbum(PhysicalAlbumEntity(bucketName = bucketName, isHidden = false, groupId = null, sortOrder = maxSortOrder + 1 + index))
         }
+        
         existingAlbums.forEach { album ->
-            if (!bucketNames.contains(album.bucketName)) {
+            if (!newBuckets.contains(album.bucketName)) {
                 val file = File(album.bucketName)
                 if (!file.exists() || !file.isDirectory) physicalAlbumDao.deleteAlbum(album)
             }

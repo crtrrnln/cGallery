@@ -33,12 +33,23 @@ import com.example.cgallery.ui.theme.CGalleryTheme
 
 class MainActivity : ComponentActivity() {
     private var _backstackState = mutableStateOf<List<GalleryKey>>(listOf(GalleryKey.Gallery))
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") _backstackState.value = listOf(GalleryKey.Inbox(true)) }
+    override fun onNewIntent(intent: Intent) { 
+        super.onNewIntent(intent); setIntent(intent)
+        if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
+            if (_backstackState.value.none { it is GalleryKey.Inbox && it.isEnforcementSession }) {
+                _backstackState.value = listOf(GalleryKey.Inbox(true)) 
+            }
+        }
+    }
 
     @OptIn(ExperimentalMaterial3AdaptiveApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); InboxDetectionService.start(this)
-        if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") _backstackState.value = listOf(GalleryKey.Inbox(true))
+        if (intent.getStringExtra("TARGET_SCREEN") == "INBOX") {
+            if (_backstackState.value.none { it is GalleryKey.Inbox && it.isEnforcementSession }) {
+                _backstackState.value = listOf(GalleryKey.Inbox(true))
+            }
+        }
         enableEdgeToEdge()
         setContent {
             CGalleryTheme(dynamicColor = false) {

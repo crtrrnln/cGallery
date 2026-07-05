@@ -102,9 +102,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isScanning.value = true 
             val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
-            var successCount = 0
-            val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
             
+            // Mark as Queued immediately to stop EnforcementEngine from re-triggering
+            val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
+            itemsToProcess.forEach { inboxDao.updateItem(it.copy(status = InboxStatus.Queued)) }
+            
+            var successCount = 0
             itemsToProcess.forEach { item ->
                 if (manager.processItem(item, targetFolders, operation)) {
                     successCount++

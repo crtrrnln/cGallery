@@ -55,13 +55,15 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             if (showLoading) _isLoading.value = true
             val items = dataSource.fetchMedia()
             _mediaItems.value = items
-            withContext(Dispatchers.Default) { physicalAlbumManager.syncAlbums(items.map { it.bucketPath }.distinct()) }
+            withContext(Dispatchers.Default) { 
+                physicalAlbumManager.syncAlbums(items.map { it.bucketPath }.distinct())
+            }
             _isLoading.value = false
         }
     }
     fun moveMediaToAlbum(targets: List<String>, ids: Set<Long>) {
         viewModelScope.launch {
-            _isLoading.value = true; val itemsToMove = _mediaItems.value.filter { it.id in ids }
+            val itemsToMove = _mediaItems.value.filter { it.id in ids }
             val created = mutableListOf<String>(); val sourceFiles = itemsToMove.map { it.fullPath }; val errors = mutableListOf<String>()
             withContext(Dispatchers.IO) {
                 itemsToMove.forEach { item ->
@@ -78,13 +80,14 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             if (created.isNotEmpty()) {
                 MediaScannerConnection.scanFile(getApplication(), (created + sourceFiles).toTypedArray(), null) { _, _ -> }
                 _operationResult.emit(if (errors.isEmpty()) "moved ${itemsToMove.size} items" else "partial success: ${errors.size} errors")
+                kotlinx.coroutines.delay(500)
                 loadMedia(showLoading = false)
-            } else { _operationResult.emit(if (errors.isNotEmpty()) "failed: ${errors.first()}" else "failed to move"); _isLoading.value = false }
+            } else { _operationResult.emit(if (errors.isNotEmpty()) "failed: ${errors.first()}" else "failed to move") }
         }
     }
     fun copyMediaToAlbum(targets: List<String>, ids: Set<Long>) {
         viewModelScope.launch {
-            _isLoading.value = true; val itemsToCopy = _mediaItems.value.filter { it.id in ids }
+            val itemsToCopy = _mediaItems.value.filter { it.id in ids }
             val created = mutableListOf<String>(); val errors = mutableListOf<String>()
             withContext(Dispatchers.IO) {
                 itemsToCopy.forEach { item ->
@@ -97,15 +100,15 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             if (created.isNotEmpty()) {
                 MediaScannerConnection.scanFile(getApplication(), created.toTypedArray(), null) { _, _ -> }
                 _operationResult.emit(if (errors.isEmpty()) "copied ${itemsToCopy.size} items" else "partial success: ${errors.size} errors")
+                kotlinx.coroutines.delay(500)
                 loadMedia(showLoading = false)
-            } else { _operationResult.emit(if (errors.isNotEmpty()) "failed: ${errors.first()}" else "failed to copy"); _isLoading.value = false }
+            } else { _operationResult.emit(if (errors.isNotEmpty()) "failed: ${errors.first()}" else "failed to copy") }
         }
     }
     fun createFolder(name: String, gid: Long? = null) {
         viewModelScope.launch {
-            _isLoading.value = true; val res = physicalAlbumManager.createFolder(name, groupId = gid)
-            if (res.isSuccess) { _operationResult.emit("album created: $name"); loadMedia() } else { _operationResult.emit("fail to create: ${res.exceptionOrNull()?.message}") }
-            _isLoading.value = false
+            val res = physicalAlbumManager.createFolder(name, groupId = gid)
+            if (res.isSuccess) { _operationResult.emit("album created: $name"); kotlinx.coroutines.delay(300); loadMedia(showLoading = false) } else { _operationResult.emit("fail to create: ${res.exceptionOrNull()?.message}") }
         }
     }
     fun toggleAlbumVisibility(name: String) { viewModelScope.launch { physicalAlbumManager.toggleAlbumVisibility(name) } }
