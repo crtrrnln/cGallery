@@ -79,6 +79,7 @@ enforcement is also optional, so you can choose whether you want to be forced in
 ## Status
 
 It works right now and I use it exclusively, but I’m still actively changing things so stuff might shift a bit between versions. (I intend on imports to work consistently though when moving up versions)
+All testing is done on my phone with 4GB of memory, and ~64000 images and videos.
 
 ---
 
