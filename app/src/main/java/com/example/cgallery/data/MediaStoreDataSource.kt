@@ -8,7 +8,7 @@ import kotlinx.coroutines.withContext
 
 class MediaStoreDataSource(private val context: Context) {
 
-    suspend fun fetchMedia(): List<MediaItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchMedia(sinceTimestamp: Long = 0): List<MediaItem> = withContext(Dispatchers.IO) {
         val mediaItems = mutableListOf<MediaItem>()
 
         val projection = arrayOf(
@@ -23,15 +23,31 @@ class MediaStoreDataSource(private val context: Context) {
         )
 
         val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
+        
+        val selection = if (sinceTimestamp > 0) {
+            "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?) AND ${MediaStore.Files.FileColumns.DATE_ADDED} > ?"
+        } else {
+            "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?)"
+        }
+        
+        val selectionArgs = if (sinceTimestamp > 0) {
+            arrayOf(
+                MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+                MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(),
+                sinceTimestamp.toString()
+            )
+        } else {
+            arrayOf(
+                MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
+                MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString()
+            )
+        }
 
         val query = context.contentResolver.query(
             MediaStore.Files.getContentUri("external"),
             projection,
-            "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?)",
-            arrayOf(
-                MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
-                MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString()
-            ),
+            selection,
+            selectionArgs,
             sortOrder
         )
 

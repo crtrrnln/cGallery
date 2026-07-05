@@ -160,6 +160,11 @@ fun GroupDetailScreen(
                 },
                 actions = {
                     if (selectionMode) {
+                        IconButton(onClick = { 
+                            showCreateFolderDialog = true 
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Create Album")
+                        }
                         IconButton(
                             onClick = { onConfirmSelection(selectedAlbums.toList()) },
                             enabled = selectedAlbums.isNotEmpty()

@@ -60,6 +60,38 @@ fun InboxSettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            val enforcementSettings by viewModel.enforcementSettings.collectAsState(com.example.cgallery.data.EnforcementSettings())
+
+            Text(
+                text = "Enforcement",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            ListItem(
+                headlineContent = { Text("Enable Enforcement") },
+                supportingContent = { Text("Newly detected media must be organised in the Inbox before appearing in the Gallery.") },
+                trailingContent = {
+                    Switch(
+                        checked = enforcementSettings.isEnforcementEnabled,
+                        onCheckedChange = { viewModel.updateEnforcementEnabled(it) }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Shizuku Integration") },
+                supportingContent = { Text("Allow cGallery to automatically launch the Inbox when new media is detected.") },
+                trailingContent = {
+                    Switch(
+                        checked = enforcementSettings.isShizukuEnabled,
+                        onCheckedChange = { viewModel.updateShizukuEnabled(it) }
+                    )
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
             Text(
                 text = "Monitored Folders",
                 modifier = Modifier.padding(16.dp),

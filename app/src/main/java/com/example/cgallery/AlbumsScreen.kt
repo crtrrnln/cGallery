@@ -245,6 +245,11 @@ fun AlbumsScreen(
                 },
                 actions = {
                     if (selectionMode) {
+                        IconButton(onClick = { 
+                            showCreateFolderDialog = true 
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Create Album")
+                        }
                         IconButton(
                             onClick = { onConfirmSelection(selectedAlbumsForAction.toList()) },
                             enabled = selectedAlbumsForAction.isNotEmpty()
@@ -341,6 +346,7 @@ fun AlbumsScreen(
                             type = item.type,
                             images = images,
                             favoriteIds = favoriteIds,
+                            enabled = !selectionMode,
                             onClick = { onSpecialAlbumClick(item.type) }
                         )
                     }
@@ -862,6 +868,7 @@ fun SpecialAlbumItem(
     type: SpecialAlbumType,
     images: List<MediaItem>,
     favoriteIds: Set<Long>,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     val coverImage = remember(type, images, favoriteIds) {
@@ -874,14 +881,14 @@ fun SpecialAlbumItem(
     val itemCount = remember(type, images, favoriteIds) {
         when (type) {
             SpecialAlbumType.RECENTS -> images.size
-            SpecialAlbumType.FAVOURITES -> favoriteIds.size // Much faster than images.count { it.id in favoriteIds }
+            SpecialAlbumType.FAVOURITES -> favoriteIds.size
         }
     }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier.graphicsLayer { alpha = 0.38f })
     ) {
         Box(
             modifier = Modifier

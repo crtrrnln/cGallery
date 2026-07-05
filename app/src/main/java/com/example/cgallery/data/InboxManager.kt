@@ -15,11 +15,13 @@ class InboxManager(private val context: Context) {
     private val physicalAlbumManager = PhysicalAlbumManager(context)
     private val mediaStoreDataSource = MediaStoreDataSource(context)
 
-    suspend fun scanNow() = withContext(Dispatchers.IO) {
+    suspend fun scanNow(fullScan: Boolean = false): Int = withContext(Dispatchers.IO) {
         val folders = folderDao.getEnabledFoldersSync()
-        if (folders.isEmpty()) return@withContext
+        if (folders.isEmpty()) return@withContext 0
 
-        val allMedia = mediaStoreDataSource.fetchMedia()
+        // If not fullScan, only look at items from the last 24 hours to be efficient
+        val since = if (fullScan) 0L else (System.currentTimeMillis() / 1000) - (24 * 60 * 60)
+        val allMedia = mediaStoreDataSource.fetchMedia(since)
         var newCount = 0
 
         for (item in allMedia) {
@@ -34,7 +36,7 @@ class InboxManager(private val context: Context) {
                             filename = item.displayName,
                             sourcePath = item.fullPath,
                             detectedTimestamp = System.currentTimeMillis(),
-                            status = InboxStatus.Pending
+                            status = InboxStatus.Detected
                         )
                         inboxDao.insertItem(inboxItem)
                         newCount++
@@ -46,12 +48,13 @@ class InboxManager(private val context: Context) {
         if (newCount > 0) {
             updateStats { it.copy(totalDetected = it.totalDetected + newCount) }
         }
+        newCount
     }
 
     suspend fun processItem(
         item: InboxItemEntity,
         destinationPaths: List<String>,
-        operation: InboxOperation
+        operation: InboxOperationType
     ): Boolean = withContext(Dispatchers.IO) {
         if (destinationPaths.isEmpty()) return@withContext false
 
@@ -60,7 +63,7 @@ class InboxManager(private val context: Context) {
         val createdFiles = mutableListOf<String>()
 
         try {
-            if (operation == InboxOperation.MOVE) {
+            if (operation == InboxOperationType.MOVE) {
                 // First destination: MOVE
                 val firstDest = destinationPaths.first()
                 val moveResult = physicalAlbumManager.moveFile(item.sourcePath, firstDest)
@@ -104,10 +107,8 @@ class InboxManager(private val context: Context) {
                 )
 
                 // Trigger MediaStore scans
-                MediaScannerConnection.scanFile(context, createdFiles.toTypedArray(), null) { _, _ -> }
-                if (operation == InboxOperation.MOVE) {
-                    MediaScannerConnection.scanFile(context, arrayOf(item.sourcePath), null) { _, _ -> }
-                }
+                val pathsToScan = (createdFiles + if (operation == InboxOperationType.MOVE) listOf(item.sourcePath) else emptyList())
+                MediaScannerConnection.scanFile(context, pathsToScan.toTypedArray(), null) { _, _ -> }
 
                 // Update Stats
                 updateStats { stats ->

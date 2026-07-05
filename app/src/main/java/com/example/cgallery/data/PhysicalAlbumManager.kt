@@ -77,7 +77,7 @@ class PhysicalAlbumManager(context: Context) {
         return physicalAlbumDao.getAlbumsByGroup(groupId)
     }
 
-    suspend fun createFolder(folderName: String, parentPath: String? = null): Result<String> {
+    suspend fun createFolder(folderName: String, parentPath: String? = null, groupId: Long? = null): Result<String> {
         return try {
             val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
             val parentDir = if (parentPath != null) File(parentPath) else picturesDir
@@ -93,11 +93,14 @@ class PhysicalAlbumManager(context: Context) {
                 val success = newFolder.mkdirs()
                 if (success) {
                     // Add to database
+                    val existingAlbums = physicalAlbumDao.getAllAlbums().first()
+                    val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
                     physicalAlbumDao.insertAlbum(
                         PhysicalAlbumEntity(
                             bucketName = newFolder.absolutePath,
                             isHidden = false,
-                            groupId = null
+                            groupId = groupId,
+                            sortOrder = maxSortOrder + 1
                         )
                     )
                     // Trigger MediaStore scan
@@ -226,20 +229,34 @@ class PhysicalAlbumManager(context: Context) {
 
             // 2. Update existing albums
             data.albums.forEach { importedAlbum ->
-                if (existingAlbumPaths.contains(importedAlbum.bucketName)) {
-                    val existing = physicalAlbumDao.getAlbumByBucketName(importedAlbum.bucketName).first()
-                    if (existing != null) {
-                        val newGroupId = importedAlbum.groupId?.let { groupNameMap[it] }
-                        physicalAlbumDao.updateAlbum(
-                            existing.copy(
-                                groupId = newGroupId,
-                                sortOrder = importedAlbum.sortOrder,
-                                isHidden = importedAlbum.isHidden,
-                                customCoverUri = importedAlbum.customCoverUri,
-                                customCoverCrop = importedAlbum.customCoverCrop
-                            )
+                val existing = physicalAlbumDao.getAlbumByBucketName(importedAlbum.bucketName).first()
+                val newGroupId = importedAlbum.groupId?.let { groupNameMap[it] }
+                
+                if (existing != null) {
+                    physicalAlbumDao.updateAlbum(
+                        existing.copy(
+                            groupId = newGroupId,
+                            sortOrder = importedAlbum.sortOrder,
+                            isHidden = importedAlbum.isHidden,
+                            customCoverUri = importedAlbum.customCoverUri,
+                            customCoverCrop = importedAlbum.customCoverCrop
                         )
+                    )
+                } else {
+                    // Create folder on disk if it doesn't exist to ensure visibility
+                    val folder = File(importedAlbum.bucketName)
+                    if (!folder.exists()) {
+                        folder.mkdirs()
                     }
+                    
+                    physicalAlbumDao.insertAlbum(
+                        importedAlbum.copy(
+                            id = 0,
+                            groupId = newGroupId
+                        )
+                    )
+                    // Trigger scan for the newly created empty folder
+                    MediaScannerConnection.scanFile(context, arrayOf(importedAlbum.bucketName), null, null)
                 }
             }
 

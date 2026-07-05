@@ -4,14 +4,19 @@ import androidx.room.*
 import kotlinx.serialization.Serializable
 
 enum class InboxStatus {
-    Pending,
+    Detected,
+    Queued,
+    WaitingForUser,
     Processing,
+    Verifying,
     Completed,
+    Ignored,
     Failed,
-    Ignored
+    RetryPending,
+    Cancelled
 }
 
-enum class InboxOperation {
+enum class InboxOperationType {
     COPY,
     MOVE
 }
@@ -25,12 +30,37 @@ data class InboxItemEntity(
     val sourcePath: String,
     val detectedTimestamp: Long,
     val processingTimestamp: Long? = null,
-    val status: InboxStatus = InboxStatus.Pending,
+    val lastTransitionTimestamp: Long = System.currentTimeMillis(),
+    val status: InboxStatus = InboxStatus.Detected,
     val destinationPaths: List<String> = emptyList(),
-    val operationType: InboxOperation = InboxOperation.MOVE,
+    val operationType: InboxOperationType = InboxOperationType.MOVE,
     val retryCount: Int = 0,
-    val notes: String? = null
+    val notes: String? = null,
+    val operationId: Long? = null
 )
+
+@Entity(tableName = "inbox_operations")
+data class InboxOperationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val inboxItemId: Long,
+    val type: InboxOperationType,
+    val destinationPaths: List<String>,
+    val status: OperationStatus = OperationStatus.Queued,
+    val createdAt: Long = System.currentTimeMillis(),
+    val startedAt: Long? = null,
+    val completedAt: Long? = null,
+    val errorMessage: String? = null,
+    val verificationFailed: Boolean = false
+)
+
+enum class OperationStatus {
+    Queued,
+    Validating,
+    Executing,
+    Verifying,
+    Completed,
+    Failed
+}
 
 @Serializable
 @Entity(tableName = "monitored_folders", indices = [Index(value = ["folderPath"], unique = true)])

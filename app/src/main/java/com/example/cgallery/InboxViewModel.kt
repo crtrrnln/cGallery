@@ -13,7 +13,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val db = VirtualAlbumDatabase.getDatabase(application)
     private val inboxDao = db.inboxDao()
     private val folderDao = db.monitoredFolderDao()
+    private val statsDao = db.inboxStatsDao()
     private val physicalAlbumManager = PhysicalAlbumManager(application)
+    private val enforcementRepository = EnforcementSettingsRepository(application)
+
+    val stats = statsDao.getStats()
+    val enforcementSettings = enforcementRepository.settingsFlow
 
     val pendingItems: StateFlow<List<InboxItemEntity>> = inboxDao.getPendingItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -46,9 +51,9 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun scanNow() {
         viewModelScope.launch {
             _isScanning.value = true
-            manager.scanNow()
+            val newCount = manager.scanNow()
             _isScanning.value = false
-            _operationResult.emit("Scan complete")
+            _operationResult.emit(if (newCount > 0) "Detected $newCount new items" else "Scan complete")
         }
     }
 
@@ -83,7 +88,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun processItem(item: InboxItemEntity, destinations: List<String>, operation: InboxOperation) {
+    fun processItem(item: InboxItemEntity, destinations: List<String>, operation: InboxOperationType) {
         viewModelScope.launch {
             val success = manager.processItem(item, destinations, operation)
             if (success) {
@@ -97,7 +102,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
             _isScanning.value = true // Reusing scanning for general work
-            val operation = if (isMove) InboxOperation.MOVE else InboxOperation.COPY
+            val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
             var successCount = 0
             val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
             
@@ -128,6 +133,31 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGroupCover(groupId: Long, uri: String?, crop: String?) {
         viewModelScope.launch {
             physicalAlbumManager.updateGroupCover(groupId, uri, crop)
+        }
+    }
+
+    fun updateEnforcementEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            enforcementRepository.updateEnforcementEnabled(enabled)
+        }
+    }
+
+    fun updateShizukuEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            enforcementRepository.updateShizukuEnabled(enabled)
+        }
+    }
+
+    fun setSnooze(durationMinutes: Int) {
+        viewModelScope.launch {
+            val expiration = System.currentTimeMillis() + (durationMinutes * 60 * 1000)
+            enforcementRepository.setSnooze(expiration, 0)
+        }
+    }
+
+    fun setItemSnooze(count: Int) {
+        viewModelScope.launch {
+            enforcementRepository.setSnooze(0, count)
         }
     }
 }
