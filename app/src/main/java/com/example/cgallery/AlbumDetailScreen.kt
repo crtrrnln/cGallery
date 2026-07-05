@@ -64,7 +64,8 @@ fun AlbumDetailScreen(
                     }
                 }
             )
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { p ->
         LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(images, key = { _, it -> it.id }) { index, img ->

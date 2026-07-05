@@ -89,6 +89,7 @@ fun GalleryScreen(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
             )
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier.fillMaxSize()
     ) { p ->
         LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {

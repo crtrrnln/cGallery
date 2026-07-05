@@ -122,6 +122,7 @@ fun InboxScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             if (!isSelectionMode && !isEnforcementSession) {
                 FloatingActionButton(

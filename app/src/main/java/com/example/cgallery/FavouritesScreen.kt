@@ -18,7 +18,10 @@ fun FavouritesScreen(
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Favourites") }) }) { p ->
+    Scaffold(
+        topBar = { CenterAlignedTopAppBar(title = { Text("Favourites") }) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { p ->
         if (favoriteImages.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
                 Text("nothing here yet", style = MaterialTheme.typography.bodyLarge)

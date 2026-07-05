@@ -31,7 +31,8 @@ fun SearchScreen(
                         singleLine = true
                     )
                 })
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { p ->
         LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (albumResults.isNotEmpty()) {

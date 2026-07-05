@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                 val onClearBS: () -> Unit = { val idx = bStack.indexOfFirst { it is GalleryKey.AlbumSelection || it is GalleryKey.InboxAlbumSelection }; bStack = if (idx != -1) bStack.take(idx) else if (bStack.size > 1) bStack.dropLast(1) else bStack }
                 val showBar = isGranted && (!isComp || bStack.lastOrNull() !is GalleryKey.Viewer) && !isPick && bStack.none { it is GalleryKey.Inbox && it.isEnforcementSession }
 
-                Scaffold(modifier = Modifier.fillMaxSize(), snackbarHost = { SnackbarHost(snack) }, bottomBar = {
+                Scaffold(modifier = Modifier.fillMaxSize(), snackbarHost = { SnackbarHost(snack) }, contentWindowInsets = WindowInsets(0, 0, 0, 0), bottomBar = {
                     if (showBar && !showAnim) {
                         NavigationBar {
                             val base = bStack.firstOrNull { it is GalleryKey.Gallery || it is GalleryKey.Albums || it is GalleryKey.Favourites || it is GalleryKey.Search } ?: GalleryKey.Gallery

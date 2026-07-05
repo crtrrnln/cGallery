@@ -106,8 +106,10 @@ fun AlbumsScreen(
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { scope.launch { context.contentResolver.openInputStream(it)?.use { stream -> physicalAlbumManager.importStructure(stream.bufferedReader().readText()) } } }
     }
-    Scaffold(topBar = {
-        CenterAlignedTopAppBar(title = { Text(if (selectionMode) "Select Destinations" else "Albums") }, navigationIcon = {
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            CenterAlignedTopAppBar(title = { Text(if (selectionMode) "Select Destinations" else "Albums") }, navigationIcon = {
             if (selectionMode) IconButton(onClick = { onConfirmSelection(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
             else IconButton(onClick = onInboxClick) { Icon(Icons.Default.Email, "inbox") }
         }, actions = {
