@@ -1,148 +1,86 @@
 package com.example.cgallery.data
-
 import android.content.Context
 import android.media.MediaScannerConnection
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 
-class OperationQueue(
-    private val context: Context,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-) {
+class OperationQueue(private val context: Context, private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
     private val db = VirtualAlbumDatabase.getDatabase(context)
-    private val operationDao = db.inboxOperationDao()
+    private val opDao = db.inboxOperationDao()
     private val inboxDao = db.inboxDao()
     private val physicalAlbumManager = PhysicalAlbumManager(context)
     private var isProcessing = false
 
     fun start() {
         scope.launch {
-            operationDao.getPendingOperations().collectLatest { operations ->
-                if (operations.isNotEmpty() && !isProcessing) {
-                    processOperations(operations)
+            opDao.getPendingOperations().collectLatest { ops ->
+                if (ops.isNotEmpty() && !isProcessing) {
+                    isProcessing = true
+                    for (op in ops) { execOp(op) }
+                    isProcessing = false
                 }
             }
         }
     }
 
-    private suspend fun processOperations(operations: List<InboxOperationEntity>) {
-        isProcessing = true
-        for (op in operations) {
-            executeOperation(op)
-        }
-        isProcessing = false
-    }
-
-    private suspend fun executeOperation(op: InboxOperationEntity) {
+    private suspend fun execOp(op: InboxOperationEntity) {
         val item = inboxDao.getItemById(op.inboxItemId) ?: return
-        
-        updateOpStatus(op, OperationStatus.Validating)
+        updateStatus(op, OperationStatus.Validating)
         inboxDao.updateStatus(item.id, InboxStatus.Processing, System.currentTimeMillis())
 
         if (!File(item.sourcePath).exists()) {
-            failOperation(op, "Source file missing: ${item.sourcePath}")
-            return
+            fail(op, "source missing"); return
         }
 
-        updateOpStatus(op, OperationStatus.Executing)
-        
-        val createdFiles = mutableListOf<String>()
-        var success = true
-        var errorMessage: String? = null
+        updateStatus(op, OperationStatus.Executing)
+        val created = mutableListOf<String>(); var ok = true; var err: String? = null
 
         try {
             if (op.type == InboxOperationType.MOVE) {
-                val firstDest = op.destinationPaths.first()
-                val moveResult = physicalAlbumManager.moveFile(item.sourcePath, firstDest)
-                if (moveResult.isSuccess) {
-                    val firstPath = moveResult.getOrThrow()
-                    createdFiles.add(firstPath)
-                    
+                val moveRes = physicalAlbumManager.moveFile(item.sourcePath, op.destinationPaths.first())
+                if (moveRes.isSuccess) {
+                    val first = moveRes.getOrThrow(); created.add(first)
                     for (i in 1 until op.destinationPaths.size) {
-                        val copyResult = physicalAlbumManager.copyFile(firstPath, op.destinationPaths[i])
-                        if (copyResult.isSuccess) {
-                            createdFiles.add(copyResult.getOrThrow())
-                        } else {
-                            success = false
-                            errorMessage = "Partial failure during copy: ${copyResult.exceptionOrNull()?.message}"
-                            break
-                        }
+                        val cRes = physicalAlbumManager.copyFile(first, op.destinationPaths[i])
+                        if (cRes.isSuccess) { created.add(cRes.getOrThrow()) } else { ok = false; err = "copy fail"; break }
                     }
-                } else {
-                    success = false
-                    errorMessage = moveResult.exceptionOrNull()?.message
-                }
+                } else { ok = false; err = moveRes.exceptionOrNull()?.message }
             } else {
                 for (dest in op.destinationPaths) {
-                    val copyResult = physicalAlbumManager.copyFile(item.sourcePath, dest)
-                    if (copyResult.isSuccess) {
-                        createdFiles.add(copyResult.getOrThrow())
-                    } else {
-                        success = false
-                        errorMessage = copyResult.exceptionOrNull()?.message
-                        break
-                    }
+                    val cRes = physicalAlbumManager.copyFile(item.sourcePath, dest)
+                    if (cRes.isSuccess) created.add(cRes.getOrThrow()) else { ok = false; err = cRes.exceptionOrNull()?.message; break }
                 }
             }
-        } catch (e: Exception) {
-            success = false
-            errorMessage = e.message
-        }
+        } catch (e: Exception) { ok = false; err = e.message }
 
-        if (success) {
-            verifyOperation(op, item, createdFiles)
-        } else {
-            failOperation(op, errorMessage ?: "Unknown error")
-        }
+        if (ok) verify(op, item, created) else fail(op, err ?: "unknown")
     }
 
-    private suspend fun verifyOperation(op: InboxOperationEntity, item: InboxItemEntity, createdFiles: List<String>) {
-        updateOpStatus(op, OperationStatus.Verifying)
+    private suspend fun verify(op: InboxOperationEntity, item: InboxItemEntity, created: List<String>) {
+        updateStatus(op, OperationStatus.Verifying)
         inboxDao.updateStatus(item.id, InboxStatus.Verifying, System.currentTimeMillis())
-
-        val sourceSize = File(item.sourcePath).let { if (it.exists()) it.length() else -1 } // Might be deleted if MOVE succeeded
-        
-        var allVerified = true
-        for (path in createdFiles) {
+        val srcSize = File(item.sourcePath).let { if (it.exists()) it.length() else -1 }
+        var verified = true
+        for (path in created) {
             val f = File(path)
-            if (!f.exists() || (sourceSize != -1L && f.length() != sourceSize)) {
-                allVerified = false
-                break
-            }
+            if (!f.exists() || (srcSize != -1L && f.length() != srcSize)) { verified = false; break }
         }
-
-        if (allVerified) {
-            completeOperation(op, item, createdFiles)
-        } else {
-            failOperation(op, "Verification failed: file size mismatch or missing destination", verificationFailed = true)
-        }
+        if (verified) done(op, item, created) else fail(op, "verify fail", true)
     }
 
-    private suspend fun completeOperation(op: InboxOperationEntity, item: InboxItemEntity, createdFiles: List<String>) {
+    private suspend fun done(op: InboxOperationEntity, item: InboxItemEntity, created: List<String>) {
         val now = System.currentTimeMillis()
-        operationDao.updateOperation(op.copy(status = OperationStatus.Completed, completedAt = now))
-        inboxDao.updateItem(item.copy(
-            status = InboxStatus.Completed,
-            processingTimestamp = now,
-            destinationPaths = op.destinationPaths,
-            operationType = op.type
-        ))
-
-        val pathsToScan = (createdFiles + if (op.type == InboxOperationType.MOVE) listOf(item.sourcePath) else emptyList())
-        MediaScannerConnection.scanFile(context, pathsToScan.toTypedArray(), null, null)
+        opDao.updateOperation(op.copy(status = OperationStatus.Completed, completedAt = now))
+        inboxDao.updateItem(item.copy(status = InboxStatus.Completed, processingTimestamp = now, destinationPaths = op.destinationPaths, operationType = op.type))
+        val scanPaths = (created + if (op.type == InboxOperationType.MOVE) listOf(item.sourcePath) else emptyList())
+        MediaScannerConnection.scanFile(context, scanPaths.toTypedArray(), null, null)
     }
 
-    private suspend fun failOperation(op: InboxOperationEntity, message: String, verificationFailed: Boolean = false) {
-        operationDao.updateOperation(op.copy(
-            status = OperationStatus.Failed,
-            errorMessage = message,
-            verificationFailed = verificationFailed
-        ))
+    private suspend fun fail(op: InboxOperationEntity, msg: String, verifyFail: Boolean = false) {
+        opDao.updateOperation(op.copy(status = OperationStatus.Failed, errorMessage = msg, verificationFailed = verifyFail))
         inboxDao.updateStatus(op.inboxItemId, InboxStatus.Failed, System.currentTimeMillis())
     }
 
-    private suspend fun updateOpStatus(op: InboxOperationEntity, status: OperationStatus) {
-        operationDao.updateOperation(op.copy(status = status, startedAt = System.currentTimeMillis()))
-    }
+    private suspend fun updateStatus(op: InboxOperationEntity, s: OperationStatus) = opDao.updateOperation(op.copy(status = s, startedAt = System.currentTimeMillis()))
 }

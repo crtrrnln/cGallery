@@ -1,119 +1,49 @@
 package com.example.cgallery.data
-
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
 class AlbumGroupManager(context: Context) {
-    private val db = VirtualAlbumDatabase.getDatabase(context)
-    private val groupDao = db.albumGroupDao()
-    private val physicalAlbumDao = db.physicalAlbumDao()
-
+    private val db = VirtualAlbumDatabase.getDatabase(context); private val groupDao = db.albumGroupDao(); private val physDao = db.physicalAlbumDao()
     val allGroups: Flow<List<AlbumGroupEntity>> = groupDao.getAllGroups()
     val rootGroups: Flow<List<AlbumGroupEntity>> = groupDao.getRootGroups()
-
-    fun getGroupById(groupId: Long): Flow<AlbumGroupEntity?> {
-        return groupDao.getGroupById(groupId)
-    }
+    fun getGroupById(id: Long): Flow<AlbumGroupEntity?> = groupDao.getGroupById(id)
 
     suspend fun createGroup(name: String, parentId: Long? = null): Long {
-        val existingGroups = groupDao.getAllGroups().first()
-        val maxSortOrder = existingGroups.maxOfOrNull { it.sortOrder } ?: -1
-        val group = AlbumGroupEntity(
-            name = name,
-            parentId = parentId,
-            sortOrder = maxSortOrder + 1
-        )
-        return groupDao.insertGroup(group)
+        val existing = groupDao.getAllGroups().first(); val maxSort = existing.maxOfOrNull { it.sortOrder } ?: -1
+        return groupDao.insertGroup(AlbumGroupEntity(name = name, parentId = parentId, sortOrder = maxSort + 1))
     }
 
-    suspend fun updateGroup(group: AlbumGroupEntity) {
-        groupDao.updateGroup(group)
+    suspend fun updateGroup(g: AlbumGroupEntity) = groupDao.updateGroup(g)
+
+    suspend fun deleteGroup(g: AlbumGroupEntity) {
+        physDao.getAlbumsByGroup(g.id).first().forEach { physDao.moveAlbumToGroup(it.bucketName, null) }
+        groupDao.getAllGroups().first().filter { it.parentId == g.id }.forEach { groupDao.moveGroup(it.id, null) }
+        groupDao.deleteGroup(g)
     }
 
-    suspend fun deleteGroup(group: AlbumGroupEntity) {
-        // Move albums in this group to null (ungrouped)
-        val albumsInGroup = physicalAlbumDao.getAlbumsByGroup(group.id).first()
-        albumsInGroup.forEach { album ->
-            physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
-        }
+    suspend fun moveGroup(id: Long, pid: Long?) = groupDao.moveGroup(id, pid)
+    suspend fun renameGroup(id: Long, name: String) { val g = groupDao.getGroupById(id).first() ?: return; groupDao.updateGroup(g.copy(name = name)) }
 
-        // Move child groups to root (parentId = null)
-        val allGroups = groupDao.getAllGroups().first()
-        val childGroups = allGroups.filter { it.parentId == group.id }
-        childGroups.forEach { childGroup ->
-            groupDao.moveGroup(childGroup.id, null)
-        }
-
-        groupDao.deleteGroup(group)
+    suspend fun moveGroupUp(id: Long) {
+        val g = groupDao.getGroupById(id).first() ?: return
+        val siblings = if (g.parentId == null) groupDao.getRootGroups().first() else groupDao.getChildGroups(g.parentId).first()
+        val idx = siblings.indexOf(g)
+        if (idx > 0) { val prev = siblings[idx - 1]; groupDao.updateGroupSortOrder(id, prev.sortOrder); groupDao.updateGroupSortOrder(prev.id, g.sortOrder) }
     }
 
-    suspend fun moveGroup(groupId: Long, parentId: Long?) {
-        groupDao.moveGroup(groupId, parentId)
+    suspend fun moveGroupDown(id: Long) {
+        val g = groupDao.getGroupById(id).first() ?: return
+        val siblings = if (g.parentId == null) groupDao.getRootGroups().first() else groupDao.getChildGroups(g.parentId).first()
+        val idx = siblings.indexOf(g)
+        if (idx < siblings.size - 1) { val next = siblings[idx + 1]; groupDao.updateGroupSortOrder(id, next.sortOrder); groupDao.updateGroupSortOrder(next.id, g.sortOrder) }
     }
 
-    suspend fun renameGroup(groupId: Long, name: String) {
-        val group = groupDao.getGroupById(groupId).first() ?: return
-        groupDao.updateGroup(group.copy(name = name))
+    suspend fun updateGroupSortOrder(id: Long, s: Int) = groupDao.updateGroupSortOrder(id, s)
+    suspend fun deleteGroup(id: Long) {
+        physDao.getAlbumsByGroup(id).first().forEach { physDao.moveAlbumToGroup(it.bucketName, null) }
+        groupDao.getChildGroups(id).first().forEach { groupDao.moveGroup(it.id, null) }
+        groupDao.getGroupById(id).first()?.let { groupDao.deleteGroup(it) }
     }
-
-    suspend fun moveGroupUp(groupId: Long) {
-        val group = groupDao.getGroupById(groupId).first() ?: return
-        val parentId = group.parentId
-        val siblings = if (parentId == null) {
-            groupDao.getRootGroups().first()
-        } else {
-            groupDao.getChildGroups(parentId).first()
-        }
-        val currentIndex = siblings.indexOf(group)
-        if (currentIndex > 0) {
-            val previousGroup = siblings[currentIndex - 1]
-            groupDao.updateGroupSortOrder(groupId, previousGroup.sortOrder)
-            groupDao.updateGroupSortOrder(previousGroup.id, group.sortOrder)
-        }
-    }
-
-    suspend fun moveGroupDown(groupId: Long) {
-        val group = groupDao.getGroupById(groupId).first() ?: return
-        val parentId = group.parentId
-        val siblings = if (parentId == null) {
-            groupDao.getRootGroups().first()
-        } else {
-            groupDao.getChildGroups(parentId).first()
-        }
-        val currentIndex = siblings.indexOf(group)
-        if (currentIndex < siblings.size - 1) {
-            val nextGroup = siblings[currentIndex + 1]
-            groupDao.updateGroupSortOrder(groupId, nextGroup.sortOrder)
-            groupDao.updateGroupSortOrder(nextGroup.id, group.sortOrder)
-        }
-    }
-
-    suspend fun updateGroupSortOrder(groupId: Long, sortOrder: Int) {
-        groupDao.updateGroupSortOrder(groupId, sortOrder)
-    }
-
-    suspend fun deleteGroup(groupId: Long) {
-        // Move all albums in this group back to root
-        val albums = physicalAlbumDao.getAlbumsByGroup(groupId).first()
-        albums.forEach { album ->
-            physicalAlbumDao.moveAlbumToGroup(album.bucketName, null)
-        }
-        
-        // Move all child groups back to root
-        val childGroups = groupDao.getChildGroups(groupId).first()
-        childGroups.forEach { child ->
-            groupDao.moveGroup(child.id, null)
-        }
-
-        // Delete the group itself
-        val group = groupDao.getGroupById(groupId).first()
-        if (group != null) {
-            groupDao.deleteGroup(group)
-        }
-    }
-
-    fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {
-        return physicalAlbumDao.getAlbumsByGroup(groupId)
-    }
+    fun getAlbumsByGroup(id: Long?): Flow<List<PhysicalAlbumEntity>> = physDao.getAlbumsByGroup(id)
 }

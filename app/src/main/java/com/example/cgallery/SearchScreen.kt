@@ -1,5 +1,4 @@
 package com.example.cgallery
-
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -19,85 +18,37 @@ import com.example.cgallery.ui.MediaGridItem
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    searchQuery: String,
-    searchResults: List<MediaItem>,
-    albumResults: List<Pair<String, String>>,
-    onUpdateSearchQuery: (String) -> Unit,
-    onImageClick: (GalleryKey) -> Unit,
-    modifier: Modifier = Modifier
+    searchQuery: String, searchResults: List<MediaItem>,
+    albumResults: List<Pair<String, String>>, onUpdateSearchQuery: (String) -> Unit,
+    onImageClick: (GalleryKey) -> Unit, modifier: Modifier = Modifier
 ) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = onUpdateSearchQuery,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search photos or albums...") },
+    Scaffold(topBar = {
+            TopAppBar(title = {
+                    TextField(value = searchQuery, onValueChange = onUpdateSearchQuery, modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search something...") },
                         leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                        ),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent, focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent),
                         singleLine = true
                     )
-                }
-            )
+                })
         }
-    ) { innerPadding ->
-        val currentOnImageClick by rememberUpdatedState(onImageClick)
-        
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+    ) { p ->
+        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (albumResults.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("Albums", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                item(span = { GridItemSpan(maxLineSpan) }) { Text("Albums", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
+                items(albumResults, key = { "a_${it.second}" }, span = { GridItemSpan(maxLineSpan) }) { (name, path) ->
+                    ListItem(headlineContent = { Text(name) }, modifier = Modifier.clickable { onImageClick(GalleryKey.AlbumDetail(path)) })
                 }
-                items(albumResults, key = { "album_${it.second}" }, span = { GridItemSpan(maxLineSpan) }) { (albumName, albumPath) ->
-                    ListItem(
-                        headlineContent = { Text(albumName) },
-                        modifier = Modifier.clickable { currentOnImageClick(GalleryKey.AlbumDetail(albumPath)) }
-                    )
-                }
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(16.dp)) }
             }
-
             if (searchResults.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text("Photos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-                }
-                itemsIndexed(searchResults, key = { _, it -> it.id }) { index, image ->
-                    MediaGridItem(
-                        image = image,
-                        index = index,
-                        onClick = {
-                            currentOnImageClick(GalleryKey.Viewer(index))
-                        }
-                    )
+                item(span = { GridItemSpan(maxLineSpan) }) { Text("Photos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
+                itemsIndexed(searchResults, key = { _, i -> i.id }) { index, img ->
+                    MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index)) })
                 }
             }
-
             if (searchQuery.isNotBlank() && searchResults.isEmpty() && albumResults.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        "No results found",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                item(span = { GridItemSpan(maxLineSpan) }) { Text("nothing found", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }

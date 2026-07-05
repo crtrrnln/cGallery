@@ -1,5 +1,4 @@
 package com.example.cgallery.data
-
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.Environment
@@ -18,262 +17,125 @@ class PhysicalAlbumManager(context: Context) {
     private val physicalAlbumDao = db.physicalAlbumDao()
     private val groupDao = db.albumGroupDao()
     private val folderDao = db.monitoredFolderDao()
+    private val favoritesManager = FavoritesManager(context)
     private val context = context
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-        encodeDefaults = true
-    }
-
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
     val allAlbums: Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAllAlbums()
 
     suspend fun syncAlbums(bucketNames: List<String>) {
         val existingAlbums = physicalAlbumDao.getAllAlbums().first()
         val existingBucketNames = existingAlbums.map { it.bucketName }.toSet()
         val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
-
-        // Add new albums
         bucketNames.forEachIndexed { index, bucketName ->
             if (!existingBucketNames.contains(bucketName)) {
-                physicalAlbumDao.insertAlbum(
-                    PhysicalAlbumEntity(
-                        bucketName = bucketName,
-                        isHidden = false,
-                        groupId = null,
-                        sortOrder = maxSortOrder + 1 + index
-                    )
-                )
+                physicalAlbumDao.insertAlbum(PhysicalAlbumEntity(bucketName = bucketName, isHidden = false, groupId = null, sortOrder = maxSortOrder + 1 + index))
             }
         }
-
-        // Remove albums that no longer exist in MediaStore AND are gone from disk
         existingAlbums.forEach { album ->
             if (!bucketNames.contains(album.bucketName)) {
                 val file = File(album.bucketName)
-                if (!file.exists() || !file.isDirectory) {
-                    physicalAlbumDao.deleteAlbum(album)
-                }
+                if (!file.exists() || !file.isDirectory) physicalAlbumDao.deleteAlbum(album)
             }
         }
     }
-
     suspend fun toggleAlbumVisibility(bucketName: String) {
         val album = physicalAlbumDao.getAlbumByBucketName(bucketName).first()
-        if (album != null) {
-            physicalAlbumDao.updateAlbumVisibility(bucketName, !album.isHidden)
-        }
+        if (album != null) physicalAlbumDao.updateAlbumVisibility(bucketName, !album.isHidden)
     }
-
-    suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?) {
-        physicalAlbumDao.moveAlbumToGroup(bucketName, groupId)
-    }
-
-    suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int) {
-        physicalAlbumDao.updateAlbumSortOrder(albumId, sortOrder)
-    }
-
-    fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> {
-        return physicalAlbumDao.getAlbumsByGroup(groupId)
-    }
+    suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?) = physicalAlbumDao.moveAlbumToGroup(bucketName, groupId)
+    suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int) = physicalAlbumDao.updateAlbumSortOrder(albumId, sortOrder)
+    fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAlbumsByGroup(groupId)
 
     suspend fun createFolder(folderName: String, parentPath: String? = null, groupId: Long? = null): Result<String> {
         return try {
-            val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-            val parentDir = if (parentPath != null) File(parentPath) else picturesDir
-
-            if (!parentDir.exists()) {
-                parentDir.mkdirs()
-            }
-
+            val parentDir = if (parentPath != null) File(parentPath) else Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            if (!parentDir.exists()) parentDir.mkdirs()
             val newFolder = File(parentDir, folderName)
-            if (newFolder.exists()) {
-                Result.failure(Exception("Album already exists"))
-            } else {
-                val success = newFolder.mkdirs()
-                if (success) {
-                    // Add to database
-                    val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-                    val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
-                    physicalAlbumDao.insertAlbum(
-                        PhysicalAlbumEntity(
-                            bucketName = newFolder.absolutePath,
-                            isHidden = false,
-                            groupId = groupId,
-                            sortOrder = maxSortOrder + 1
-                        )
-                    )
-                    // Trigger MediaStore scan
+            if (newFolder.exists()) { Result.failure(Exception("exists already")) } else {
+                if (newFolder.mkdirs()) {
+                    val maxSort = physicalAlbumDao.getAllAlbums().first().maxOfOrNull { it.sortOrder } ?: -1
+                    physicalAlbumDao.insertAlbum(PhysicalAlbumEntity(bucketName = newFolder.absolutePath, isHidden = false, groupId = groupId, sortOrder = maxSort + 1))
                     MediaScannerConnection.scanFile(context, arrayOf(newFolder.absolutePath), null, null)
-
                     Result.success(newFolder.absolutePath)
-                } else {
-                    Result.failure(Exception("Failed to create album"))
-                }
+                } else { Result.failure(Exception("failed")) }
             }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun moveFile(sourcePath: String, targetFolderPath: String): Result<String> {
+    suspend fun moveFile(src: String, target: String): Result<String> {
         return try {
-            val sourceFile = File(sourcePath)
-            val targetFolder = File(targetFolderPath)
-
-            if (!sourceFile.exists()) {
-                return Result.failure(Exception("Source file does not exist"))
-            }
-
-            if (!targetFolder.exists()) {
-                targetFolder.mkdirs()
-            }
-
-            val targetFile = File(targetFolder, sourceFile.name)
-
-            if (targetFile.exists()) {
-                return Result.failure(Exception("Target file already exists"))
-            }
-
-            // Try atomic rename first
-            val renamed = sourceFile.renameTo(targetFile)
-            if (renamed) {
-                Result.success(targetFile.absolutePath)
-            } else {
-                // Fallback to copy-delete if rename fails (e.g. cross-partition)
-                sourceFile.copyTo(targetFile, overwrite = false)
-                val deleted = sourceFile.delete()
-                if (deleted) {
-                    Result.success(targetFile.absolutePath)
-                } else {
-                    // Clean up the copied file if source deletion failed
+            val sf = File(src); val tf = File(target)
+            if (!sf.exists()) return Result.failure(Exception("no src"))
+            if (!tf.exists()) tf.mkdirs()
+            val targetFile = File(tf, sf.name)
+            if (targetFile.exists()) return Result.failure(Exception("exists"))
+            if (sf.renameTo(targetFile)) { Result.success(targetFile.absolutePath) } else {
+                sf.copyTo(targetFile, overwrite = false)
+                if (sf.delete()) { Result.success(targetFile.absolutePath) } else {
                     targetFile.delete()
-                    Result.failure(Exception("Failed to delete source file after copy"))
+                    Result.failure(Exception("fail delete"))
                 }
             }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun copyFile(sourcePath: String, targetFolderPath: String): Result<String> {
+    suspend fun copyFile(src: String, target: String): Result<String> {
         return try {
-            val sourceFile = File(sourcePath)
-            val targetFolder = File(targetFolderPath)
-
-            if (!sourceFile.exists()) {
-                return Result.failure(Exception("Source file does not exist"))
-            }
-
-            if (!targetFolder.exists()) {
-                targetFolder.mkdirs()
-            }
-
-            val targetFile = File(targetFolder, sourceFile.name)
-
-            if (targetFile.exists()) {
-                return Result.failure(Exception("Target file already exists"))
-            }
-
-            sourceFile.copyTo(targetFile, overwrite = false)
+            val sf = File(src); val tf = File(target)
+            if (!sf.exists()) return Result.failure(Exception("no src"))
+            if (!tf.exists()) tf.mkdirs()
+            val targetFile = File(tf, sf.name)
+            if (targetFile.exists()) return Result.failure(Exception("exists"))
+            sf.copyTo(targetFile, overwrite = false)
             Result.success(targetFile.absolutePath)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        } catch (e: Exception) { Result.failure(e) }
     }
 
     @Serializable
     data class StructureExport(
         val groups: List<AlbumGroupEntity> = emptyList(),
         val albums: List<PhysicalAlbumEntity> = emptyList(),
-        val monitoredFolders: List<MonitoredFolderEntity> = emptyList()
+        val monitoredFolders: List<MonitoredFolderEntity> = emptyList(),
+        val favorites: Set<Long> = emptySet()
     )
 
     suspend fun exportStructure(): String = withContext(Dispatchers.IO) {
         val groups = groupDao.getAllGroups().first()
         val albums = physicalAlbumDao.getAllAlbums().first()
         val folders = folderDao.getAllFolders().first()
-        json.encodeToString(StructureExport(groups, albums, folders))
+        val favs = favoritesManager.favoriteIds.first()
+        json.encodeToString(StructureExport(groups, albums, folders, favs))
     }
 
     suspend fun importStructure(jsonStr: String) = withContext(Dispatchers.IO) {
         try {
             val data = json.decodeFromString<StructureExport>(jsonStr)
-            val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-            val existingAlbumPaths = existingAlbums.map { it.bucketName }.toSet()
-
-            // 1. Re-create groups
-            val allGroups = groupDao.getAllGroups().first()
-            allGroups.forEach { groupDao.deleteGroup(it) }
-
-            val groupNameMap = mutableMapOf<Long, Long>() // oldId to newId
-            data.groups.forEach { group ->
-                val newId = groupDao.insertGroup(group.copy(id = 0))
-                groupNameMap[group.id] = newId
-            }
-
-            // Update parent IDs for nested groups
-            data.groups.forEach { group ->
-                if (group.parentId != null) {
-                    val oldParentId = group.parentId
-                    val newId = groupNameMap[group.id]
-                    val newParentId = groupNameMap[oldParentId]
-                    if (newId != null && newParentId != null) {
-                        val currentGroup = groupDao.getGroupById(newId).first()
-                        if (currentGroup != null) {
-                            groupDao.updateGroup(currentGroup.copy(parentId = newParentId))
-                        }
+            groupDao.getAllGroups().first().forEach { groupDao.deleteGroup(it) }
+            val groupMap = mutableMapOf<Long, Long>()
+            data.groups.forEach { g -> groupMap[g.id] = groupDao.insertGroup(g.copy(id = 0)) }
+            data.groups.forEach { g ->
+                if (g.parentId != null) {
+                    val newId = groupMap[g.id]; val newParent = groupMap[g.parentId]
+                    if (newId != null && newParent != null) {
+                        groupDao.getGroupById(newId).first()?.let { groupDao.updateGroup(it.copy(parentId = newParent)) }
                     }
                 }
             }
-
-            // 2. Update existing albums
-            data.albums.forEach { importedAlbum ->
-                val existing = physicalAlbumDao.getAlbumByBucketName(importedAlbum.bucketName).first()
-                val newGroupId = importedAlbum.groupId?.let { groupNameMap[it] }
-                
+            data.albums.forEach { alb ->
+                val existing = physicalAlbumDao.getAlbumByBucketName(alb.bucketName).first()
+                val newGid = alb.groupId?.let { groupMap[it] }
                 if (existing != null) {
-                    physicalAlbumDao.updateAlbum(
-                        existing.copy(
-                            groupId = newGroupId,
-                            sortOrder = importedAlbum.sortOrder,
-                            isHidden = importedAlbum.isHidden,
-                            customCoverUri = importedAlbum.customCoverUri,
-                            customCoverCrop = importedAlbum.customCoverCrop
-                        )
-                    )
+                    physicalAlbumDao.updateAlbum(existing.copy(groupId = newGid, sortOrder = alb.sortOrder, isHidden = alb.isHidden, customCoverUri = alb.customCoverUri, customCoverCrop = alb.customCoverCrop))
                 } else {
-                    // Create folder on disk if it doesn't exist to ensure visibility
-                    val folder = File(importedAlbum.bucketName)
-                    if (!folder.exists()) {
-                        folder.mkdirs()
-                    }
-                    
-                    physicalAlbumDao.insertAlbum(
-                        importedAlbum.copy(
-                            id = 0,
-                            groupId = newGroupId
-                        )
-                    )
-                    // Trigger scan for the newly created empty folder
-                    MediaScannerConnection.scanFile(context, arrayOf(importedAlbum.bucketName), null, null)
+                    val f = File(alb.bucketName); if (!f.exists()) f.mkdirs()
+                    physicalAlbumDao.insertAlbum(alb.copy(id = 0, groupId = newGid))
+                    MediaScannerConnection.scanFile(context, arrayOf(alb.bucketName), null, null)
                 }
             }
-
-            // 3. Import monitored folders
-            data.monitoredFolders.forEach { importedFolder ->
-                folderDao.insertFolder(importedFolder.copy(id = 0))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+            data.monitoredFolders.forEach { folderDao.insertFolder(it.copy(id = 0)) }
+            data.favorites.forEach { favoritesManager.addFavorite(it) }
+        } catch (e: Exception) { e.printStackTrace() }
     }
-
-    suspend fun updateAlbumCover(bucketName: String, uri: String?, crop: String?) {
-        physicalAlbumDao.updateAlbumCover(bucketName, uri, crop)
-    }
-
-    suspend fun updateGroupCover(groupId: Long, uri: String?, crop: String?) {
-        groupDao.updateGroupCover(groupId, uri, crop)
-    }
+    suspend fun updateAlbumCover(b: String, u: String?, c: String?) = physicalAlbumDao.updateAlbumCover(b, u, c)
+    suspend fun updateGroupCover(id: Long, u: String?, c: String?) = groupDao.updateGroupCover(id, u, c)
 }

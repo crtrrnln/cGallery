@@ -1,18 +1,15 @@
 package com.example.cgallery
 
 import android.net.Uri
-import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.*
-import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.PhysicalAlbumEntity
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -45,7 +42,7 @@ sealed interface GalleryKey : NavKey {
     data object InboxSettings : GalleryKey
 
     @Serializable
-    object Diagnostics : GalleryKey
+    data object Diagnostics : GalleryKey
 
     @Serializable
     data class AlbumDetail(val id: String) : GalleryKey
@@ -189,7 +186,7 @@ fun GalleryNavDisplay(
                         onNavigate(GalleryKey.Diagnostics)
                     },
                     onBack = {
-                        onReloadMedia() // Refresh when leaving inbox
+                        onReloadMedia()
                         onBack()
                     }
                 )
@@ -266,7 +263,7 @@ fun GalleryNavDisplay(
                     onConfirmSelection = { paths ->
                         if (paths.isNotEmpty()) {
                             inboxViewModel.processItems(key.inboxIds, paths, key.isMove)
-                            onReloadMedia() // Refresh gallery after inbox processing
+                            onReloadMedia()
                             onClearSelectionBackstack()
                         } else {
                             onBack()
@@ -361,7 +358,7 @@ fun GalleryNavDisplay(
                         if (paths.isNotEmpty()) {
                             if (key.isInbox) {
                                 inboxViewModel.processItems(key.selectionMediaIds, paths, key.selectionIsMove)
-                                onReloadMedia() // Refresh gallery after inbox processing
+                                onReloadMedia()
                             } else {
                                 if (key.selectionIsMove) {
                                     onMoveToAlbum(paths, key.selectionMediaIds)

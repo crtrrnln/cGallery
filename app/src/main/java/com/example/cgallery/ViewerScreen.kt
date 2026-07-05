@@ -1,8 +1,6 @@
 package com.example.cgallery
-
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,12 +14,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,291 +24,106 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.MediaStoreDataSource
-import com.example.cgallery.data.MediaType
-import com.example.cgallery.data.FavoritesManager
+import com.example.cgallery.data.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(
-    startIndex: Int,
-    mediaItems: List<MediaItem>,
-    onBack: () -> Unit,
-    filteredMedia: List<MediaItem>? = null
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val dataSource = remember { MediaStoreDataSource(context) }
+fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Unit, filteredMedia: List<MediaItem>? = null) {
+    val context = LocalContext.current; val scope = rememberCoroutineScope()
     val favoritesManager = remember { FavoritesManager(context) }
-    val favoriteIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
-    var images by remember(mediaItems, filteredMedia) {
-        mutableStateOf(filteredMedia ?: mediaItems)
-    }
-
-    var showInfoSheet by remember { mutableStateOf(false) }
+    val favIds by favoritesManager.favoriteIds.collectAsState(initial = emptySet())
+    var images by remember(mediaItems, filteredMedia) { mutableStateOf(filteredMedia ?: mediaItems) }
+    var showInfo by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
-
-    if (images.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
+    if (images.isEmpty()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
+    val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, images.size - 1), pageCount = { images.size })
+    val cur = images.getOrNull(pagerState.currentPage)
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        if (res.resultCode == Activity.RESULT_OK) { scope.launch { images = MediaStoreDataSource(context).fetchMedia(); if (images.isEmpty()) onBack() } }
     }
-
-    val pagerState = rememberPagerState(
-        initialPage = startIndex.coerceIn(0, images.size - 1),
-        pageCount = { images.size }
-    )
-    
-    val currentImage = images.getOrNull(pagerState.currentPage)
-
-    val deleteLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            scope.launch {
-                images = dataSource.fetchMedia()
-                if (images.isEmpty()) {
-                    onBack()
-                }
-            }
-        }
-    }
-
-    val offsetY = remember { Animatable(0f) }
-    val scale = remember { Animatable(1f) }
-
+    val offY = remember { Animatable(0f) }; val scale = remember { Animatable(1f) }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                },
+            TopAppBar(title = { }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "back", tint = Color.White) } },
                 actions = {
-                    currentImage?.let { image ->
-                        val isFavorite = image.id in favoriteIds
-                        IconButton(onClick = {
-                            scope.launch {
-                                if (isFavorite) {
-                                    favoritesManager.removeFavorite(image.id)
-                                } else {
-                                    favoritesManager.addFavorite(image.id)
-                                }
-                            }
-                        }) {
-                            Icon(
-                                if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                contentDescription = if (isFavorite) "Remove from Favourites" else "Add to Favourites",
-                                tint = Color.White
-                            )
+                    cur?.let { img ->
+                        val isFav = img.id in favIds
+                        IconButton({ scope.launch { if (isFav) favoritesManager.removeFavorite(img.id) else favoritesManager.addFavorite(img.id) } }) {
+                            Icon(if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "fav", tint = Color.White)
                         }
-                        IconButton(onClick = {
-                            val shareIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_STREAM, image.uri)
-                                type = if (image.type == MediaType.VIDEO) "video/*" else "image/*"
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
-                        }) {
-                            Icon(Icons.Rounded.Share, contentDescription = "Share", tint = Color.White)
+                        IconButton({
+                            val i = Intent(Intent.ACTION_SEND).apply { putExtra(Intent.EXTRA_STREAM, img.uri); type = if (img.type == MediaType.VIDEO) "video/*" else "image/*"; addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                            context.startActivity(Intent.createChooser(i, "share"))
+                        }) { Icon(Icons.Rounded.Share, "share", tint = Color.White) }
+                        if (img.type == MediaType.IMAGE) {
+                            IconButton({
+                                val i = Intent(Intent.ACTION_EDIT).apply { setDataAndType(img.uri, "image/*"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                                context.startActivity(Intent.createChooser(i, "edit"))
+                            }) { Icon(Icons.Rounded.Edit, "edit", tint = Color.White) }
                         }
-                        if (image.type == MediaType.IMAGE) {
-                            IconButton(onClick = {
-                                val editIntent = Intent().apply {
-                                    action = Intent.ACTION_EDIT
-                                    setDataAndType(image.uri, "image/*")
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(editIntent, "Edit Image"))
-                            }) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Edit", tint = Color.White)
-                            }
-                        }
-                        IconButton(onClick = {
+                        IconButton({
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                val pendingIntent = MediaStore.createDeleteRequest(
-                                    context.contentResolver,
-                                    listOf(image.uri)
-                                )
-                                deleteLauncher.launch(
-                                    IntentSenderRequest.Builder(pendingIntent.intentSender).build()
-                                )
+                                val p = MediaStore.createDeleteRequest(context.contentResolver, listOf(img.uri))
+                                deleteLauncher.launch(IntentSenderRequest.Builder(p.intentSender).build())
                             } else {
-                                context.contentResolver.delete(image.uri, null, null)
-                                scope.launch {
-                                    images = dataSource.fetchMedia()
-                                    if (images.isEmpty()) {
-                                        onBack()
-                                    }
-                                }
+                                context.contentResolver.delete(img.uri, null, null)
+                                scope.launch { images = MediaStoreDataSource(context).fetchMedia(); if (images.isEmpty()) onBack() }
                             }
-                        }) {
-                            Icon(Icons.Rounded.Delete, contentDescription = "Delete", tint = Color.White)
-                        }
+                        }) { Icon(Icons.Rounded.Delete, "del", tint = Color.White) }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = (0.5f * scale.value).coerceIn(0f, 0.5f)),
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Black.copy(alpha = (0.5f * scale.value).coerceIn(0f, 0.5f)), navigationIconContentColor = Color.White, actionIconContentColor = Color.White)
             )
         },
         containerColor = Color.Black.copy(alpha = scale.value.coerceIn(0f, 1f))
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDrag = { change, dragAmount ->
-                            // Only consume vertical drag if we're not dragging horizontally much
-                            if (kotlin.math.abs(dragAmount.y) > kotlin.math.abs(dragAmount.x) || offsetY.value != 0f) {
-                                change.consume()
-                                scope.launch {
-                                    offsetY.snapTo(offsetY.value + dragAmount.y)
-                                    // Scale only when dragging down
-                                    if (offsetY.value > 0) {
-                                        val newScale = (1f - (offsetY.value / 1500f)).coerceIn(0.7f, 1f)
-                                        scale.snapTo(newScale)
-                                    } else {
-                                        scale.snapTo(1f)
-                                    }
-                                }
-                            }
-                        },
-                        onDragEnd = {
-                            if (offsetY.value > 300f) {
-                                onBack()
-                            } else if (offsetY.value < -200f) {
-                                showInfoSheet = true
-                                scope.launch {
-                                    launch { offsetY.animateTo(0f, tween(200)) }
-                                    launch { scale.animateTo(1f, tween(200)) }
-                                }
-                            } else {
-                                scope.launch {
-                                    launch { offsetY.animateTo(0f, tween(200)) }
-                                    launch { scale.animateTo(1f, tween(200)) }
-                                }
-                            }
-                        }
-                    )
+    ) { p ->
+        Box(Modifier.fillMaxSize().padding(p).pointerInput(Unit) {
+            detectDragGestures(onDrag = { change, drag ->
+                if (kotlin.math.abs(drag.y) > kotlin.math.abs(drag.x) || offY.value != 0f) {
+                    change.consume(); scope.launch { offY.snapTo(offY.value + drag.y); if (offY.value > 0) scale.snapTo((1f - (offY.value / 1500f)).coerceIn(0.7f, 1f)) else scale.snapTo(1f) }
                 }
-                .graphicsLayer {
-                    translationY = offsetY.value
-                    scaleX = scale.value
-                    scaleY = scale.value
-                }
-        ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize(),
-                pageSpacing = 16.dp,
-                beyondViewportPageCount = 2
-            ) { page ->
-                val image = images[page]
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (image.type == MediaType.VIDEO) {
-                        VideoPlayer(
-                            uri = image.uri,
-                            isActive = pagerState.currentPage == page,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        AsyncImage(
-                            model = image.uri,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
+            }, onDragEnd = {
+                if (offY.value > 300f) onBack()
+                else if (offY.value < -200f) { showInfo = true; scope.launch { launch { offY.animateTo(0f, tween(200)) }; launch { scale.animateTo(1f, tween(200)) } } }
+                else { scope.launch { launch { offY.animateTo(0f, tween(200)) }; launch { scale.animateTo(1f, tween(200)) } } }
+            })
+        }.graphicsLayer { translationY = offY.value; scaleX = scale.value; scaleY = scale.value }) {
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize(), pageSpacing = 16.dp, beyondViewportPageCount = 2) { pg ->
+                val img = images[pg]
+                Box(Modifier.fillMaxSize(), Alignment.Center) {
+                    if (img.type == MediaType.VIDEO) VideoPlayer(img.uri, pg == pagerState.currentPage, Modifier.fillMaxSize())
+                    else AsyncImage(img.uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 }
             }
         }
     }
-
-    if (showInfoSheet && currentImage != null) {
-        ModalBottomSheet(
-            onDismissRequest = { showInfoSheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-        ) {
-            ImageInfoContent(image = currentImage!!)
+    if (showInfo && cur != null) {
+        ModalBottomSheet({ showInfo = false }, sheetState = sheetState, dragHandle = { BottomSheetDefaults.DragHandle() }) {
+            Column(Modifier.fillMaxWidth().padding(16.dp).navigationBarsPadding()) {
+                Text("Details", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                InfoItem("Name", cur.displayName)
+                val df = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+                InfoItem("Date", if (cur.dateAdded > 0) df.format(Date(cur.dateAdded * 1000)) else "???")
+                InfoItem("Album", File(cur.bucketName).name)
+                InfoItem("Path", cur.fullPath)
+                if (cur.duration > 0) { val mins = cur.duration / 60000; val secs = (cur.duration % 60000) / 1000; InfoItem("Duration", String.format("%02d:%02d", mins, secs)) }
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
 
 @Composable
-fun ImageInfoContent(image: MediaItem) {
-    val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale.getDefault()) }
-    val dateString = remember(image.dateAdded) { 
-        if (image.dateAdded > 0) dateFormatter.format(Date(image.dateAdded * 1000)) else "Unknown"
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .navigationBarsPadding()
-    ) {
-        Text(
-            text = "Details",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        InfoRow(label = "Filename", value = image.displayName)
-        InfoRow(label = "Date Added", value = dateString)
-        InfoRow(label = "Album", value = File(image.bucketName).name)
-        InfoRow(label = "Path", value = image.fullPath)
-        
-        if (image.duration > 0) {
-            val minutes = image.duration / 60000
-            val seconds = (image.duration % 60000) / 1000
-            InfoRow(label = "Duration", value = String.format("%02d:%02d", minutes, seconds))
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-fun InfoRow(label: String, value: String) {
-    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+fun InfoItem(label: String, value: String) {
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }

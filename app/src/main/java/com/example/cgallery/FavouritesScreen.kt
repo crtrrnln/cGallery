@@ -1,7 +1,5 @@
 package com.example.cgallery
-
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -20,42 +18,15 @@ fun FavouritesScreen(
     onImageClick: (GalleryKey) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Favourites") }
-            )
-        }
-    ) { innerPadding ->
-        val currentOnImageClick by rememberUpdatedState(onImageClick)
+    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Favourites") }) }) { p ->
         if (favoriteImages.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No favourites yet",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Box(Modifier.fillMaxSize().padding(p), contentAlignment = Alignment.Center) {
+                Text("nothing here yet", style = MaterialTheme.typography.bodyLarge)
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(2.dp)
-            ) {
-                itemsIndexed(favoriteImages, key = { _, it -> it.id }) { index, image ->
-                    MediaGridItem(
-                        image = image,
-                        index = index,
-                        onClick = {
-                            currentOnImageClick(GalleryKey.Viewer(index))
-                        }
-                    )
+            LazyVerticalGrid(GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
+                itemsIndexed(favoriteImages, key = { _, i -> i.id }) { index, img ->
+                    MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index)) })
                 }
             }
         }

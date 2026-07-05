@@ -1,5 +1,4 @@
 package com.example.cgallery
-
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
@@ -8,36 +7,21 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.*
-import com.example.cgallery.data.PhysicalAlbumEntity
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.MediaType
 import com.example.cgallery.ui.MediaGridItem
 import kotlinx.coroutines.launch
 
@@ -53,174 +37,71 @@ fun GalleryScreen(
     allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val context = LocalContext.current; val scope = rememberCoroutineScope()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
 
-    val currentSelectedIds by rememberUpdatedState(selectedIds)
-    val currentIsSelectionMode by rememberUpdatedState(isSelectionMode)
-    val currentOnImageClick by rememberUpdatedState(onImageClick)
+    BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
 
-    val onToggleSelection = remember {
-        { id: Long ->
-            if (isExternalPicker && !allowMultiple) {
-                imagesMap[id]?.uri?.let { onMediaSelected(listOf(it)) }
-            } else {
-                selectedIds = if (id in currentSelectedIds) {
-                    currentSelectedIds - id
-                } else {
-                    currentSelectedIds + id
-                }
-            }
-        }
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet() }
     }
 
-    val onLongClickItem = remember {
-        { id: Long ->
-            if (currentSelectedIds.isEmpty()) {
-                selectedIds = setOf(id)
-            }
-        }
-    }
-
-    BackHandler(enabled = isSelectionMode) {
-        selectedIds = emptySet()
-    }
-
-    val deleteLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            selectedIds = emptySet()
-        }
-    }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
+    Scaffold(topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    if (isSelectionMode && !isExternalPicker) {
-                        Text(
-                            "${selectedIds.size} Selected",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    } else if (isExternalPicker) {
-                        Text(
-                            if (allowMultiple) "${selectedIds.size} Selected" else "Select Item",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    } else {
+                    if (isSelectionMode && !isExternalPicker) { Text("${selectedIds.size} selected") } 
+                    else if (isExternalPicker) { Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") } 
+                    else {
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text(
-                                "cGallery",
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "v0.7",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
+                            Text("cGallery")
+                            Spacer(Modifier.width(4.dp))
+                            Text("v0.7", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
                         }
                     }
                 },
                 navigationIcon = {
-                    if (isSelectionMode && !isExternalPicker) {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear Selection")
-                        }
-                    } else if (isExternalPicker) {
-                        IconButton(onClick = { onMediaSelected(emptyList()) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel")
-                        }
-                    }
+                    if (isSelectionMode && !isExternalPicker) { IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } } 
+                    else if (isExternalPicker) { IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") } }
                 },
                 actions = {
                     if (isExternalPicker && allowMultiple) {
-                        IconButton(
-                            onClick = {
-                                val uris = selectedIds.mapNotNull { imagesMap[it]?.uri }
-                                onMediaSelected(uris)
-                            },
-                            enabled = selectedIds.isNotEmpty()
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = "Confirm Selection")
-                        }
+                        IconButton({ onMediaSelected(selectedIds.mapNotNull { imagesMap[it]?.uri }) }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
                     } else if (isSelectionMode && !isExternalPicker) {
-                        IconButton(onClick = {
-                            onAddToAlbum(selectedIds, true)
-                            selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "Move to Album")
-                        }
-                        IconButton(onClick = {
-                            onAddToAlbum(selectedIds, false)
-                            selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.Default.Add, contentDescription = "Copy to Album")
-                        }
-                        IconButton(onClick = {
-                            val selectedUris = selectedIds.mapNotNull { imagesMap[it]?.uri }
-                            val shareIntent = Intent().apply {
-                                action = Intent.ACTION_SEND_MULTIPLE
-                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(selectedUris))
-                                type = "*/*"
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
-                        }) {
-                            Icon(Icons.Default.Share, contentDescription = "Share")
-                        }
-                        IconButton(onClick = {
-                            val selectedUris = selectedIds.mapNotNull { imagesMap[it]?.uri }
+                        IconButton({ onAddToAlbum(selectedIds, true); selectedIds = emptySet() }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
+                        IconButton({ onAddToAlbum(selectedIds, false); selectedIds = emptySet() }) { Icon(Icons.Default.Add, "copy") }
+                        IconButton({
+                            val uris = selectedIds.mapNotNull { imagesMap[it]?.uri }
+                            val i = Intent(Intent.ACTION_SEND_MULTIPLE).apply { putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris)); type = "*/*" }
+                            context.startActivity(Intent.createChooser(i, "Share"))
+                        }) { Icon(Icons.Default.Share, "share") }
+                        IconButton({
+                            val uris = selectedIds.mapNotNull { imagesMap[it]?.uri }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, selectedUris)
-                                deleteLauncher.launch(IntentSenderRequest.Builder(pendingIntent.intentSender).build())
+                                val p = MediaStore.createDeleteRequest(context.contentResolver, uris)
+                                deleteLauncher.launch(IntentSenderRequest.Builder(p.intentSender).build())
                             } else {
-                                scope.launch {
-                                    selectedUris.forEach { uri ->
-                                        context.contentResolver.delete(uri, null, null)
-                                    }
-                                    selectedIds = emptySet()
-                                }
+                                scope.launch { uris.forEach { context.contentResolver.delete(it, null, null) }; selectedIds = emptySet() }
                             }
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
-                        }
+                        }) { Icon(Icons.Default.Delete, "delete") }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
             )
         },
         modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(2.dp)
-        ) {
-            itemsIndexed(images, key = { _, image -> image.id }) { index, image ->
-                val isSelected = image.id in selectedIds
-                MediaGridItem(
-                    image = image,
-                    index = index,
-                    isSelected = isSelected,
-                    isSelectionMode = isSelectionMode,
+    ) { p ->
+        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
+            itemsIndexed(images, key = { _, i -> i.id }) { index, img ->
+                val isSel = img.id in selectedIds
+                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode,
                     onClick = {
-                        if (currentIsSelectionMode) {
-                            onToggleSelection(image.id)
-                        } else {
-                            currentOnImageClick(GalleryKey.Viewer(index))
-                        }
+                        if (isSelectionMode) {
+                            if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))
+                            else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id
+                        } else onImageClick(GalleryKey.Viewer(index))
                     },
-                    onLongClick = {
-                        onLongClickItem(image.id)
-                    }
+                    onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) }
                 )
             }
         }

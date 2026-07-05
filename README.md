@@ -19,7 +19,7 @@ v0.7
 - handles basic folder structure automatically
 - tries to stay fast even with bigger collections
 - runs locally (no cloud or anything like that)
-- allows you to export and import: your album group structure, organisation of albums/album groups, custom covers of albums/album groups, and monitored folders.
+- allows you to export and import: your album group structure, organisation of albums/album groups, custom covers of albums/album groups, favourited files, and monitored folders.
 
 ---
 

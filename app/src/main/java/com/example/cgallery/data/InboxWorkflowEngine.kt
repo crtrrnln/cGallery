@@ -56,12 +56,9 @@ class InboxWorkflowEngine(
     fun retryFailedItem(item: InboxItemEntity) {
         scope.launch {
             inboxDao.updateStatus(item.id, InboxStatus.RetryPending, System.currentTimeMillis())
-            // Implementation of retry logic would reset the operation status or create a new one
             val op = item.operationId?.let { operationDao.getOperationById(it) }
             if (op != null) {
                 operationDao.updateOperation(op.copy(status = OperationStatus.Queued, errorMessage = null))
-            } else {
-                // If no operation exists, re-submit?
             }
         }
     }

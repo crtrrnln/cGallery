@@ -19,7 +19,6 @@ class EnforcementEngine(
 
     fun start() {
         scope.launch {
-            // Monitor for new pending items
             inboxDao.getPendingItems().collectLatest { items ->
                 if (items.isNotEmpty()) {
                     checkAndTriggerSession(items)
@@ -33,7 +32,6 @@ class EnforcementEngine(
         
         if (!settings.isEnforcementEnabled) return
         
-        // Check snooze
         if (settings.snoozeExpirationTime > System.currentTimeMillis()) {
             return
         }
@@ -42,12 +40,8 @@ class EnforcementEngine(
             return
         }
 
-        // If Shizuku is enabled and available, we can launch automatically
         if (settings.isShizukuEnabled && shizukuManager.hasPermission() && settings.launchAutomatically) {
-            // Trigger session launch via ShizukuManager
             shizukuManager.launchAppToInbox()
-        } else {
-            // If not available, we can't launch automatically but UI can still react when app is opened
         }
     }
     
