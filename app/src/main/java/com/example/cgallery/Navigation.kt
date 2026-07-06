@@ -97,7 +97,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 val items by vm.mediaItems.collectAsState()
@@ -119,7 +119,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 val items by vm.mediaItems.collectAsState()
@@ -144,7 +144,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val needsRefresh by inboxViewModel.needsRefresh.collectAsState()
@@ -172,7 +172,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val items by inboxViewModel.pendingItems.collectAsState()
@@ -192,7 +192,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 InboxSettingsScreen(viewModel = inboxViewModel, onBack = onBack)
@@ -200,7 +200,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.AppSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 com.example.cgallery.ui.SettingsScreen(
@@ -212,7 +212,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.StorageDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 com.example.cgallery.ui.StorageDetailScreen(
@@ -224,7 +224,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Diagnostics>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 DiagnosticsScreen(inboxViewModel = inboxViewModel, onBack = onBack)
@@ -232,7 +232,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val items by vm.mediaItems.collectAsState()
@@ -261,7 +261,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val items by vm.mediaItems.collectAsState()
@@ -289,7 +289,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val byBuck by vm.mediaByBucket.collectAsState()
@@ -312,7 +312,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) { key ->
                 val items by vm.mediaItems.collectAsState()
@@ -367,7 +367,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 val favs by vm.favouriteMedia.collectAsState()
@@ -382,7 +382,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                    detailPlaceholder = { HomeScreen(version = "v0.81") }
                 )
             ) {
                 val query by vm.searchQuery.collectAsState()

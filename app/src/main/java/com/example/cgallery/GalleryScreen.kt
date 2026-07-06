@@ -60,7 +60,7 @@ fun GalleryScreen(
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("cGallery")
                             Spacer(Modifier.width(4.dp))
-                            Text("v0.8", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                            Text("v0.81", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
                         }
                     }
                 },

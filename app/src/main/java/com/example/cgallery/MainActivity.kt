@@ -52,6 +52,7 @@ class MainActivity : FragmentActivity() {
         
         val settingsRepo = AppSettingsRepository(this)
         val bioHelper = BiometricHelper(this)
+        val db = VirtualAlbumDatabase.getDatabase(this)
         
         lifecycleScope.launch {
             val settings = settingsRepo.settingsFlow.first()
@@ -59,6 +60,17 @@ class MainActivity : FragmentActivity() {
                 _isLocked.value = true
                 bioHelper.authenticate(this@MainActivity) { success ->
                     if (success) _isLocked.value = false else finish()
+                }
+            }
+
+            if (intent.getStringExtra("TARGET_SCREEN") != "INBOX" && settings.isEnforcementEnabled && settings.requireInboxBeforeGallery) {
+                val pending = db.inboxDao().getPendingItems().first()
+                if (pending.isNotEmpty()) {
+                    val isSnoozedTime = settings.snoozeExpirationTime > System.currentTimeMillis()
+                    val isSnoozedItems = settings.snoozeItemThreshold > 0 && pending.size < settings.snoozeItemThreshold
+                    if (!isSnoozedTime && !isSnoozedItems) {
+                        _backstackState.value = listOf(GalleryKey.Inbox(true))
+                    }
                 }
             }
         }

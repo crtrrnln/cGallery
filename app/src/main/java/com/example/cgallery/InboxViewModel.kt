@@ -105,6 +105,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
+            InboxManager.isBulkProcessing = true
             _isScanning.value = true 
             _needsRefresh.value = true
             val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
@@ -121,6 +122,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             _isScanning.value = false
+            InboxManager.isBulkProcessing = false
             _operationResult.emit("processed $successCount/${ids.size}")
         }
     }

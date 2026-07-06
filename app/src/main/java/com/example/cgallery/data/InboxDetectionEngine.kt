@@ -12,7 +12,12 @@ import java.io.File
 class InboxDetectionEngine(private val context: Context, private val inboxManager: InboxManager, private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
     private val db = VirtualAlbumDatabase.getDatabase(context); private val folderDao = db.monitoredFolderDao()
     private val fileObservers = mutableMapOf<String, FileObserver>()
-    private val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) { override fun onChange(self: Boolean) { scope.launch { inboxManager.scanNow() } } }
+    private val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) { 
+        override fun onChange(self: Boolean) { 
+            if (InboxManager.isBulkProcessing) return
+            scope.launch { inboxManager.scanNow() } 
+        } 
+    }
 
     fun start() {
         context.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, contentObserver)

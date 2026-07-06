@@ -34,6 +34,8 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     val mediaItems: StateFlow<List<MediaItem>> = combine(_mediaItems, inboxStateFlow, enforcementEnabledFlow) { items, inboxState, isEnforcement ->
         if (items.isEmpty()) return@combine emptyList()
+        if (InboxManager.isBulkProcessing) return@combine mediaItems.value // Stop re-mapping during bulk moves
+
         val (pendingIds, completedMap) = inboxState
 
         if ((!isEnforcement || pendingIds.isEmpty()) && completedMap.isEmpty()) items

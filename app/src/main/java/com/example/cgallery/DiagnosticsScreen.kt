@@ -36,27 +36,29 @@ fun DiagnosticsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item { DebugHeader("Inbox State") }
-            item { DebugRow("Pending", pendingItems.size.toString()) }
-            item { DebugRow("Total Found", stats?.totalDetected?.toString() ?: "0") }
-            item { DebugRow("Total Done", stats?.totalCompleted?.toString() ?: "0") }
+            item { DebugRow("Pending Items", pendingItems.size.toString()) }
+            item { DebugRow("Total Detected", stats?.totalDetected?.toString() ?: "0") }
+            item { DebugRow("Total Organised", stats?.totalCompleted?.toString() ?: "0") }
             item { DebugRow("Total Failed", stats?.totalFailed?.toString() ?: "0") }
             
             item { DebugHeader("Enforcement") }
             item { DebugRow("Active", settings.isEnforcementEnabled.toString()) }
             item { DebugRow("Shizuku", settings.isShizukuEnabled.toString()) }
-            item { DebugRow("Snooze End", settings.snoozeExpirationTime.toString()) }
-            item { DebugRow("Snooze Count", settings.currentSnoozeCount.toString()) }
+            
+            val isSnoozedTime = settings.snoozeExpirationTime > System.currentTimeMillis()
+            item { DebugRow("Time Snooze", if (isSnoozedTime) "Until ${settings.snoozeExpirationTime}" else "Inactive") }
+            
+            val threshold = settings.snoozeItemThreshold
+            item { DebugRow("Item Snooze", if (threshold > 0) "${pendingItems.size} / $threshold" else "Inactive") }
 
             item { DebugHeader("Performance") }
             stats?.let { s ->
-                item { DebugRow("Processing Time", "${s.totalProcessingTimeMs}ms") }
+                item { DebugRow("Avg Proc Time", if (s.totalCompleted > 0) "${s.totalProcessingTimeMs / s.totalCompleted}ms" else "0ms") }
             }
         }
     }
@@ -64,25 +66,13 @@ fun DiagnosticsScreen(
 
 @Composable
 private fun DebugHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(vertical = 8.dp),
-        color = MaterialTheme.colorScheme.primary
-    )
+    Text(text = title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
 private fun DebugRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontFamily = FontFamily.Monospace
-        )
+        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
     }
 }

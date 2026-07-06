@@ -16,41 +16,28 @@ class EnforcementEngine(
 ) {
     private val db = VirtualAlbumDatabase.getDatabase(context)
     private val inboxDao = db.inboxDao()
-
     private var lastLaunchTime = 0L
 
     fun start() {
         scope.launch {
             inboxDao.getPendingItems().collectLatest { items ->
-                val detectedOnly = items.filter { it.status == InboxStatus.Detected }
-                if (detectedOnly.isNotEmpty()) {
-                    checkAndTriggerSession(detectedOnly)
-                }
+                if (items.isNotEmpty()) checkAndTriggerSession(items)
             }
         }
     }
 
     private suspend fun checkAndTriggerSession(items: List<InboxItemEntity>) {
-        if (System.currentTimeMillis() - lastLaunchTime < 5000) return
+        if (System.currentTimeMillis() - lastLaunchTime < 10000) return
         val settings = settingsRepository.settingsFlow.first()
-        
         if (!settings.isEnforcementEnabled) return
         
-        if (settings.snoozeExpirationTime > System.currentTimeMillis()) {
-            return
-        }
-        
-        if (settings.snoozeItemThreshold > 0 && items.size < settings.snoozeItemThreshold) {
-            return
-        }
+        val isSnoozedTime = settings.snoozeExpirationTime > System.currentTimeMillis()
+        val isSnoozedItems = settings.snoozeItemThreshold > 0 && items.size < settings.snoozeItemThreshold
+        if (isSnoozedTime || isSnoozedItems) return
 
         if (settings.isShizukuEnabled && shizukuManager.hasPermission() && settings.launchAutomatically) {
             shizukuManager.launchAppToInbox()
             lastLaunchTime = System.currentTimeMillis()
         }
-    }
-    
-    suspend fun incrementSnoozeCount() {
-        settingsRepository.incrementSnoozeCount()
     }
 }

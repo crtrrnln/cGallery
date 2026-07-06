@@ -7,6 +7,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class InboxManager(private val context: Context) {
+    companion object {
+        var isBulkProcessing = false
+    }
     private val db = VirtualAlbumDatabase.getDatabase(context)
     private val inboxDao = db.inboxDao(); private val folderDao = db.monitoredFolderDao(); private val statsDao = db.inboxStatsDao()
     private val physicalAlbumManager = PhysicalAlbumManager(context)
