@@ -11,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.example.cgallery.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,7 +35,13 @@ fun StorageDetailScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onAlbu
                 }
                 item { SectionHeader("Top Folders") }
                 items(s.buckets.take(15)) { buck ->
-                    ListItem(headlineContent = { Text(buck.name) }, supportingContent = { Text("${buck.count} files | ${formatSize(buck.imageSize + buck.videoSize)}") }, leadingContent = { Icon(Icons.Default.Folder, null) }, modifier = Modifier.clickable { onAlbumClick(buck.path) })
+                    val drive = if (buck.volumeName == "external_primary") "Internal" else "SD Card"
+                    ListItem(
+                        headlineContent = { Text(buck.name) }, 
+                        supportingContent = { Text("$drive | ${buck.count} files (${formatSize(buck.imageSize + buck.videoSize)})") }, 
+                        leadingContent = { Icon(Icons.Default.Folder, null) }, 
+                        modifier = Modifier.clickable { onAlbumClick(buck.path) }
+                    )
                 }
                 item { SectionHeader("Maintenance") }
                 item { ListItem(headlineContent = { Text("Cache Management") }, supportingContent = { Text("Regenerate thumbnails if scrolling is slow") }, trailingContent = { Button({ showClearCacheConf = true }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)) { Text("Clear") } }) }

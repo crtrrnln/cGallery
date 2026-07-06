@@ -217,7 +217,8 @@ fun GalleryNavDisplay(
             ) {
                 com.example.cgallery.ui.StorageDetailScreen(
                     viewModel = settingsViewModel,
-                    onBack = onBack
+                    onBack = onBack,
+                    onAlbumClick = { onNavigate(GalleryKey.AlbumDetail(it)) }
                 )
             }
 
