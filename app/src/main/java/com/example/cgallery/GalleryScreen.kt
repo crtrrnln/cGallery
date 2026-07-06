@@ -41,32 +41,23 @@ fun GalleryScreen(
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
-
     BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
-
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet(); onReloadMedia() }
     }
-
-    val appSettingsRepository = remember { AppSettingsRepository(context) }
-    val appSettings by appSettingsRepository.settingsFlow.collectAsState(initial = AppSettings())
+    val appSettingsRepo = remember { AppSettingsRepository(context) }
+    val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
 
     Scaffold(topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    if (isSelectionMode && !isExternalPicker) { Text("${selectedIds.size} selected") } 
-                    else if (isExternalPicker) { Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") } 
-                    else {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("cGallery")
-                            Spacer(Modifier.width(4.dp))
-                            Text("v0.81", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
-                        }
-                    }
+                    if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected")
+                    else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item")
+                    else Row(verticalAlignment = Alignment.Bottom) { Text("cGallery"); Spacer(Modifier.width(4.dp)); Text("v0.82", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)) }
                 },
                 navigationIcon = {
-                    if (isSelectionMode && !isExternalPicker) { IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } } 
-                    else if (isExternalPicker) { IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") } }
+                    if (isSelectionMode && !isExternalPicker) IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") }
+                    else if (isExternalPicker) IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
                 },
                 actions = {
                     if (isExternalPicker && allowMultiple) {
@@ -85,7 +76,7 @@ fun GalleryScreen(
                                 val p = MediaStore.createDeleteRequest(context.contentResolver, uris)
                                 deleteLauncher.launch(IntentSenderRequest.Builder(p.intentSender).build())
                             } else {
-                                scope.launch { uris.forEach { context.contentResolver.delete(it, null, null) }; selectedIds = emptySet() }
+                                scope.launch { uris.forEach { context.contentResolver.delete(it, null, null) }; selectedIds = emptySet(); onReloadMedia() }
                             }
                         }) { Icon(Icons.Default.Delete, "delete") }
                     }

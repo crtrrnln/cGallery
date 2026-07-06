@@ -18,8 +18,8 @@ val OnTertiaryLight = Color(0xFFFFFFFF)
 val TertiaryContainerLight = Color(0xFFFFDDAE)
 val OnTertiaryContainerLight = Color(0xFF281800)
 
-// Dark Theme - Persona Red Palette
-val PrimaryDark = Color(0xFFFFB4AB)
+// Dark Theme - Persona Red Palette (Updated for v0.83 - a bit redder)
+val PrimaryDark = Color(0xFFFF897D)
 val OnPrimaryDark = Color(0xFF690005)
 val PrimaryContainerDark = Color(0xFF93000A)
 val OnPrimaryContainerDark = Color(0xFFFFDAD6)

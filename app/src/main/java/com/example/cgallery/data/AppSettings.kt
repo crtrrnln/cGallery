@@ -15,7 +15,7 @@ enum class GridDensity { COMFORTABLE, COMPACT }
 
 data class AppSettings(
     val isEnforcementEnabled: Boolean = true,
-    val isShizukuEnabled: Boolean = false,
+    val isShizukuEnabled: Boolean = true,
     val launchAutomatically: Boolean = true,
     val requireInboxBeforeGallery: Boolean = true,
     val autoReturnToPreviousApp: Boolean = true,
@@ -47,7 +47,7 @@ class AppSettingsRepository(private val context: Context) {
     val settingsFlow: Flow<AppSettings> = context.appDataStore.data.map { p ->
         AppSettings(
             isEnforcementEnabled = p[Keys.ENFORCEMENT_ENABLED] ?: true,
-            isShizukuEnabled = p[Keys.SHIZUKU_ENABLED] ?: false,
+            isShizukuEnabled = p[Keys.SHIZUKU_ENABLED] ?: true,
             launchAutomatically = p[Keys.LAUNCH_AUTOMATICALLY] ?: true,
             requireInboxBeforeGallery = p[Keys.REQUIRE_INBOX_BEFORE_GALLERY] ?: true,
             autoReturnToPreviousApp = p[Keys.AUTO_RETURN] ?: true,
