@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 
 class EnforcementEngine(
     private val context: Context,
-    private val settingsRepository: EnforcementSettingsRepository,
+    private val settingsRepository: AppSettingsRepository,
     private val shizukuManager: ShizukuManager,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) {

@@ -22,25 +22,33 @@ class PhysicalAlbumManager(context: Context) {
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
     val allAlbums: Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAllAlbums()
 
-    suspend fun syncAlbums(bucketNames: List<String>) {
+    suspend fun syncAlbums(bucketNames: List<String>) = withContext(Dispatchers.IO) {
         val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-        val existingBucketNames = existingAlbums.associateBy { it.bucketName }
+        val existingMap = existingAlbums.associateBy { it.bucketName }
         val newBuckets = bucketNames.toSet()
         
-        val maxSortOrder = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
-        val toInsert = bucketNames.filter { !existingBucketNames.containsKey(it) }.distinct()
+        val toInsert = mutableListOf<PhysicalAlbumEntity>()
+        var maxSort = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
         
-        toInsert.forEachIndexed { index, bucketName ->
-            physicalAlbumDao.insertAlbum(PhysicalAlbumEntity(bucketName = bucketName, isHidden = false, groupId = null, sortOrder = maxSortOrder + 1 + index))
+        bucketNames.distinct().forEach { bucket ->
+            if (!existingMap.containsKey(bucket)) {
+                maxSort++
+                toInsert.add(PhysicalAlbumEntity(bucketName = bucket, isHidden = false, groupId = null, sortOrder = maxSort))
+            }
+        }
+        
+        if (toInsert.isNotEmpty()) {
+            toInsert.forEach { physicalAlbumDao.insertAlbum(it) }
         }
         
         existingAlbums.forEach { album ->
             if (!newBuckets.contains(album.bucketName)) {
-                val file = File(album.bucketName)
-                if (!file.exists() || !file.isDirectory) physicalAlbumDao.deleteAlbum(album)
+                val f = File(album.bucketName)
+                if (!f.exists() || !f.isDirectory) physicalAlbumDao.deleteAlbum(album)
             }
         }
     }
+
     suspend fun toggleAlbumVisibility(bucketName: String) {
         val album = physicalAlbumDao.getAlbumByBucketName(bucketName).first()
         if (album != null) physicalAlbumDao.updateAlbumVisibility(bucketName, !album.isHidden)
@@ -52,8 +60,8 @@ class PhysicalAlbumManager(context: Context) {
     suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int) = physicalAlbumDao.updateAlbumSortOrder(albumId, sortOrder)
     fun getAlbumsByGroup(groupId: Long?): Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAlbumsByGroup(groupId)
 
-    suspend fun createFolder(folderName: String, parentPath: String? = null, groupId: Long? = null): Result<String> {
-        return try {
+    suspend fun createFolder(folderName: String, parentPath: String? = null, groupId: Long? = null): Result<String> = withContext(Dispatchers.IO) {
+        try {
             val parentDir = if (parentPath != null) File(parentPath) else Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
             if (!parentDir.exists()) parentDir.mkdirs()
             val newFolder = File(parentDir, folderName)
@@ -68,13 +76,13 @@ class PhysicalAlbumManager(context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun moveFile(src: String, target: String): Result<String> {
-        return try {
+    suspend fun moveFile(src: String, target: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
             val sf = File(src); val tf = File(target)
-            if (!sf.exists()) return Result.failure(Exception("no src"))
+            if (!sf.exists()) return@withContext Result.failure(Exception("no src"))
             if (!tf.exists()) tf.mkdirs()
             val targetFile = File(tf, sf.name)
-            if (targetFile.exists()) return Result.failure(Exception("exists"))
+            if (targetFile.exists()) return@withContext Result.failure(Exception("exists"))
             if (sf.renameTo(targetFile)) { Result.success(targetFile.absolutePath) } else {
                 sf.copyTo(targetFile, overwrite = false)
                 if (sf.delete()) { Result.success(targetFile.absolutePath) } else {
@@ -85,13 +93,13 @@ class PhysicalAlbumManager(context: Context) {
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    suspend fun copyFile(src: String, target: String): Result<String> {
-        return try {
+    suspend fun copyFile(src: String, target: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
             val sf = File(src); val tf = File(target)
-            if (!sf.exists()) return Result.failure(Exception("no src"))
+            if (!sf.exists()) return@withContext Result.failure(Exception("no src"))
             if (!tf.exists()) tf.mkdirs()
             val targetFile = File(tf, sf.name)
-            if (targetFile.exists()) return Result.failure(Exception("exists"))
+            if (targetFile.exists()) return@withContext Result.failure(Exception("exists"))
             sf.copyTo(targetFile, overwrite = false)
             Result.success(targetFile.absolutePath)
         } catch (e: Exception) { Result.failure(e) }

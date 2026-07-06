@@ -12,10 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.cgallery.data.MediaItem
-import com.example.cgallery.data.MediaType
+import com.example.cgallery.data.*
 import com.example.cgallery.ui.MediaGridItem
 import java.io.File
 
@@ -31,10 +31,14 @@ fun AlbumDetailScreen(
     allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker; var showMenu by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
+
+    val appSettingsRepository = remember { AppSettingsRepository(context) }
+    val appSettings by appSettingsRepository.settingsFlow.collectAsState(initial = AppSettings())
 
     Scaffold(topBar = {
             CenterAlignedTopAppBar(
@@ -75,10 +79,11 @@ fun AlbumDetailScreen(
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { p ->
-        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
+        val columns = if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3
+        LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(images, key = { _, it -> it.id }) { index, img ->
                 val isSel = img.id in selectedIds
-                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode,
+                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode,
                     onClick = {
                         if (isSelectionMode) {
                             if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))

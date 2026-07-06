@@ -15,7 +15,7 @@ class InboxDetectionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val m = InboxManager(this); val sm = ShizukuManager(this); val s = EnforcementSettingsRepository(this)
+        val m = InboxManager(this); val sm = ShizukuManager(this); val s = AppSettingsRepository(this)
         dEng = InboxDetectionEngine(this, m, scope); eEng = EnforcementEngine(this, s, sm, scope); oQue = OperationQueue(this, scope)
         createChannel(); if (Build.VERSION.SDK_INT >= 29) startForeground(101, createNotif(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(101, createNotif())
         dEng.start(); eEng.start(); oQue.start()

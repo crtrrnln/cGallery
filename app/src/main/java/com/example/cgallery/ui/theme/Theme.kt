@@ -1,31 +1,15 @@
 package com.example.cgallery.ui.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.example.cgallery.data.*
 
-private val LightColorScheme = lightColorScheme(
-    primary = PrimaryLight,
-    onPrimary = OnPrimaryLight,
-    primaryContainer = PrimaryContainerLight,
-    onPrimaryContainer = OnPrimaryContainerLight,
-    secondary = SecondaryLight,
-    onSecondary = OnSecondaryLight,
-    secondaryContainer = SecondaryContainerLight,
-    onSecondaryContainer = OnSecondaryContainerLight,
-    tertiary = TertiaryLight,
-    onTertiary = OnTertiaryLight,
-    tertiaryContainer = TertiaryContainerLight,
-    onTertiaryContainer = OnTertiaryContainerLight,
-)
-
-private val DarkColorScheme = darkColorScheme(
+private val InnocentSinRed = darkColorScheme(
     primary = PrimaryDark,
     onPrimary = OnPrimaryDark,
     primaryContainer = PrimaryContainerDark,
@@ -40,19 +24,33 @@ private val DarkColorScheme = darkColorScheme(
     onTertiaryContainer = OnTertiaryContainerDark,
 )
 
+private val EternalPunishmentBlue = darkColorScheme(
+    primary = Color(0xFF82B1FF),
+    onPrimary = Color(0xFF001233),
+    primaryContainer = Color(0xFF0047AB),
+    onPrimaryContainer = Color(0xFFD6E3FF),
+    secondary = Color(0xFF70B2FF),
+    onSecondary = Color(0xFF001A3F),
+    secondaryContainer = Color(0xFF003066),
+    onSecondaryContainer = Color(0xFFD6E3FF)
+)
+
 @Composable
 fun CGalleryTheme(
-    darkTheme: Boolean = true,
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    settingsRepository: AppSettingsRepository? = null,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
+    val actualRepo = remember(settingsRepository) { settingsRepository ?: AppSettingsRepository(context) }
+    val settings by actualRepo.settingsFlow.collectAsState(initial = AppSettings())
+    
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
             dynamicDarkColorScheme(context)
         }
-        else -> DarkColorScheme
+        settings.themeAccent == ThemeAccent.ETERNAL_PUNISHMENT_BLUE -> EternalPunishmentBlue
+        else -> InnocentSinRed
     }
 
     MaterialTheme(

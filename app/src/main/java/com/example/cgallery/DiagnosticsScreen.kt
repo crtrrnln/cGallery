@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.example.cgallery.data.AppSettings
 import com.example.cgallery.data.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -19,7 +20,7 @@ fun DiagnosticsScreen(
 ) {
     val pendingItems by inboxViewModel.pendingItems.collectAsState()
     val stats by inboxViewModel.stats.collectAsState(null)
-    val settings by inboxViewModel.enforcementSettings.collectAsState(EnforcementSettings())
+    val settings by inboxViewModel.enforcementSettings.collectAsState(AppSettings())
 
     Scaffold(
         topBar = {

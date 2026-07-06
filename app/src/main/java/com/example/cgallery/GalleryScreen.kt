@@ -21,7 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.example.cgallery.data.MediaItem
+import com.example.cgallery.data.*
 import com.example.cgallery.ui.MediaGridItem
 import kotlinx.coroutines.launch
 
@@ -48,6 +48,9 @@ fun GalleryScreen(
         if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet(); onReloadMedia() }
     }
 
+    val appSettingsRepository = remember { AppSettingsRepository(context) }
+    val appSettings by appSettingsRepository.settingsFlow.collectAsState(initial = AppSettings())
+
     Scaffold(topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -57,7 +60,7 @@ fun GalleryScreen(
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text("cGallery")
                             Spacer(Modifier.width(4.dp))
-                            Text("v0.73", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                            Text("v0.8", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
                         }
                     }
                 },
@@ -93,10 +96,11 @@ fun GalleryScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         modifier = modifier.fillMaxSize()
     ) { p ->
-        LazyVerticalGrid(columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
+        val columns = if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3
+        LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(images, key = { _, i -> i.id }) { index, img ->
                 val isSel = img.id in selectedIds
-                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode,
+                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode,
                     onClick = {
                         if (isSelectionMode) {
                             if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))

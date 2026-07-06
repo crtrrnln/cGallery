@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.cgallery"
         minSdk = 29
         targetSdk = 37
-        versionCode = 70
-        versionName = "0.73"
+        versionCode = 80
+        versionName = "0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)

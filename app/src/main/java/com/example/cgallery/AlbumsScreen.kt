@@ -53,6 +53,7 @@ fun AlbumsScreen(
     onToggleAlbumVisibility: (String) -> Unit = {},
     onSpecialAlbumClick: (SpecialAlbumType) -> Unit = {},
     onInboxClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onCreateFolder: (String) -> Unit = {},
     selectionMode: Boolean = false,
     externalSelectedAlbums: Set<String>? = null,
@@ -119,7 +120,12 @@ fun AlbumsScreen(
         topBar = {
             CenterAlignedTopAppBar(title = { Text(if (selectionMode) "Select Destinations" else "Albums") }, navigationIcon = {
             if (selectionMode) IconButton(onClick = { onConfirmSelection(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
-            else IconButton(onClick = onInboxClick) { Icon(Icons.Default.Email, "inbox") }
+            else {
+                Row {
+                    IconButton(onClick = onInboxClick) { Icon(Icons.Default.Email, "inbox") }
+                    IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, "settings") }
+                }
+            }
         }, actions = {
             if (selectionMode) {
                 IconButton(onClick = { showCreateFolder = true }) { Icon(Icons.Default.Add, "new alb") }

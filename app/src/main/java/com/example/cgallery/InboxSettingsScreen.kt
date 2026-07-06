@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.cgallery.data.AppSettings
 import com.example.cgallery.data.MediaFolder
 import com.example.cgallery.data.MonitoredFolderEntity
 
@@ -61,7 +62,7 @@ fun InboxSettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            val enforcementSettings by viewModel.enforcementSettings.collectAsState(com.example.cgallery.data.EnforcementSettings())
+            val enforcementSettings by viewModel.enforcementSettings.collectAsState(AppSettings())
 
             Text(
                 text = "Enforcement",

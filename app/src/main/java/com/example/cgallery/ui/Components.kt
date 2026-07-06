@@ -1,4 +1,5 @@
 package com.example.cgallery.ui
+
 import android.graphics.Bitmap
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.*
@@ -23,10 +24,28 @@ import com.example.cgallery.data.*
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MediaGridItem(image: MediaItem, index: Int, isSelected: Boolean = false, isSelectionMode: Boolean = false, onClick: () -> Unit, onLongClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun MediaGridItem(
+    image: MediaItem, 
+    index: Int, 
+    isSelected: Boolean = false, 
+    isSelectionMode: Boolean = false, 
+    efficiencyMode: Boolean = false,
+    onClick: () -> Unit, 
+    onLongClick: () -> Unit = {}, 
+    modifier: Modifier = Modifier
+) {
     val pad = if (isSelectionMode) animateDpAsState(if (isSelected) 8.dp else 2.dp, label = "pad").value else 2.dp
     val ctx = LocalContext.current
-    val req = remember(image.uri) { ImageRequest.Builder(ctx).data(image.uri).bitmapConfig(Bitmap.Config.RGB_565).size(180).build() }
+    
+    val size = if (efficiencyMode) 100 else 180
+    val req = remember(image.uri, efficiencyMode) {
+        ImageRequest.Builder(ctx)
+            .data(image.uri)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .size(size)
+            .crossfade(true)
+            .build() 
+    }
 
     Box(modifier = modifier.aspectRatio(1f).padding(pad).then(if (isSelected) Modifier.clip(RoundedCornerShape(12.dp)) else Modifier).combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         AsyncImage(req, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

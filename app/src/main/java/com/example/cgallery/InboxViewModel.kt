@@ -15,7 +15,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val folderDao = db.monitoredFolderDao()
     private val statsDao = db.inboxStatsDao()
     private val physicalAlbumManager = PhysicalAlbumManager(application)
-    private val enforcementRepository = EnforcementSettingsRepository(application)
+    private val enforcementRepository = AppSettingsRepository(application)
 
     val pendingItems: StateFlow<List<InboxItemEntity>> = inboxDao.getPendingItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

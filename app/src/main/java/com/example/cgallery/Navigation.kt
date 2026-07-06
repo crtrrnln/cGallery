@@ -6,53 +6,45 @@ import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
-import com.example.cgallery.data.MediaItem
+import com.example.cgallery.data.*
 import kotlinx.serialization.Serializable
 
 @Serializable
 sealed interface GalleryKey : NavKey {
     @Serializable
     data object Permission : GalleryKey
-
     @Serializable
     data object Gallery : GalleryKey
-
     @Serializable
     data object Albums : GalleryKey
-
     @Serializable
     data object Favourites : GalleryKey
-
     @Serializable
     data object Search : GalleryKey
-
     @Serializable
     data class Inbox(val isEnforcementSession: Boolean = false) : GalleryKey
-
     @Serializable
     data class InboxProcessing(val startIndex: Int, val isEnforcementSession: Boolean = false) : GalleryKey
-
     @Serializable
     data class InboxAlbumSelection(val inboxIds: Set<Long>, val isMove: Boolean) : GalleryKey
-
     @Serializable
     data object InboxSettings : GalleryKey
-
+    @Serializable
+    data object AppSettings : GalleryKey
+    @Serializable
+    data object StorageDetail : GalleryKey
     @Serializable
     data object Diagnostics : GalleryKey
-
     @Serializable
     data class AlbumDetail(val id: String) : GalleryKey
-
     @Serializable
     data class CoverPicker(val bucketName: String?, val groupId: Long?) : GalleryKey
-
     @Serializable
     data class AlbumSelection(val mediaIds: Set<Long>, val isMove: Boolean) : GalleryKey
-
     @Serializable
     data class GroupDetail(
         val groupId: Long,
@@ -61,7 +53,6 @@ sealed interface GalleryKey : NavKey {
         val selectionIsMove: Boolean = false,
         val isInbox: Boolean = false
     ) : GalleryKey
-
     @Serializable
     data class Viewer(val startIndex: Int) : GalleryKey
 }
@@ -70,14 +61,6 @@ sealed interface GalleryKey : NavKey {
 @Composable
 fun GalleryNavDisplay(
     backstack: List<GalleryKey>,
-    mediaItems: List<MediaItem>,
-    mediaItemsMap: Map<Long, MediaItem>,
-    mediaByBucket: Map<String, List<MediaItem>>,
-    favouriteMedia: List<MediaItem>,
-    searchQuery: String,
-    searchResults: List<MediaItem>,
-    albumResults: List<Pair<String, String>>,
-    onUpdateSearchQuery: (String) -> Unit,
     onAddToAlbum: (List<String>, Set<Long>) -> Unit,
     onMoveToAlbum: (List<String>, Set<Long>) -> Unit,
     onCreateFolder: (String, Long?) -> Unit = { _, _ -> },
@@ -93,8 +76,11 @@ fun GalleryNavDisplay(
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<GalleryKey>()
 
+    val vm: MediaStoreViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val inboxViewModel: InboxViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val settingsViewModel: SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val selectionViewModel: SelectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    
     val selectedPaths by selectionViewModel.selectedPaths.collectAsState()
 
     NavDisplay(
@@ -104,25 +90,21 @@ fun GalleryNavDisplay(
         entryProvider = entryProvider {
             entry<GalleryKey.Permission> {
                 PermissionScreen(
-                    onPermissionGranted = {
-                        onNavigate(GalleryKey.Gallery)
-                    },
-                    onPermissionRequest = {
-                        onReloadMedia()
-                    }
+                    onPermissionGranted = { onNavigate(GalleryKey.Gallery) },
+                    onPermissionRequest = { onReloadMedia() }
                 )
             }
 
             entry<GalleryKey.Gallery>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
+                val items by vm.mediaItems.collectAsState()
+                val itemsMap by vm.mediaItemsMap.collectAsState()
                 GalleryScreen(
-                    images = mediaItems,
-                    imagesMap = mediaItemsMap,
+                    images = items,
+                    imagesMap = itemsMap,
                     onAddToAlbum = { ids, isMove ->
                         selectionViewModel.clearSelection()
                         onNavigate(GalleryKey.AlbumSelection(ids, isMove))
@@ -137,20 +119,16 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Albums>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
+                val items by vm.mediaItems.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState()
                 AlbumsScreen(
-                    images = mediaItems,
-                    mediaByBucket = mediaByBucket,
-                    onAlbumClick = { album ->
-                        onNavigate(GalleryKey.AlbumDetail(album.name))
-                    },
-                    onGroupClick = { groupId ->
-                        onNavigate(GalleryKey.GroupDetail(groupId))
-                    },
+                    images = items,
+                    mediaByBucket = byBuck,
+                    onAlbumClick = { album -> onNavigate(GalleryKey.AlbumDetail(album.name)) },
+                    onGroupClick = { groupId -> onNavigate(GalleryKey.GroupDetail(groupId)) },
                     onToggleAlbumVisibility = onToggleAlbumVisibility,
                     onCreateFolder = { onCreateFolder(it, null) },
                     onSpecialAlbumClick = { type ->
@@ -159,15 +137,14 @@ fun GalleryNavDisplay(
                             SpecialAlbumType.FAVOURITES -> onNavigate(GalleryKey.Favourites)
                         }
                     },
-                    onInboxClick = { onNavigate(GalleryKey.Inbox(isEnforcementSession = false)) }
+                    onInboxClick = { onNavigate(GalleryKey.Inbox(isEnforcementSession = false)) },
+                    onSettingsClick = { onNavigate(GalleryKey.AppSettings) }
                 )
             }
 
             entry<GalleryKey.Inbox>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
                 val needsRefresh by inboxViewModel.needsRefresh.collectAsState()
@@ -181,12 +158,8 @@ fun GalleryNavDisplay(
                         selectionViewModel.clearSelection()
                         onNavigate(GalleryKey.InboxAlbumSelection(ids, isMove))
                     },
-                    onSettingsClick = {
-                        onNavigate(GalleryKey.InboxSettings)
-                    },
-                    onDiagnosticsClick = {
-                        onNavigate(GalleryKey.Diagnostics)
-                    },
+                    onSettingsClick = { onNavigate(GalleryKey.InboxSettings) },
+                    onDiagnosticsClick = { onNavigate(GalleryKey.Diagnostics) },
                     onBack = {
                         if (needsRefresh) {
                             onReloadMedia()
@@ -199,9 +172,7 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.InboxProcessing>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
                 val items by inboxViewModel.pendingItems.collectAsState()
@@ -216,47 +187,58 @@ fun GalleryNavDisplay(
                         },
                         onBack = onBack
                     )
-                } else {
-                    onBack()
-                }
+                } else { onBack() }
             }
 
             entry<GalleryKey.InboxSettings>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
-                InboxSettingsScreen(
-                    viewModel = inboxViewModel,
+                InboxSettingsScreen(viewModel = inboxViewModel, onBack = onBack)
+            }
+
+            entry<GalleryKey.AppSettings>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                )
+            ) {
+                com.example.cgallery.ui.SettingsScreen(
+                    viewModel = settingsViewModel, 
+                    onBack = onBack,
+                    onNavigateToStorage = { onNavigate(GalleryKey.StorageDetail) }
+                )
+            }
+
+            entry<GalleryKey.StorageDetail>(
+                metadata = ListDetailSceneStrategy.listPane(
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
+                )
+            ) {
+                com.example.cgallery.ui.StorageDetailScreen(
+                    viewModel = settingsViewModel,
                     onBack = onBack
                 )
             }
 
             entry<GalleryKey.Diagnostics>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
-                DiagnosticsScreen(
-                    inboxViewModel = inboxViewModel,
-                    onBack = onBack
-                )
+                DiagnosticsScreen(inboxViewModel = inboxViewModel, onBack = onBack)
             }
 
             entry<GalleryKey.InboxAlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
+                val items by vm.mediaItems.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState()
                 AlbumsScreen(
-                    images = mediaItems,
-                    mediaByBucket = mediaByBucket,
+                    images = items,
+                    mediaByBucket = byBuck,
                     onAlbumClick = {},
                     onGroupClick = { groupId ->
                         onNavigate(GalleryKey.GroupDetail(groupId, selectionMode = true, selectionMediaIds = key.inboxIds, selectionIsMove = key.isMove, isInbox = true))
@@ -265,28 +247,27 @@ fun GalleryNavDisplay(
                     externalSelectedAlbums = selectedPaths,
                     onToggleAlbumSelection = { selectionViewModel.togglePath(it) },
                     onCreateFolder = { onCreateFolder(it, null) },
+                    onSettingsClick = { onNavigate(GalleryKey.AppSettings) },
                     onConfirmSelection = { paths ->
                         if (paths.isNotEmpty()) {
                             inboxViewModel.processItems(key.inboxIds, paths, key.isMove)
                             onReloadMedia()
                             onClearSelectionBackstack()
-                        } else {
-                            onBack()
-                        }
+                        } else { onBack() }
                     }
                 )
             }
 
             entry<GalleryKey.AlbumSelection>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
+                val items by vm.mediaItems.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState()
                 AlbumsScreen(
-                    images = mediaItems,
-                    mediaByBucket = mediaByBucket,
+                    images = items,
+                    mediaByBucket = byBuck,
                     onAlbumClick = {},
                     onGroupClick = { groupId ->
                         onNavigate(GalleryKey.GroupDetail(groupId, selectionMode = true, selectionMediaIds = key.mediaIds, selectionIsMove = key.isMove, isInbox = false))
@@ -295,32 +276,23 @@ fun GalleryNavDisplay(
                     externalSelectedAlbums = selectedPaths,
                     onToggleAlbumSelection = { selectionViewModel.togglePath(it) },
                     onCreateFolder = { onCreateFolder(it, null) },
+                    onSettingsClick = { onNavigate(GalleryKey.AppSettings) },
                     onConfirmSelection = { paths ->
                         if (paths.isNotEmpty()) {
-                            if (key.isMove) {
-                                onMoveToAlbum(paths, key.mediaIds)
-                            } else {
-                                onAddToAlbum(paths, key.mediaIds)
-                            }
+                            if (key.isMove) onMoveToAlbum(paths, key.mediaIds) else onAddToAlbum(paths, key.mediaIds)
                             onClearSelectionBackstack()
-                        } else {
-                            onBack()
-                        }
+                        } else { onBack() }
                     }
                 )
             }
 
             entry<GalleryKey.AlbumDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
-                val albumImages = remember(key, mediaByBucket) {
-                    mediaByBucket[key.id] ?: emptyList()
-                }
-
+                val byBuck by vm.mediaByBucket.collectAsState()
+                val albumImages = remember(key, byBuck) { byBuck[key.id] ?: emptyList() }
                 AlbumDetailScreen(
                     bucketName = key.id,
                     images = albumImages,
@@ -328,9 +300,7 @@ fun GalleryNavDisplay(
                         selectionViewModel.clearSelection()
                         onNavigate(GalleryKey.AlbumSelection(ids, isMove))
                     },
-                    onChangeCover = {
-                        onNavigate(GalleryKey.CoverPicker(bucketName = key.id, groupId = null))
-                    },
+                    onChangeCover = { onNavigate(GalleryKey.CoverPicker(bucketName = key.id, groupId = null)) },
                     onImageClick = onNavigate,
                     onBack = onBack,
                     onMediaSelected = onMediaSelected,
@@ -341,23 +311,18 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.GroupDetail>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) { key ->
+                val items by vm.mediaItems.collectAsState()
                 GroupDetailScreen(
                     groupId = key.groupId,
-                    images = mediaItems,
-                    onAlbumClick = { albumName ->
-                        onNavigate(GalleryKey.AlbumDetail(albumName))
-                    },
+                    images = items,
+                    onAlbumClick = { albumName -> onNavigate(GalleryKey.AlbumDetail(albumName)) },
                     onGroupClick = { childGroupId ->
                         onNavigate(GalleryKey.GroupDetail(childGroupId, selectionMode = key.selectionMode, selectionMediaIds = key.selectionMediaIds, selectionIsMove = key.selectionIsMove, isInbox = key.isInbox))
                     },
-                    onChangeCover = {
-                        onNavigate(GalleryKey.CoverPicker(bucketName = null, groupId = key.groupId))
-                    },
+                    onChangeCover = { onNavigate(GalleryKey.CoverPicker(bucketName = null, groupId = key.groupId)) },
                     onCreateFolder = { onCreateFolder(it, key.groupId) },
                     selectionMode = key.selectionMode,
                     selectedAlbums = selectedPaths,
@@ -368,16 +333,10 @@ fun GalleryNavDisplay(
                                 inboxViewModel.processItems(key.selectionMediaIds, paths, key.selectionIsMove)
                                 onReloadMedia()
                             } else {
-                                if (key.selectionIsMove) {
-                                    onMoveToAlbum(paths, key.selectionMediaIds)
-                                } else {
-                                    onAddToAlbum(paths, key.selectionMediaIds)
-                                }
+                                if (key.selectionIsMove) onMoveToAlbum(paths, key.selectionMediaIds) else onAddToAlbum(paths, key.selectionMediaIds)
                             }
                             onClearSelectionBackstack()
-                        } else {
-                            onBack()
-                        }
+                        } else { onBack() }
                     },
                     onBack = onBack,
                     onMediaSelected = onMediaSelected,
@@ -389,22 +348,16 @@ fun GalleryNavDisplay(
             entry<GalleryKey.CoverPicker>(
                 metadata = ListDetailSceneStrategy.detailPane()
             ) { key ->
-                val albumImages = remember(key, mediaByBucket, mediaItems) {
-                    if (key.bucketName != null) {
-                        mediaByBucket[key.bucketName] ?: emptyList()
-                    } else {
-                        mediaItems
-                    }
+                val items by vm.mediaItems.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState()
+                val albumImages = remember(key, byBuck, items) {
+                    if (key.bucketName != null) byBuck[key.bucketName] ?: emptyList() else items
                 }
-
                 CoverPickerScreen(
                     images = albumImages,
                     onCoverSelected = { uri, crop ->
-                        if (key.bucketName != null) {
-                            inboxViewModel.updateAlbumCover(key.bucketName, uri, crop)
-                        } else if (key.groupId != null) {
-                            inboxViewModel.updateGroupCover(key.groupId, uri, crop)
-                        }
+                        if (key.bucketName != null) inboxViewModel.updateAlbumCover(key.bucketName, uri, crop)
+                        else if (key.groupId != null) inboxViewModel.updateGroupCover(key.groupId, uri, crop)
                         onBack()
                     },
                     onBack = onBack
@@ -413,13 +366,12 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Favourites>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
+                val favs by vm.favouriteMedia.collectAsState()
                 FavouritesScreen(
-                    favouriteImages = favouriteMedia,
+                    favouriteImages = favs,
                     onImageClick = onNavigate,
                     onMediaSelected = onMediaSelected,
                     isExternalPicker = isExternalPicker,
@@ -429,16 +381,17 @@ fun GalleryNavDisplay(
 
             entry<GalleryKey.Search>(
                 metadata = ListDetailSceneStrategy.listPane(
-                    detailPlaceholder = {
-                        HomeScreen(version = "v0.73")
-                    }
+                    detailPlaceholder = { HomeScreen(version = "v0.8") }
                 )
             ) {
+                val query by vm.searchQuery.collectAsState()
+                val sRes by vm.searchResults.collectAsState()
+                val aRes by vm.albumResults.collectAsState()
                 SearchScreen(
-                    searchQuery = searchQuery,
-                    searchResults = searchResults,
-                    albumResults = albumResults,
-                    onUpdateSearchQuery = onUpdateSearchQuery,
+                    searchQuery = query,
+                    searchResults = sRes,
+                    albumResults = aRes,
+                    onUpdateSearchQuery = { vm.updateSearchQuery(it) },
                     onImageClick = onNavigate
                 )
             }
@@ -446,17 +399,19 @@ fun GalleryNavDisplay(
             entry<GalleryKey.Viewer>(
                 metadata = ListDetailSceneStrategy.detailPane()
             ) { key ->
+                val items by vm.mediaItems.collectAsState()
+                val favs by vm.favouriteMedia.collectAsState()
+                val byBuck by vm.mediaByBucket.collectAsState()
+                
                 val previousKey = backstack.getOrNull(backstack.size - 2)
                 val filteredMedia = when (previousKey) {
-                    is GalleryKey.AlbumDetail -> mediaByBucket[previousKey.id]
-                    is GalleryKey.Favourites -> favouriteMedia
-                    is GalleryKey.Search -> searchResults
+                    is GalleryKey.AlbumDetail -> byBuck[previousKey.id]
+                    is GalleryKey.Favourites -> favs
                     else -> null
                 }
-
                 ViewerScreen(
                     startIndex = key.startIndex,
-                    mediaItems = mediaItems,
+                    mediaItems = items,
                     onBack = onBack,
                     onReloadMedia = onReloadMedia,
                     filteredMedia = filteredMedia
