@@ -3,6 +3,8 @@ package com.example.cgallery.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
+import android.content.ComponentName
+import android.content.pm.PackageManager
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -65,7 +67,20 @@ class AppSettingsRepository(private val context: Context) {
     suspend fun updateShizukuEnabled(v: Boolean) { context.appDataStore.edit { it[Keys.SHIZUKU_ENABLED] = v } }
     suspend fun setSnooze(exp: Long, threshold: Int) { context.appDataStore.edit { it[Keys.SNOOZE_EXPIRATION] = exp; it[Keys.SNOOZE_THRESHOLD] = threshold; it[Keys.SNOOZE_COUNT] = 0 } }
     suspend fun incrementSnoozeCount() { context.appDataStore.edit { val c = it[Keys.SNOOZE_COUNT] ?: 0; it[Keys.SNOOZE_COUNT] = c + 1 } }
-    suspend fun updateThemeAccent(v: ThemeAccent) { context.appDataStore.edit { it[Keys.THEME_ACCENT] = v.name } }
+    suspend fun updateThemeAccent(v: ThemeAccent) { 
+        context.appDataStore.edit { it[Keys.THEME_ACCENT] = v.name }
+        val pkg = context.packageName
+        val redComp = ComponentName(context, "$pkg.MainActivityRed")
+        val blueComp = ComponentName(context, "$pkg.MainActivityBlue")
+        val pm = context.packageManager
+        if (v == ThemeAccent.INNOCENT_SIN_RED) {
+            pm.setComponentEnabledSetting(redComp, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            pm.setComponentEnabledSetting(blueComp, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        } else {
+            pm.setComponentEnabledSetting(blueComp, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            pm.setComponentEnabledSetting(redComp, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        }
+    }
     suspend fun updateGridDensity(v: GridDensity) { context.appDataStore.edit { it[Keys.GRID_DENSITY] = v.name } }
     suspend fun updateEfficiencyMode(v: Boolean) { context.appDataStore.edit { it[Keys.EFFICIENCY_MODE] = v } }
     suspend fun updateBiometricEnabled(v: Boolean) { context.appDataStore.edit { it[Keys.BIOMETRIC_ENABLED] = v } }

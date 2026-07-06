@@ -57,7 +57,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateT
             item { SectionHeader("System") }
             item {
                 Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("cGallery v0.82", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
+                    Text("cGallery v0.83", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
                         tapCount++; if (tapCount >= 5) { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/crtrrnln/cGallery"))); tapCount = 0 }
                     })
                 }
