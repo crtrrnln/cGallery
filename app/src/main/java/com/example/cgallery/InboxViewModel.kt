@@ -15,6 +15,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val folderDao = db.monitoredFolderDao()
     private val statsDao = db.inboxStatsDao()
     private val physicalAlbumManager = PhysicalAlbumManager(application)
+    private val favouritesManager = FavouritesManager(application)
     private val enforcementRepository = AppSettingsRepository(application)
 
     val pendingItems: StateFlow<List<InboxItemEntity>> = inboxDao.getPendingItems()
@@ -143,6 +144,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGroupCover(groupId: Long, uri: String?, crop: String?) {
         viewModelScope.launch {
             physicalAlbumManager.updateGroupCover(groupId, uri, crop)
+        }
+    }
+
+    fun updateFavouriteCover(uri: String?, crop: String?) {
+        viewModelScope.launch {
+            favouritesManager.updateFavouriteCover(uri, crop)
         }
     }
 

@@ -62,6 +62,7 @@ fun AlbumsScreen(images: List<MediaItem>, mediaByBucket: Map<String, List<MediaI
     val physAlbs by physicalAlbumManager.allAlbums.collectAsState(initial = emptyList())
     val favsManager = remember { FavouritesManager(context) }
     val favIds by favsManager.favouriteIds.collectAsState(initial = emptySet())
+    val favCover by favsManager.favouriteCover.collectAsState(initial = null to null)
     val visAlbs = remember(physAlbs, isHideShow) { if (isHideShow) physAlbs else physAlbs.filter { !it.isHidden } }
     val ungrouped = remember(visAlbs) { visAlbs.filter { it.groupId == null }.distinctBy { it.bucketName } }
     val albDetails = remember(ungrouped, mediaByBucket) {
@@ -91,7 +92,7 @@ fun AlbumsScreen(images: List<MediaItem>, mediaByBucket: Map<String, List<MediaI
                 items(displayItems, key = { when (it) { is DisplayItem.SpecialAlbum -> "s_${it.type}"; is DisplayItem.GroupItem -> "g_${it.group.id}"; is DisplayItem.AlbumItem -> "a_${it.album.name}" } }) { item ->
                     val curIdx = displayItems.indexOf(item); val canUp = curIdx > 0 && (displayItems[curIdx - 1] is DisplayItem.GroupItem || displayItems[curIdx - 1] is DisplayItem.AlbumItem); val canDown = curIdx < displayItems.size - 1 && (displayItems[curIdx + 1] is DisplayItem.GroupItem || displayItems[curIdx + 1] is DisplayItem.AlbumItem)
                     when (item) {
-                        is DisplayItem.SpecialAlbum -> SpecialAlbumItem(name = item.name, type = item.type, images = images, favouriteIds = favIds, enabled = !selectionMode, onClick = { onSpecialAlbumClick(item.type) })
+                        is DisplayItem.SpecialAlbum -> SpecialAlbumItem(name = item.name, type = item.type, images = images, favouriteIds = favIds, customCover = if (item.type == SpecialAlbumType.FAVOURITES) favCover else null to null, enabled = true, onClick = { if (selectionMode) { /* Disabled as per request */ } else onSpecialAlbumClick(item.type) })
                         is DisplayItem.GroupItem -> GroupAlbumItem(group = item.group, physicalAlbums = physAlbs, mediaByBucket = mediaByBucket, allGroups = allG, albumsByGroup = { gid -> grouped[gid] ?: emptyList() }, onGroupClick = { onGroupClick(item.group.id) }, onLongClick = { if (!selectionMode) { selGForMove = item.group; showMoveG = true } }, onMoveUp = { if (canUp) scope.launch { performRootSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performRootSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = showReorder)
                         is DisplayItem.AlbumItem -> AlbumItem(album = item.album, isHidden = item.entity.isHidden, isHideShowMode = isHideShow, selectionMode = selectionMode, isSelected = selAlbums.contains(item.album.name), entity = item.entity, onClick = { if (selectionMode) onToggleAlbumSelection(item.album.name) else if (isHideShow) onToggleAlbumVisibility(item.album.name) else onAlbumClick(item.album) }, onLongClick = { if (!selectionMode && !isHideShow) { selAlbForG = item.album; showMoveToG = true } }, onMoveUp = { if (canUp) scope.launch { performRootSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performRootSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = showReorder)
                     }
@@ -117,12 +118,12 @@ fun GroupSelectionRow(group: AlbumGroupEntity, allG: List<AlbumGroupEntity>, sel
     Column { Row(Modifier.fillMaxWidth().clickable { onSelect(group.id) }.padding(start = (depth * 16 + 12).dp, top = 12.dp, bottom = 12.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(selId == group.id, { onSelect(group.id) }); Spacer(Modifier.width(8.dp)); Text(group.name) }; allG.filter { it.parentId == group.id }.forEach { GroupSelectionRow(it, allG, selId, onSelect, depth + 1) } }
 }
 @Composable
-fun SpecialAlbumItem(name: String, type: SpecialAlbumType, images: List<MediaItem>, favouriteIds: Set<Long>, enabled: Boolean = true, onClick: () -> Unit) {
-    val img = remember(type, images, favouriteIds) { if (type == SpecialAlbumType.RECENTS) images.firstOrNull() else images.find { it.id in favouriteIds } }
+fun SpecialAlbumItem(name: String, type: SpecialAlbumType, images: List<MediaItem>, favouriteIds: Set<Long>, customCover: Pair<String?, String?> = null to null, enabled: Boolean = true, onClick: () -> Unit) {
+    val imgUri = remember(type, images, favouriteIds, customCover) { if (customCover.first != null) customCover.first else if (type == SpecialAlbumType.RECENTS) images.firstOrNull()?.uri?.toString() else images.find { it.id in favouriteIds }?.uri?.toString() }
     val count = remember(type, images, favouriteIds) { if (type == SpecialAlbumType.RECENTS) images.size else favouriteIds.size }
     Column(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier.graphicsLayer { alpha = 0.38f })) {
         Box(Modifier.aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            if (img != null) AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(img.uri).crossfade(true).size(300).build(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (imgUri != null) AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(imgUri).crossfade(true).size(300).build(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             else Icon(if (type == SpecialAlbumType.RECENTS) Icons.Default.History else Icons.Default.Favorite, null, Modifier.size(48.dp).align(Alignment.Center), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f))
         }
         Spacer(Modifier.height(8.dp)); Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

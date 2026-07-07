@@ -53,7 +53,7 @@ fun GalleryScreen(
                 title = {
                     if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected")
                     else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item")
-                    else Row(verticalAlignment = Alignment.Bottom) { Text("cGallery"); Spacer(Modifier.width(4.dp)); Text("v0.83", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)) }
+                    else Row(verticalAlignment = Alignment.Bottom) { Text("cGallery"); Spacer(Modifier.width(4.dp)); Text("v0.84", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)) }
                 },
                 navigationIcon = {
                     if (isSelectionMode && !isExternalPicker) IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") }
