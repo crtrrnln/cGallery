@@ -36,7 +36,7 @@ fun AlbumDetailScreen(bucketName: String, images: List<MediaItem>, onAddToAlbum:
         LazyVerticalGrid(columns = GridCells.Fixed(if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(images, key = { _, it -> it.id }) { index, img ->
                 val isSel = img.id in selectedIds
-                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode, onClick = { if (isSelectionMode) { if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri)) else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id } else onImageClick(GalleryKey.Viewer(index)) }, onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) })
+                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode, onClick = { if (isSelectionMode) { if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri)) else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id } else onImageClick(GalleryKey.Viewer(index, albumId = bucketName)) }, onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) })
             }
         }
     }

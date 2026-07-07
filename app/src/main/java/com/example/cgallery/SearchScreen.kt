@@ -45,7 +45,7 @@ fun SearchScreen(
             if (searchResults.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) { Text("Photos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
                 itemsIndexed(searchResults, key = { _, i -> i.id }) { index, img ->
-                    MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index)) })
+                    MediaGridItem(image = img, index = index, onClick = { onImageClick(GalleryKey.Viewer(index, isSearch = true)) })
                 }
             }
             if (searchQuery.isNotBlank() && searchResults.isEmpty() && albumResults.isEmpty()) {

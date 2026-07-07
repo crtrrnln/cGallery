@@ -45,7 +45,7 @@ fun FavouritesScreen(favouriteImages: List<MediaItem>, onImageClick: (GalleryKey
         else LazyVerticalGrid(columns = GridCells.Fixed(if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(favouriteImages, key = { _, i -> i.id }) { index, img ->
                 val isSel = img.id in selectedIds
-                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode, onClick = { if (isSelectionMode) { if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri)) else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id } else onImageClick(GalleryKey.Viewer(index)) }, onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) })
+                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode, onClick = { if (isSelectionMode) { if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri)) else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id } else onImageClick(GalleryKey.Viewer(index, isFavourites = true)) }, onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) })
             }
         }
     }

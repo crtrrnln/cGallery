@@ -56,10 +56,7 @@ fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Uni
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
         if (res.resultCode == Activity.RESULT_OK) { 
             onReloadMedia()
-            scope.launch { 
-                images = MediaStoreDataSource(context).fetchMedia(since = 0)
-                if (images.isEmpty()) onBack() 
-            } 
+            // The images state will update via recomposition when filteredMedia/mediaItems change from onReloadMedia
         }
     }
     val offY = remember { Animatable(0f) }; val scale = remember { Animatable(1f) }
@@ -93,7 +90,7 @@ fun ViewerScreen(startIndex: Int, mediaItems: List<MediaItem>, onBack: () -> Uni
                                 deleteLauncher.launch(IntentSenderRequest.Builder(p.intentSender).build())
                             } else {
                                 context.contentResolver.delete(img.uri, null, null)
-                                scope.launch { images = MediaStoreDataSource(context).fetchMedia(); if (images.isEmpty()) onBack() }
+                                onReloadMedia()
                             }
                         }) { Icon(Icons.Rounded.Delete, "del", tint = Color.White) }
                     }
