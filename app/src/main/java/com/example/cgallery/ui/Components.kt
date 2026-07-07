@@ -3,7 +3,9 @@ package com.example.cgallery.ui
 import android.graphics.Bitmap
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -14,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -38,7 +41,7 @@ fun MediaGridItem(
     val ctx = LocalContext.current
     
     val size = if (efficiencyMode) 100 else 180
-    val req = remember(image.uri, efficiencyMode) {
+    val req = remember(image.uri, efficiencyMode) { 
         ImageRequest.Builder(ctx)
             .data(image.uri)
             .bitmapConfig(Bitmap.Config.RGB_565)
@@ -55,5 +58,67 @@ fun MediaGridItem(
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(0.2f)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)))
             Icon(Icons.Default.CheckCircle, null, Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp), MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+@Composable
+fun ZoomableImage(
+    uri: android.net.Uri,
+    modifier: Modifier = Modifier
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clip(androidx.compose.ui.graphics.RectangleShape)
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    if (scale > 1f) {
+                        scale = 1f
+                        offset = androidx.compose.ui.geometry.Offset.Zero
+                    } else {
+                        scale = 3f
+                    }
+                })
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val zoomChange = event.calculateZoom()
+                        val panChange = event.calculatePan()
+
+                        if (scale > 1f || zoomChange != 1f) {
+                            scale = (scale * zoomChange).coerceIn(1f, 5f)
+                            if (scale > 1f) {
+                                offset += panChange
+                                event.changes.forEach { it.consume() }
+                            } else {
+                                offset = androidx.compose.ui.geometry.Offset.Zero
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(uri)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
+            contentScale = ContentScale.Fit
+        )
     }
 }

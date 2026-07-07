@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -26,13 +27,15 @@ fun VideoPlayer(
         ExoPlayer.Builder(context).build().apply {
             val mediaItem = MediaItem.fromUri(uri)
             setMediaItem(mediaItem)
+            repeatMode = Player.REPEAT_MODE_ONE
             prepare()
-            playWhenReady = false
         }
     }
 
     LaunchedEffect(isActive) {
-        if (!isActive) {
+        if (isActive) {
+            exoPlayer.play()
+        } else {
             exoPlayer.pause()
         }
     }
@@ -48,6 +51,8 @@ fun VideoPlayer(
             PlayerView(context).apply {
                 player = exoPlayer
                 useController = true
+                setShowNextButton(false)
+                setShowPreviousButton(false)
             }
         },
         modifier = modifier.fillMaxSize()

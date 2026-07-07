@@ -42,6 +42,18 @@ class MediaStoreDataSource(private val context: Context) {
             }
         }; DetailedStorageStats(tISize, tVSize, iCount, vCount, vMap.values.toList().sortedByDescending { it.imageSize + it.videoSize }, bMap.values.toList().sortedByDescending { it.imageSize + it.videoSize })
     }
+
+    suspend fun updateMediaDate(id: Long, type: MediaType, newDateSeconds: Long): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val uri = if (type == MediaType.VIDEO) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val contentUri = ContentUris.withAppendedId(uri, id)
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Files.FileColumns.DATE_ADDED, newDateSeconds)
+                put(MediaStore.Files.FileColumns.DATE_MODIFIED, newDateSeconds)
+            }
+            context.contentResolver.update(contentUri, values, null, null) > 0
+        } catch (e: Exception) { false }
+    }
 }
 
 data class DetailedStorageStats(val tISize: Long, val tVSize: Long, val iCount: Int, val vCount: Int, val volumes: List<VolumeStats>, val buckets: List<BucketStats>)

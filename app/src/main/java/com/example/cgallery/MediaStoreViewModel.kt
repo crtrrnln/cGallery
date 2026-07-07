@@ -1,5 +1,6 @@
 package com.example.cgallery
 import android.app.Application
+import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MediaStoreViewModel(application: Application) : AndroidViewModel(application) {
     private val dataSource = MediaStoreDataSource(application); private val physicalAlbumManager = PhysicalAlbumManager(application)
@@ -87,4 +89,38 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     }
     fun createFolder(name: String, gid: Long? = null) { viewModelScope.launch { val res = physicalAlbumManager.createFolder(name, groupId = gid); if (res.isSuccess) { _operationResult.emit("created: $name"); kotlinx.coroutines.delay(300); loadMedia(false) } else _operationResult.emit("failed") } }
     fun toggleAlbumVisibility(name: String) = viewModelScope.launch { physicalAlbumManager.toggleAlbumVisibility(name) }
+
+    fun updateMediaDate(id: Long, type: MediaType, newDateSeconds: Long) {
+        viewModelScope.launch {
+            if (dataSource.updateMediaDate(id, type, newDateSeconds)) {
+                _operationResult.emit("Date updated")
+                loadMedia(false)
+            } else {
+                _operationResult.emit("Failed to update date")
+            }
+        }
+    }
+
+    fun saveEditedImage(originalItem: MediaItem, bitmap: Bitmap) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val originalFile = File(originalItem.fullPath)
+                    val parentDir = originalFile.parentFile ?: return@withContext
+                    val newName = "EDIT_${System.currentTimeMillis()}_${originalFile.name}"
+                    val newFile = File(parentDir, newName)
+                    
+                    newFile.outputStream().use { out ->
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+                    }
+                    
+                    MediaScannerConnection.scanFile(getApplication(), arrayOf(newFile.absolutePath), null) { _, _ -> }
+                    _operationResult.emit("Saved as copy: $newName")
+                    loadMedia(false)
+                } catch (e: Exception) {
+                    _operationResult.emit("Failed to save")
+                }
+            }
+        }
+    }
 }

@@ -52,12 +52,13 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateT
             item { SectionHeader("Storage & Performance") }
             item { ListItem(headlineContent = { Text("Storage") }, supportingContent = { Text("Drives and cache management") }, leadingContent = { Icon(Icons.Default.Storage, null) }, trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }, modifier = Modifier.clickable(onClick = onNavigateToStorage)) }
             item { SettingsToggle("Efficiency Mode", "Downsample thumbnails to keep everything fast", settings.efficiencyMode, Icons.Default.Speed) { viewModel.updateEfficiency(it) } }
+            item { ListItem(headlineContent = { Text("Refresh Library") }, supportingContent = { Text("Scan for new media files") }, leadingContent = { Icon(Icons.Default.Refresh, null) }, modifier = Modifier.clickable { viewModel.refreshLibrary() }) }
             item { SectionHeader("Security") }
             item { SettingsToggle("Biometric Lock", "Require biometrics to open app", settings.isBiometricEnabled, Icons.Default.Fingerprint) { viewModel.updateBiometric(it) } }
             item { SectionHeader("System") }
             item {
                 Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("cGallery v0.84", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
+                    Text("cGallery v0.85", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
                         tapCount++; if (tapCount >= 5) { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/crtrrnln/cGallery"))); tapCount = 0 }
                     })
                 }

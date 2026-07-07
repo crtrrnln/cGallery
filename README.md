@@ -8,7 +8,7 @@ It’s still in development, but it already works for daily use and I’m improv
 
 ## Current Version
 
-v0.73
+v0.85
 
 ---
 
@@ -20,6 +20,7 @@ v0.73
 - tries to stay fast even with bigger collections
 - runs locally (no cloud or anything like that)
 - allows you to export and import: your album group structure, organisation of albums/album groups, custom covers of albums/album groups, favourited files, and monitored folders.
+- should have most functionality of modern gallery apps
 
 ---
 
@@ -41,9 +42,6 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ## What I’m working on next
 
-### v0.7x
-- fixing everything broken in v0.7 😭
-
 ### v0.8
 - cleaning up how folder/group structure works
 - fixing edge cases with empty or weird folders
@@ -52,14 +50,11 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ### v0.9
 - smoother navigation
-- better search (if I fully implement it)
 - general usability improvements
 - polishing things based on actual use
 
 ### v1.0
 - everything should feel consistent and stable
-- no weird edge-case bugs in core features
-- UI and structure fully cleaned up
 - basically the “finished” baseline version
 
 ---
@@ -68,8 +63,7 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ## Future ideas (not sure yet)
 
-- better search/filtering
-- auto grouping..?
+- better search/filtering somehow
 - tags or metadata stuff
 - maybe plugins later on, not sure
 - cloud sync is probably not happening anytime soon (or ever)

@@ -33,4 +33,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             getApplication<Application>().cacheDir.mkdirs()
         }
     }
+
+    fun refreshLibrary() = viewModelScope.launch {
+        withContext(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val paths = arrayOf(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM).absolutePath,
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES).absolutePath
+            )
+            android.media.MediaScannerConnection.scanFile(context, paths, null) { _, _ -> }
+        }
+    }
 }
