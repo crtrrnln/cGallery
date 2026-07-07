@@ -8,7 +8,7 @@ It’s still in development, but it already works for daily use and I’m improv
 
 ## Current Version
 
-v0.85
+v0.86
 
 ---
 
