@@ -30,9 +30,16 @@ class ShizukuManager(private val context: Context) {
     }
 
     fun launchAppToInbox() {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            putExtra("TARGET_SCREEN", "INBOX")
+        }
+
         if (hasPermission()) {
             try {
                 val command = "am start -n com.example.cgallery/com.example.cgallery.MainActivity --es TARGET_SCREEN INBOX"
+                // Using reflection because Shizuku.newProcess might have visibility issues in some environments
                 val method = Shizuku::class.java.getDeclaredMethod(
                     "newProcess", 
                     Array<String>::class.java, 
@@ -42,17 +49,9 @@ class ShizukuManager(private val context: Context) {
                 method.isAccessible = true
                 method.invoke(null, arrayOf("sh", "-c", command), null, null)
             } catch (e: Exception) {
-                val intent = Intent(context, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("TARGET_SCREEN", "INBOX")
-                }
                 context.startActivity(intent)
             }
         } else {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra("TARGET_SCREEN", "INBOX")
-            }
             context.startActivity(intent)
         }
     }

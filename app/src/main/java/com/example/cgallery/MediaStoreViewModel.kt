@@ -2,6 +2,10 @@ package com.example.cgallery
 import android.app.Application
 import android.graphics.Bitmap
 import android.media.MediaScannerConnection
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cgallery.data.*
@@ -23,8 +27,8 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
     val mediaItems: StateFlow<List<MediaItem>> = combine(_mediaItems, inboxStateFlow, appSettings.settingsFlow.map { it.isEnforcementEnabled }.distinctUntilChanged()) { items, inboxState, isEnf ->
-        if (items.isEmpty() || InboxManager.isBulkProcessing) return@combine items
         val (pendingIds, completedMap) = inboxState
+        if (items.isEmpty()) return@combine items
         if ((!isEnf || pendingIds.isEmpty()) && completedMap.isEmpty()) items
         else {
             val result = ArrayList<MediaItem>(items.size)
@@ -49,7 +53,25 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val _isLoading = MutableStateFlow(false); val isLoading = _isLoading.asStateFlow()
     private val _operationResult = MutableSharedFlow<String>(); val operationResult = _operationResult.asSharedFlow()
 
-    init { loadMedia() }
+    private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(500) // Small debounce for batch system updates
+                loadMedia(false)
+            }
+        }
+    }
+
+    init { 
+        loadMedia()
+        application.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
+        application.contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+    }
+
+    override fun onCleared() {
+        getApplication<Application>().contentResolver.unregisterContentObserver(observer)
+    }
+
     fun loadMedia(showLoading: Boolean = false) {
         viewModelScope.launch {
             if (showLoading || _mediaItems.value.isEmpty()) _isLoading.value = true
@@ -71,7 +93,15 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
                     } else errors.add("fail move")
                 }
             }
-            if (created.isNotEmpty()) { MediaScannerConnection.scanFile(getApplication(), (created + sourceFiles).toTypedArray(), null) { _, _ -> }; _operationResult.emit(if (errors.isEmpty()) "moved ${itemsToMove.size}" else "partial success"); kotlinx.coroutines.delay(500); loadMedia(false) }
+            if (created.isNotEmpty()) { 
+                MediaScannerConnection.scanFile(getApplication(), (created + sourceFiles).toTypedArray(), null) { _, _ -> 
+                    viewModelScope.launch { 
+                        kotlinx.coroutines.delay(800)
+                        loadMedia(false)
+                    }
+                }
+                _operationResult.emit(if (errors.isEmpty()) "moved ${itemsToMove.size}" else "partial success")
+            }
             else _operationResult.emit("failed to move")
         }
     }
@@ -83,7 +113,15 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
                     targets.forEach { dest -> val res = physicalAlbumManager.copyFile(item.fullPath, dest); if (res.isSuccess) created.add(res.getOrThrow()) else errors.add("fail") }
                 }
             }
-            if (created.isNotEmpty()) { MediaScannerConnection.scanFile(getApplication(), created.toTypedArray(), null) { _, _ -> }; _operationResult.emit("copied ${itemsToCopy.size}"); kotlinx.coroutines.delay(500); loadMedia(false) }
+            if (created.isNotEmpty()) { 
+                MediaScannerConnection.scanFile(getApplication(), created.toTypedArray(), null) { _, _ -> 
+                    viewModelScope.launch {
+                        kotlinx.coroutines.delay(800)
+                        loadMedia(false)
+                    }
+                }
+                _operationResult.emit("copied ${itemsToCopy.size}")
+            }
             else _operationResult.emit("failed to copy")
         }
     }

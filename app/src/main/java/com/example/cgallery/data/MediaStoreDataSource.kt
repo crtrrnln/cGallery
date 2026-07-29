@@ -4,20 +4,68 @@ import android.content.Context
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MediaStoreDataSource(private val context: Context) {
     suspend fun fetchMedia(since: Long = 0): List<MediaItem> = withContext(Dispatchers.IO) {
-        val items = mutableListOf<MediaItem>(); val proj = arrayOf(MediaStore.Files.FileColumns._ID, MediaStore.Files.FileColumns.DISPLAY_NAME, MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME, MediaStore.Files.FileColumns.RELATIVE_PATH, MediaStore.Files.FileColumns.DATA, MediaStore.Files.FileColumns.MEDIA_TYPE, MediaStore.Files.FileColumns.DATE_ADDED, MediaStore.Video.VideoColumns.DURATION)
-        val sel = if (since > 0) "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?) AND ${MediaStore.Files.FileColumns.DATE_ADDED} > ?" else "(${MediaStore.Files.FileColumns.MEDIA_TYPE} = ? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?)"
-        val args = if (since > 0) arrayOf(MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(), MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString(), since.toString()) else arrayOf(MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(), MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString())
-        context.contentResolver.query(MediaStore.Files.getContentUri("external"), proj, sel, args, "${MediaStore.Files.FileColumns.DATE_ADDED} DESC")?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(proj[0]); val nameCol = c.getColumnIndexOrThrow(proj[1]); val buckCol = c.getColumnIndexOrThrow(proj[2]); val dataCol = c.getColumnIndexOrThrow(proj[4]); val tCol = c.getColumnIndexOrThrow(proj[5]); val dateCol = c.getColumnIndexOrThrow(proj[6]); val durCol = c.getColumnIndex(proj[7])
+        val items = mutableListOf<MediaItem>()
+        
+        val imageUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val videoUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        
+        // Fetch Images
+        val imgProj = arrayOf(
+            MediaStore.Images.Media._ID, 
+            MediaStore.Images.Media.DISPLAY_NAME, 
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME, 
+            MediaStore.Images.Media.DATA, 
+            MediaStore.Images.Media.DATE_ADDED
+        )
+        context.contentResolver.query(imageUri, imgProj, if (since > 0) "${MediaStore.Images.Media.DATE_ADDED} > ?" else null, if (since > 0) arrayOf(since.toString()) else null, "${MediaStore.Images.Media.DATE_ADDED} DESC")?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(imgProj[0])
+            val nameCol = c.getColumnIndexOrThrow(imgProj[1])
+            val buckCol = c.getColumnIndexOrThrow(imgProj[2])
+            val dataCol = c.getColumnIndexOrThrow(imgProj[3])
+            val dateCol = c.getColumnIndexOrThrow(imgProj[4])
             while (c.moveToNext()) {
-                val id = c.getLong(idCol); val name = c.getString(nameCol) ?: ""; val buck = c.getString(buckCol)?.intern() ?: "???"; val full = c.getString(dataCol) ?: ""; val bPath = full.substringBeforeLast('/', "???").intern()
-                val type = if (c.getInt(tCol) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO) MediaType.VIDEO else if (name.lowercase().endsWith(".gif")) MediaType.GIF else MediaType.IMAGE
-                items.add(MediaItem(id, ContentUris.withAppendedId(if (type == MediaType.VIDEO) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id), name, buck, bPath, "", full, type, if (durCol != -1) c.getLong(durCol) else 0L, c.getLong(dateCol)))
+                val id = c.getLong(idCol)
+                val name = c.getString(nameCol) ?: ""
+                val buck = c.getString(buckCol)?.intern() ?: "???"
+                val full = c.getString(dataCol) ?: ""
+                val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
+                val type = if (name.lowercase().endsWith(".gif")) MediaType.GIF else MediaType.IMAGE
+                items.add(MediaItem(id, ContentUris.withAppendedId(imageUri, id), name, buck, bPath.intern(), "", full, type, 0L, c.getLong(dateCol)))
             }
-        }; items
+        }
+        
+        // Fetch Videos
+        val vidProj = arrayOf(
+            MediaStore.Video.Media._ID, 
+            MediaStore.Video.Media.DISPLAY_NAME, 
+            MediaStore.Video.Media.BUCKET_DISPLAY_NAME, 
+            MediaStore.Video.Media.DATA, 
+            MediaStore.Video.Media.DATE_ADDED, 
+            MediaStore.Video.Media.DURATION
+        )
+        context.contentResolver.query(videoUri, vidProj, if (since > 0) "${MediaStore.Video.Media.DATE_ADDED} > ?" else null, if (since > 0) arrayOf(since.toString()) else null, "${MediaStore.Video.Media.DATE_ADDED} DESC")?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(vidProj[0])
+            val nameCol = c.getColumnIndexOrThrow(vidProj[1])
+            val buckCol = c.getColumnIndexOrThrow(vidProj[2])
+            val dataCol = c.getColumnIndexOrThrow(vidProj[3])
+            val dateCol = c.getColumnIndexOrThrow(vidProj[4])
+            val durCol = c.getColumnIndexOrThrow(vidProj[5])
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                val name = c.getString(nameCol) ?: ""
+                val buck = c.getString(buckCol)?.intern() ?: "???"
+                val full = c.getString(dataCol) ?: ""
+                val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
+                items.add(MediaItem(id, ContentUris.withAppendedId(videoUri, id), name, buck, bPath.intern(), "", full, MediaType.VIDEO, c.getLong(durCol), c.getLong(dateCol)))
+            }
+        }
+        
+        items.sortByDescending { it.dateAdded }
+        items
     }
 
     suspend fun fetchMediaFolders(): List<MediaFolder> = withContext(Dispatchers.IO) {

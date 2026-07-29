@@ -17,6 +17,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _storageStats = MutableStateFlow<DetailedStorageStats?>(null)
     val storageStats = _storageStats.asStateFlow()
 
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning = _isScanning.asStateFlow()
+
     fun updateTheme(v: ThemeAccent) = viewModelScope.launch { repo.updateThemeAccent(v) }
     fun updateGrid(v: GridDensity) = viewModelScope.launch { repo.updateGridDensity(v) }
     fun updateEfficiency(v: Boolean) = viewModelScope.launch { repo.updateEfficiencyMode(v) }
@@ -35,13 +38,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshLibrary() = viewModelScope.launch {
+        _isScanning.value = true
         withContext(Dispatchers.IO) {
             val context = getApplication<Application>()
-            val paths = arrayOf(
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM).absolutePath,
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES).absolutePath
+            val roots = arrayOf(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM),
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES),
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
             )
-            android.media.MediaScannerConnection.scanFile(context, paths, null) { _, _ -> }
+            
+            val allFiles = mutableListOf<String>()
+            roots.forEach { root ->
+                if (root.exists()) {
+                    root.walkTopDown().filter { it.isFile && (it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "mp4", "mkv", "gif")) }.forEach { 
+                        allFiles.add(it.absolutePath) 
+                    }
+                }
+            }
+            
+            if (allFiles.isNotEmpty()) {
+                android.media.MediaScannerConnection.scanFile(context, allFiles.toTypedArray(), null) { _, _ -> }
+            }
         }
+        _isScanning.value = false
     }
 }

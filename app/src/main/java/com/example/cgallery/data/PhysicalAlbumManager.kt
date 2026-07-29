@@ -17,6 +17,7 @@ class PhysicalAlbumManager(context: Context) {
     private val physicalAlbumDao = db.physicalAlbumDao()
     private val groupDao = db.albumGroupDao()
     private val folderDao = db.monitoredFolderDao()
+    private val statsDao = db.inboxStatsDao()
     private val favouritesManager = FavouritesManager(context)
     private val context = context
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
@@ -43,8 +44,13 @@ class PhysicalAlbumManager(context: Context) {
         
         existingAlbums.forEach { album ->
             if (!newBuckets.contains(album.bucketName)) {
+                // If it's not in the MediaStore set, we should only keep it if it's a folder we tracked manually
+                // OR if it's hidden and we want to keep the "Hidden" state.
+                // But generally, if it's not in MediaStore and the directory is empty/gone, clean up.
                 val f = File(album.bucketName)
-                if (!f.exists() || !f.isDirectory) physicalAlbumDao.deleteAlbum(album)
+                if (!f.exists() || (f.isDirectory && (f.list()?.isEmpty() ?: true))) {
+                     physicalAlbumDao.deleteAlbum(album)
+                }
             }
         }
     }
@@ -110,7 +116,8 @@ class PhysicalAlbumManager(context: Context) {
         val groups: List<AlbumGroupEntity> = emptyList(),
         val albums: List<PhysicalAlbumEntity> = emptyList(),
         val monitoredFolders: List<MonitoredFolderEntity> = emptyList(),
-        val favourites: Set<Long> = emptySet()
+        val favourites: Set<Long> = emptySet(),
+        val stats: InboxStatsEntity? = null
     )
 
     suspend fun exportStructure(): String = withContext(Dispatchers.IO) {
@@ -118,7 +125,8 @@ class PhysicalAlbumManager(context: Context) {
         val albums = physicalAlbumDao.getAllAlbums().first()
         val folders = folderDao.getAllFolders().first()
         val favs = favouritesManager.favouriteIds.first()
-        json.encodeToString(StructureExport(groups, albums, folders, favs))
+        val stats = statsDao.getStats().first()
+        json.encodeToString(StructureExport(groups, albums, folders, favs, stats))
     }
 
     suspend fun importStructure(jsonStr: String) = withContext(Dispatchers.IO) {
@@ -148,6 +156,7 @@ class PhysicalAlbumManager(context: Context) {
             }
             data.monitoredFolders.forEach { folderDao.insertFolder(it.copy(id = 0)) }
             data.favourites.forEach { favouritesManager.addFavourite(it) }
+            data.stats?.let { statsDao.updateStats(it) }
         } catch (e: Exception) { e.printStackTrace() }
     }
     suspend fun updateAlbumCover(b: String, u: String?, c: String?) = physicalAlbumDao.updateAlbumCover(b, u, c)

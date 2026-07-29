@@ -72,6 +72,7 @@ data class MonitoredFolderEntity(
     val ignoreBeforeTimestamp: Long = 0L 
 )
 
+@Serializable
 @Entity(tableName = "inbox_stats")
 data class InboxStatsEntity(
     @PrimaryKey val id: Int = 1,

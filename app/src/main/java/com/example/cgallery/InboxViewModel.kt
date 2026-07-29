@@ -39,6 +39,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val _needsRefresh = MutableStateFlow(false)
     val needsRefresh = _needsRefresh.asStateFlow()
 
+    private val _showUnmonitored = MutableStateFlow(false)
+    val showUnmonitored = _showUnmonitored.asStateFlow()
+
+    val unmonitoredItems: StateFlow<List<MediaItem>> = combine(_allMediaFolders, pendingItems, _showUnmonitored) { folders, pending, show ->
+        if (!show) return@combine emptyList()
+        val pendingIds = pending.map { it.mediaStoreId }.toSet()
+        val allMedia = dataSource.fetchMedia(since = 0)
+        allMedia.filter { it.id !in pendingIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _operationResult = MutableSharedFlow<String>()
     val operationResult = _operationResult.asSharedFlow()
 
@@ -47,6 +57,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearRefreshFlag() { _needsRefresh.value = false }
+    fun toggleUnmonitored() { _showUnmonitored.value = !_showUnmonitored.value }
 
     fun loadMediaFolders() {
         viewModelScope.launch {
@@ -176,6 +187,12 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val currentCount = pendingItems.value.size
             enforcementRepository.setSnooze(0, currentCount + count)
+        }
+    }
+
+    fun cancelSnooze() {
+        viewModelScope.launch {
+            enforcementRepository.setSnooze(0, 0)
         }
     }
 }

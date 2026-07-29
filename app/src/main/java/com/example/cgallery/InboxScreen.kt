@@ -1,6 +1,11 @@
 package com.example.cgallery
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,10 +23,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cgallery.data.InboxItemEntity
+import com.example.cgallery.data.MediaItem
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -36,10 +43,13 @@ fun InboxScreen(
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.pendingItems.collectAsState()
+    val unmonitored by viewModel.unmonitoredItems.collectAsState()
+    val showUnmonitored by viewModel.showUnmonitored.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
     val snackbarHostState = remember { SnackbarHostState() }
+    var previewUri by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.operationResult.collect { message ->
@@ -47,20 +57,35 @@ fun InboxScreen(
         }
     }
 
+    val displayItems = if (showUnmonitored) {
+        unmonitored.map { InboxItemEntity(mediaStoreId = it.id, mediaUri = it.uri.toString(), filename = it.displayName, sourcePath = it.fullPath, detectedTimestamp = 0L) }
+    } else {
+        items
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { 
-                    if (isSelectionMode) {
-                        Text("${selectedIds.size} selected")
-                    } else {
-                        Text(if (isEnforcementSession) "New Media" else "Inbox")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (isSelectionMode) {
+                            Text("${selectedIds.size} selected")
+                        } else {
+                            Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox")
+                            if (!isSelectionMode) {
+                                Text("${displayItems.size} items", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
                     if (isSelectionMode) {
                         IconButton(onClick = { selectedIds = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = "clear")
+                        }
+                    } else if (showUnmonitored) {
+                        IconButton(onClick = { viewModel.toggleUnmonitored() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back to inbox")
                         }
                     } else if (!isEnforcementSession) {
                         IconButton(onClick = onBack) {
@@ -107,15 +132,21 @@ fun InboxScreen(
                                     onBack() 
                                 }
                             )
+                            HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text("Snooze 50 files") },
+                                text = { Text("Cancel Snooze") },
                                 onClick = { 
-                                    viewModel.setItemSnooze(50)
-                                    onBack() 
+                                    viewModel.cancelSnooze()
+                                    showSnoozeMenu = false
                                 }
                             )
                         }
                     } else if (!isSelectionMode) {
+                        if (!showUnmonitored) {
+                            IconButton(onClick = { viewModel.toggleUnmonitored() }) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = "unmonitored")
+                            }
+                        }
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "settings")
                         }
@@ -129,7 +160,7 @@ fun InboxScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
-            if (!isSelectionMode && !isEnforcementSession) {
+            if (!isSelectionMode && !isEnforcementSession && !showUnmonitored) {
                 FloatingActionButton(
                     onClick = { if (!isScanning) viewModel.scanNow() }
                 ) {
@@ -146,56 +177,96 @@ fun InboxScreen(
             }
         }
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            if (isSelectionMode) {
-                val selectedMedia = remember(selectedIds, items) { items.filter { it.id in selectedIds } }
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                    contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(selectedMedia, key = { it.id }) { item ->
-                        AsyncImage(
-                            model = item.mediaUri,
-                            contentDescription = null,
-                            modifier = Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
-                        )
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (isSelectionMode) {
+                    val selectedMedia = remember(selectedIds, displayItems) { displayItems.filter { it.mediaStoreId in selectedIds } }
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(selectedMedia, key = { it.mediaStoreId }) { item ->
+                            AsyncImage(
+                                model = item.mediaUri,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { previewUri = item.mediaUri },
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                }
+                
+                if (displayItems.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.DoneAll, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary.copy(0.6f))
+                            Spacer(Modifier.height(8.dp))
+                            Text(if (showUnmonitored) "All clear! No unmonitored files." else "You're all caught up!", style = MaterialTheme.typography.titleMedium)
+                            Text("Your collection is perfectly organized.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(120.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        itemsIndexed(displayItems, key = { _, item -> item.mediaStoreId }) { index, item ->
+                            val isSelected = item.mediaStoreId in selectedIds
+                            InboxListItem(
+                                item = item,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedIds = if (isSelected) selectedIds - item.mediaStoreId else selectedIds + item.mediaStoreId
+                                    } else {
+                                        if (showUnmonitored) selectedIds = setOf(item.mediaStoreId)
+                                        else onItemClick(index)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedIds = setOf(item.mediaStoreId)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-                HorizontalDivider()
             }
-            if (items.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Inbox is empty", style = MaterialTheme.typography.bodyLarge)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(120.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+
+            // Simple Preview Overlay
+            AnimatedVisibility(
+                visible = previewUri != null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.9f))
+                        .clickable { previewUri = null },
+                    contentAlignment = Alignment.Center
                 ) {
-                    itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                        val isSelected = item.id in selectedIds
-                        InboxListItem(
-                            item = item,
-                            isSelected = isSelected,
-                            isSelectionMode = isSelectionMode,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
-                                } else {
-                                    onItemClick(index)
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    selectedIds = setOf(item.id)
-                                }
-                            }
-                        )
+                    AsyncImage(
+                        model = previewUri,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(0.9f),
+                        contentScale = ContentScale.Fit
+                    )
+                    IconButton(
+                        onClick = { previewUri = null },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "close preview", tint = Color.White)
                     }
                 }
             }
@@ -225,7 +296,12 @@ fun InboxListItem(
             contentScale = ContentScale.Crop
         )
 
-        if (isSelectionMode) {
+        if (isSelectionMode || isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else Color.Transparent)
+            )
             Checkbox(
                 checked = isSelected,
                 onCheckedChange = { onClick() },
