@@ -38,6 +38,7 @@ fun InboxScreen(
     onOrganise: (Set<Long>, Boolean) -> Unit,
     onSettingsClick: () -> Unit,
     onDiagnosticsClick: () -> Unit = {},
+    onDebugBypass: () -> Unit = {},
     onBack: () -> Unit,
     isEnforcementSession: Boolean = false,
     modifier: Modifier = Modifier
@@ -46,10 +47,12 @@ fun InboxScreen(
     val unmonitored by viewModel.unmonitoredItems.collectAsState()
     val showUnmonitored by viewModel.showUnmonitored.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val selectionViewModel: SelectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val selectedIds by selectionViewModel.selectedMediaIds.collectAsState()
     val isSelectionMode = selectedIds.isNotEmpty()
     val snackbarHostState = remember { SnackbarHostState() }
     var previewUri by remember { mutableStateOf<String?>(null) }
+    var titleTapCount by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.operationResult.collect { message ->
@@ -71,7 +74,7 @@ fun InboxScreen(
                         if (isSelectionMode) {
                             Text("${selectedIds.size} selected")
                         } else {
-                            Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox")
+                            Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox", modifier = Modifier.clickable { if (isEnforcementSession) { titleTapCount++; if (titleTapCount >= 5) { titleTapCount = 0; onDebugBypass() } } })
                             if (!isSelectionMode) {
                                 Text("${displayItems.size} items", style = MaterialTheme.typography.labelSmall)
                             }
@@ -80,7 +83,7 @@ fun InboxScreen(
                 },
                 navigationIcon = {
                     if (isSelectionMode) {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
+                        IconButton(onClick = { selectionViewModel.clearSelection() }) {
                             Icon(Icons.Default.Close, contentDescription = "clear")
                         }
                     } else if (showUnmonitored) {
@@ -97,18 +100,21 @@ fun InboxScreen(
                     if (isSelectionMode) {
                         IconButton(onClick = {
                             onOrganise(selectedIds, true)
-                            selectedIds = emptySet()
+                            selectionViewModel.clearSelection()
                         }) {
                             Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
                         }
                         IconButton(onClick = {
                             onOrganise(selectedIds, false)
-                            selectedIds = emptySet()
+                            selectionViewModel.clearSelection()
                         }) {
                             Icon(Icons.Default.Add, contentDescription = "copy")
                         }
                     }
                     
+                    val settings by viewModel.enforcementSettings.collectAsState(com.example.cgallery.data.AppSettings())
+                    val isSnoozed = settings.snoozeExpirationTime > System.currentTimeMillis() || settings.snoozeItemThreshold > 0
+
                     if (isEnforcementSession) {
                         var showSnoozeMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showSnoozeMenu = true }) {
@@ -132,16 +138,25 @@ fun InboxScreen(
                                     onBack() 
                                 }
                             )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text("Cancel Snooze") },
-                                onClick = { 
-                                    viewModel.cancelSnooze()
-                                    showSnoozeMenu = false
-                                }
-                            )
+                            if (isSnoozed) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Cancel Snooze") },
+                                    onClick = { 
+                                        viewModel.cancelSnooze()
+                                        showSnoozeMenu = false
+                                    }
+                                )
+                            }
                         }
                     } else if (!isSelectionMode) {
+                        var showMenu by remember { mutableStateOf(false) }
+                        if (isSnoozed) {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.NotificationsPaused, contentDescription = "snoozed", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+
                         if (!showUnmonitored) {
                             IconButton(onClick = { viewModel.toggleUnmonitored() }) {
                                 Icon(Icons.Default.FolderOpen, contentDescription = "unmonitored")
@@ -150,8 +165,24 @@ fun InboxScreen(
                         IconButton(onClick = onSettingsClick) {
                             Icon(Icons.Default.Settings, contentDescription = "settings")
                         }
-                        IconButton(onClick = onDiagnosticsClick) {
-                            Icon(Icons.Default.BugReport, contentDescription = "debug")
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "more")
+                        }
+
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            if (isSnoozed) {
+                                DropdownMenuItem(
+                                    text = { Text("Cancel Snooze") },
+                                    onClick = { viewModel.cancelSnooze(); showMenu = false },
+                                    leadingIcon = { Icon(Icons.Default.NotificationsActive, null) }
+                                )
+                                HorizontalDivider()
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Diagnostics") },
+                                onClick = { onDiagnosticsClick(); showMenu = false },
+                                leadingIcon = { Icon(Icons.Default.BugReport, null) }
+                            )
                         }
                     }
                 }
@@ -226,15 +257,15 @@ fun InboxScreen(
                                 isSelectionMode = isSelectionMode,
                                 onClick = {
                                     if (isSelectionMode) {
-                                        selectedIds = if (isSelected) selectedIds - item.mediaStoreId else selectedIds + item.mediaStoreId
+                                        selectionViewModel.toggleMediaId(item.mediaStoreId)
                                     } else {
-                                        if (showUnmonitored) selectedIds = setOf(item.mediaStoreId)
+                                        if (showUnmonitored) selectionViewModel.setSelection(setOf(item.mediaStoreId))
                                         else onItemClick(index)
                                     }
                                 },
                                 onLongClick = {
                                     if (!isSelectionMode) {
-                                        selectedIds = setOf(item.mediaStoreId)
+                                        selectionViewModel.setSelection(setOf(item.mediaStoreId))
                                     }
                                 }
                             )
@@ -310,3 +341,4 @@ fun InboxListItem(
         }
     }
 }
+

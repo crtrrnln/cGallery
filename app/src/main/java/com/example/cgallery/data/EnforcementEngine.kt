@@ -27,7 +27,7 @@ class EnforcementEngine(
     }
 
     private suspend fun checkAndTriggerSession(items: List<InboxItemEntity>) {
-        if (System.currentTimeMillis() - lastLaunchTime < 10000) return
+        if (System.currentTimeMillis() - lastLaunchTime < 5000) return
         val settings = settingsRepository.settingsFlow.first()
         if (!settings.isEnforcementEnabled) return
         

@@ -7,15 +7,17 @@ import android.os.Looper
 import android.provider.MediaStore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import java.io.File
 
 class InboxDetectionEngine(private val context: Context, private val inboxManager: InboxManager, private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())) {
     private val db = VirtualAlbumDatabase.getDatabase(context); private val folderDao = db.monitoredFolderDao()
+    private val settingsRepo = AppSettingsRepository(context); private val shizukuManager = ShizukuManager(context); private var lastForceOpen = 0L
     private val fileObservers = mutableMapOf<String, FileObserver>()
     private val contentObserver = object : ContentObserver(Handler(Looper.getMainLooper())) { 
         override fun onChange(self: Boolean) { 
             if (InboxManager.isBulkProcessing) return
-            scope.launch { inboxManager.scanNow() } 
+            scope.launch { val n = inboxManager.scanNow(); if (n > 0) forceOpenIfNeeded() } 
         } 
     }
 
@@ -32,18 +34,70 @@ class InboxDetectionEngine(private val context: Context, private val inboxManage
         folders.forEach { f ->
             if (!fileObservers.containsKey(f.folderPath)) {
                 val obs = if (android.os.Build.VERSION.SDK_INT >= 29) {
-                    object : FileObserver(File(f.folderPath), CREATE or MOVED_TO) { override fun onEvent(e: Int, p: String?) { scope.launch { delay(1500); inboxManager.scanNow() } } }
+                    object : FileObserver(File(f.folderPath), CREATE or MOVED_TO or CLOSE_WRITE) { 
+                        override fun onEvent(e: Int, p: String?) { 
+                            if (p != null) {
+                                val fullPath = File(f.folderPath, p).absolutePath
+                                android.util.Log.d("InboxDetection", "Event 0x${Integer.toHexString(e)}: $fullPath")
+                                // For downloads, CLOSE_WRITE is the "ready" signal. CREATE is just the beginning.
+                                android.media.MediaScannerConnection.scanFile(context, arrayOf(fullPath), null) { _, _ ->
+                                    scope.launch { 
+                                        delay(800) // Increased delay to ensure MediaStore stability
+                                        val n = inboxManager.scanNow()
+                                        android.util.Log.d("InboxDetection", "Scan result: $n new items")
+                                        if (n > 0) forceOpenIfNeeded() 
+                                    }
+                                }
+                            }
+                        } 
+                    }
                 } else {
                     @Suppress("DEPRECATION")
-                    object : FileObserver(f.folderPath, CREATE or MOVED_TO) { override fun onEvent(e: Int, p: String?) { scope.launch { delay(1500); inboxManager.scanNow() } } }
+                    object : FileObserver(f.folderPath, CREATE or MOVED_TO or CLOSE_WRITE) { 
+                        override fun onEvent(e: Int, p: String?) { 
+                            if (p != null) {
+                                val fullPath = File(f.folderPath, p).absolutePath
+                                android.util.Log.d("InboxDetection", "Event 0x${Integer.toHexString(e)}: $fullPath")
+                                android.media.MediaScannerConnection.scanFile(context, arrayOf(fullPath), null) { _, _ ->
+                                    scope.launch { 
+                                        delay(800)
+                                        val n = inboxManager.scanNow()
+                                        android.util.Log.d("InboxDetection", "Scan result: $n new items")
+                                        if (n > 0) forceOpenIfNeeded() 
+                                    }
+                                }
+                            }
+                        } 
+                    }
                 }
                 obs.startWatching(); fileObservers[f.folderPath] = obs
             }
         }
     }
 
+    private suspend fun forceOpenIfNeeded() {
+        if (System.currentTimeMillis() - lastForceOpen < 3500) return
+        val s = settingsRepo.settingsFlow.first()
+        val pendingCount = inboxManager.getPendingCount()
+        val shizukuOk = shizukuManager.hasPermission()
+        
+        android.util.Log.d("InboxDetection", "Launch Check: pending=$pendingCount, threshold=${s.snoozeItemThreshold}, shizuku=$shizukuOk, enforcement=${s.isEnforcementEnabled}")
+
+        val snoozedTime = s.snoozeExpirationTime > System.currentTimeMillis()
+        val snoozedItems = s.snoozeItemThreshold > 0 && pendingCount < s.snoozeItemThreshold
+        
+        if (!s.isEnforcementEnabled || !s.isShizukuEnabled || !s.launchAutomatically || snoozedTime || snoozedItems) return
+        
+        if (shizukuOk) { 
+            android.util.Log.d("InboxDetection", "TRIGGERING FORCED LAUNCH")
+            shizukuManager.launchAppToInbox()
+            lastForceOpen = System.currentTimeMillis() 
+        }
+    }
     fun stop() {
         context.contentResolver.unregisterContentObserver(contentObserver)
         fileObservers.values.forEach { it.stopWatching() }; fileObservers.clear()
     }
 }
+
+

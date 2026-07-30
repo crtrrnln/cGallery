@@ -33,7 +33,7 @@ class InboxDetectionService : Service() {
     }
 
     private fun createNotif(): Notification {
-        val i = Intent(this, MainActivity::class.java); val pi = PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_IMMUTABLE)
+        val i = Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); putExtra("TARGET_SCREEN", "INBOX") }; val pi = PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, "inbox_detection_channel").setContentTitle("cGallery").setContentText("Scanning for new files...").setSmallIcon(android.R.drawable.ic_menu_search).setContentIntent(pi).setPriority(NotificationCompat.PRIORITY_LOW).build()
     }
 
@@ -42,3 +42,4 @@ class InboxDetectionService : Service() {
         fun stop(ctx: Context) { ctx.stopService(Intent(ctx, InboxDetectionService::class.java)) }
     }
 }
+

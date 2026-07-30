@@ -10,53 +10,121 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cgallery.data.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 class MediaStoreViewModel(application: Application) : AndroidViewModel(application) {
-    private val dataSource = MediaStoreDataSource(application); private val physicalAlbumManager = PhysicalAlbumManager(application)
-    private val favouritesManager = FavouritesManager(application); private val inboxDao = VirtualAlbumDatabase.getDatabase(application).inboxDao()
-    private val appSettings = AppSettingsRepository(application); private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
+    private val dataSource = MediaStoreDataSource(application)
+    private val physicalAlbumManager = PhysicalAlbumManager(application)
+    private val favouritesManager = FavouritesManager(application)
+    private val inboxDao = VirtualAlbumDatabase.getDatabase(application).inboxDao()
+    private val appSettings = AppSettingsRepository(application)
+    private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
 
-    private val inboxStateFlow = inboxDao.getAllItems().map { items ->
-        val pending = items.filter { it.status != InboxStatus.Completed && it.status != InboxStatus.Ignored }.map { it.mediaStoreId }.toSet()
-        val completed = items.filter { it.status == InboxStatus.Completed }.associate { it.mediaStoreId to it.destinationPaths.firstOrNull() }
-        pending to completed
-    }.distinctUntilChanged().flowOn(Dispatchers.Default)
+    // Optimized inbox state flow with better filtering
+    private val inboxStateFlow = inboxDao.getAllItems()
+        .map { items ->
+            val pending = items
+                .asSequence()
+                .filter { it.status != InboxStatus.Completed && it.status != InboxStatus.Ignored }
+                .map { it.mediaStoreId }
+                .toSet()
+            val completed = items
+                .asSequence()
+                .filter { it.status == InboxStatus.Completed }
+                .associate { it.mediaStoreId to it.destinationPaths.firstOrNull() }
+            pending to completed
+        }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
 
-    val mediaItems: StateFlow<List<MediaItem>> = combine(_mediaItems, inboxStateFlow, appSettings.settingsFlow.map { it.isEnforcementEnabled }.distinctUntilChanged()) { items, inboxState, isEnf ->
+    // Optimized media items flow with better performance
+    val mediaItems: StateFlow<List<MediaItem>> = combine(
+        _mediaItems,
+        inboxStateFlow,
+        appSettings.settingsFlow.map { it.isEnforcementEnabled }.distinctUntilChanged()
+    ) { items, inboxState, isEnf ->
         val (pendingIds, completedMap) = inboxState
         if (items.isEmpty()) return@combine items
-        if ((!isEnf || pendingIds.isEmpty()) && completedMap.isEmpty()) items
-        else {
-            val result = ArrayList<MediaItem>(items.size)
-            for (item in items) {
-                if (isEnf && item.id in pendingIds) continue
-                val path = completedMap[item.id]
-                if (path != null) result.add(item.copy(fullPath = path, bucketPath = path.substringBeforeLast('/'), bucketName = path.substringBeforeLast('/').substringAfterLast('/')))
-                else result.add(item)
+        if ((!isEnf || pendingIds.isEmpty()) && completedMap.isEmpty()) return@combine items
+        
+        items.asSequence().filter { item ->
+            !(isEnf && item.id in pendingIds)
+        }.map { item ->
+            val path = completedMap[item.id]
+            if (path != null) {
+                item.copy(
+                    fullPath = path,
+                    bucketPath = path.substringBeforeLast('/'),
+                    bucketName = path.substringBeforeLast('/').substringAfterLast('/')
+                )
+            } else {
+                item
             }
-            result
-        }
-    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.toList()
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val mediaItemsMap = mediaItems.map { it.associateBy { i -> i.id } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
-    val mediaByBucket = mediaItems.map { it.groupBy { i -> i.bucketPath } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
-    val favouriteMedia = combine(mediaItems, favouritesManager.favouriteIds) { items, ids -> items.filter { it.id in ids } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    // Cached derived flows with proper sharing
+    val mediaItemsMap = mediaItems
+        .map { items -> items.associateBy { it.id } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
     
-    private val _searchQuery = MutableStateFlow(""); val searchQuery = _searchQuery.asStateFlow()
-    val searchResults = combine(mediaItems, _searchQuery) { items, query -> if (query.isBlank()) emptyList() else items.filter { it.displayName.contains(query, true) } }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-    val albumResults = combine(mediaItems, _searchQuery) { items, query -> if (query.isBlank()) emptyList() else items.filter { it.bucketName.contains(query, true) }.map { it.bucketName to it.bucketPath }.distinct() }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val mediaByBucket = mediaItems
+        .map { items -> items.groupBy { it.bucketPath } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+    
+    val favouriteMedia = combine(mediaItems, favouritesManager.favouriteIds) { items, ids ->
+        items.filter { it.id in ids }
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+    
+    // Optimized search with case-insensitive comparison
+    val searchResults = combine(mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) return@combine emptyList()
+        val lowerQuery = query.lowercase()
+        items.filter { it.displayName.lowercase().contains(lowerQuery) }
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    
+    val albumResults = combine(mediaItems, _searchQuery) { items, query ->
+        if (query.isBlank()) return@combine emptyList()
+        val lowerQuery = query.lowercase()
+        items
+            .asSequence()
+            .filter { it.bucketName.lowercase().contains(lowerQuery) }
+            .map { it.bucketName to it.bucketPath }
+            .distinct()
+            .toList()
+    }
+    .flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _isLoading = MutableStateFlow(false); val isLoading = _isLoading.asStateFlow()
-    private val _operationResult = MutableSharedFlow<String>(); val operationResult = _operationResult.asSharedFlow()
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
+    
+    private val _operationResult = MutableSharedFlow<String>()
+    val operationResult = _operationResult.asSharedFlow()
+    
+    private val loadToken = AtomicLong(0)
 
+    // Content observer with debouncing
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
             viewModelScope.launch {
-                kotlinx.coroutines.delay(500) // Small debounce for batch system updates
+                delay(500) // Debounce for batch system updates
                 loadMedia(false)
             }
         }
@@ -64,69 +132,151 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
 
     init { 
         loadMedia()
-        application.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
-        application.contentResolver.registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+        getApplication<Application>().contentResolver.apply {
+            registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
+            registerContentObserver(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true, observer)
+        }
+        
+        viewModelScope.launch {
+            RefreshEventBus.refreshRequests.collect {
+                delay(300) // Debounce refresh requests
+                loadMedia(false)
+            }
+        }
     }
 
     override fun onCleared() {
-        getApplication<Application>().contentResolver.unregisterContentObserver(observer)
+        getApplication<Application>().contentResolver.apply {
+            unregisterContentObserver(observer)
+        }
     }
 
     fun loadMedia(showLoading: Boolean = false) {
         viewModelScope.launch {
-            if (showLoading || _mediaItems.value.isEmpty()) _isLoading.value = true
-            val items = dataSource.fetchMedia(); _mediaItems.value = items
-            withContext(Dispatchers.Default) { physicalAlbumManager.syncAlbums(items.map { it.bucketPath }.distinct()) }
-            _isLoading.value = false
+            val token = loadToken.incrementAndGet()
+            if (showLoading || _mediaItems.value.isEmpty()) {
+                _isLoading.value = true
+            }
+            
+            val items = withContext(Dispatchers.IO) {
+                dataSource.fetchMedia()
+            }
+            
+            if (token != loadToken.get()) return@launch
+            
+            _mediaItems.value = items
+            
+            // Sync albums in background
+            launch(Dispatchers.Default) {
+                physicalAlbumManager.syncAlbums(items.map { it.bucketPath }.distinct())
+            }
+            
+            if (token == loadToken.get()) {
+                _isLoading.value = false
+            }
         }
     }
-    fun updateSearchQuery(query: String) { _searchQuery.value = query }
+    
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+    
     fun moveMediaToAlbum(targets: List<String>, ids: Set<Long>) {
         viewModelScope.launch {
-            val itemsToMove = _mediaItems.value.filter { it.id in ids }; val created = mutableListOf<String>(); val sourceFiles = itemsToMove.map { it.fullPath }; val errors = mutableListOf<String>()
+            val itemsToMove = _mediaItems.value.filter { it.id in ids }
+            val created = mutableListOf<String>()
+            val sourceFiles = itemsToMove.map { it.fullPath }
+            val errors = mutableListOf<String>()
+            
             withContext(Dispatchers.IO) {
                 itemsToMove.forEach { item ->
                     val res = physicalAlbumManager.moveFile(item.fullPath, targets.first())
                     if (res.isSuccess) {
-                        val path = res.getOrThrow(); created.add(path)
-                        for (i in 1 until targets.size) { val cRes = physicalAlbumManager.copyFile(path, targets[i]); if (cRes.isSuccess) created.add(cRes.getOrThrow()) else errors.add("fail copy") }
-                    } else errors.add("fail move")
-                }
-            }
-            if (created.isNotEmpty()) { 
-                MediaScannerConnection.scanFile(getApplication(), (created + sourceFiles).toTypedArray(), null) { _, _ -> 
-                    viewModelScope.launch { 
-                        kotlinx.coroutines.delay(800)
-                        loadMedia(false)
+                        val path = res.getOrThrow()
+                        created.add(path)
+                        // Copy to additional targets
+                        for (i in 1 until targets.size) {
+                            val cRes = physicalAlbumManager.copyFile(path, targets[i])
+                            if (cRes.isSuccess) {
+                                created.add(cRes.getOrThrow())
+                            } else {
+                                errors.add("fail copy")
+                            }
+                        }
+                    } else {
+                        errors.add("fail move")
                     }
                 }
-                _operationResult.emit(if (errors.isEmpty()) "moved ${itemsToMove.size}" else "partial success")
             }
-            else _operationResult.emit("failed to move")
+            
+            if (created.isNotEmpty()) { 
+                MediaScannerConnection.scanFile(
+                    getApplication(),
+                    (created + sourceFiles).toTypedArray(),
+                    null
+                ) { _, _ -> 
+                    RefreshEventBus.requestRefresh()
+                }
+                _operationResult.emit(
+                    if (errors.isEmpty()) "moved ${itemsToMove.size}" else "partial success"
+                )
+            } else {
+                _operationResult.emit("failed to move")
+            }
         }
     }
+    
     fun copyMediaToAlbum(targets: List<String>, ids: Set<Long>) {
         viewModelScope.launch {
-            val itemsToCopy = _mediaItems.value.filter { it.id in ids }; val created = mutableListOf<String>(); val errors = mutableListOf<String>()
+            val itemsToCopy = _mediaItems.value.filter { it.id in ids }
+            val created = mutableListOf<String>()
+            val errors = mutableListOf<String>()
+            
             withContext(Dispatchers.IO) {
                 itemsToCopy.forEach { item ->
-                    targets.forEach { dest -> val res = physicalAlbumManager.copyFile(item.fullPath, dest); if (res.isSuccess) created.add(res.getOrThrow()) else errors.add("fail") }
-                }
-            }
-            if (created.isNotEmpty()) { 
-                MediaScannerConnection.scanFile(getApplication(), created.toTypedArray(), null) { _, _ -> 
-                    viewModelScope.launch {
-                        kotlinx.coroutines.delay(800)
-                        loadMedia(false)
+                    targets.forEach { dest ->
+                        val res = physicalAlbumManager.copyFile(item.fullPath, dest)
+                        if (res.isSuccess) {
+                            created.add(res.getOrThrow())
+                        } else {
+                            errors.add("fail")
+                        }
                     }
                 }
-                _operationResult.emit("copied ${itemsToCopy.size}")
             }
-            else _operationResult.emit("failed to copy")
+            
+            if (created.isNotEmpty()) { 
+                MediaScannerConnection.scanFile(
+                    getApplication(),
+                    created.toTypedArray(),
+                    null
+                ) { _, _ -> 
+                    RefreshEventBus.requestRefresh()
+                }
+                _operationResult.emit("copied ${itemsToCopy.size}")
+            } else {
+                _operationResult.emit("failed to copy")
+            }
         }
     }
-    fun createFolder(name: String, gid: Long? = null) { viewModelScope.launch { val res = physicalAlbumManager.createFolder(name, groupId = gid); if (res.isSuccess) { _operationResult.emit("created: $name"); kotlinx.coroutines.delay(300); loadMedia(false) } else _operationResult.emit("failed") } }
-    fun toggleAlbumVisibility(name: String) = viewModelScope.launch { physicalAlbumManager.toggleAlbumVisibility(name) }
+    
+    fun createFolder(name: String, gid: Long? = null) {
+        viewModelScope.launch {
+            val res = physicalAlbumManager.createFolder(name, groupId = gid)
+            if (res.isSuccess) {
+                _operationResult.emit("created: $name")
+                RefreshEventBus.requestRefresh()
+            } else {
+                _operationResult.emit("failed")
+            }
+        }
+    }
+    
+    fun toggleAlbumVisibility(name: String) {
+        viewModelScope.launch {
+            physicalAlbumManager.toggleAlbumVisibility(name)
+        }
+    }
 
     fun updateMediaDate(id: Long, type: MediaType, newDateSeconds: Long) {
         viewModelScope.launch {
@@ -144,19 +294,26 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
             withContext(Dispatchers.IO) {
                 try {
                     val originalFile = File(originalItem.fullPath)
-                    val parentDir = originalFile.parentFile ?: return@withContext
-                    val newName = "EDIT_${System.currentTimeMillis()}_${originalFile.name}"
-                    val newFile = File(parentDir, newName)
+                    val tempFile = File(originalFile.parent, "temp_${originalFile.name}")
+                    val fos = java.io.FileOutputStream(tempFile)
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+                    fos.close()
                     
-                    newFile.outputStream().use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+                    if (originalFile.delete() && tempFile.renameTo(originalFile)) {
+                        MediaScannerConnection.scanFile(
+                            getApplication(),
+                            arrayOf(originalFile.absolutePath),
+                            null
+                        ) { _, _ -> 
+                            RefreshEventBus.requestRefresh()
+                        }
+                        _operationResult.emit("Saved")
+                    } else {
+                        tempFile.delete()
+                        _operationResult.emit("Failed to save")
                     }
-                    
-                    MediaScannerConnection.scanFile(getApplication(), arrayOf(newFile.absolutePath), null) { _, _ -> }
-                    _operationResult.emit("Saved as copy: $newName")
-                    loadMedia(false)
                 } catch (e: Exception) {
-                    _operationResult.emit("Failed to save")
+                    _operationResult.emit("Error: ${e.message}")
                 }
             }
         }

@@ -1,0 +1,5 @@
+- [x] Update versioning to `v0.9/1.0rc2.1` in `app/build.gradle.kts` and UI
+- [x] Improve `SettingsViewModel.refreshLibrary()` robustness (try-finally, multiple refreshes)
+- [x] Add "Cancel Snooze" to `InboxScreen` for normal sessions
+- [x] Refine Shizuku launch arguments in `ShizukuManager`
+- [x] Verify build

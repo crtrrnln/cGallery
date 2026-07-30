@@ -34,7 +34,7 @@ fun StartupAnimation(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "cGallery v0.9/1.0rc",
+                text = "cGallery v0.9/1.0rc3.0",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp,

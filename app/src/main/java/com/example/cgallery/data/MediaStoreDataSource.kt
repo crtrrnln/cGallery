@@ -10,61 +10,92 @@ class MediaStoreDataSource(private val context: Context) {
     suspend fun fetchMedia(since: Long = 0): List<MediaItem> = withContext(Dispatchers.IO) {
         val items = mutableListOf<MediaItem>()
         
-        val imageUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val videoUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        
-        // Fetch Images
-        val imgProj = arrayOf(
-            MediaStore.Images.Media._ID, 
-            MediaStore.Images.Media.DISPLAY_NAME, 
-            MediaStore.Images.Media.BUCKET_DISPLAY_NAME, 
-            MediaStore.Images.Media.DATA, 
-            MediaStore.Images.Media.DATE_ADDED
-        )
-        context.contentResolver.query(imageUri, imgProj, if (since > 0) "${MediaStore.Images.Media.DATE_ADDED} > ?" else null, if (since > 0) arrayOf(since.toString()) else null, "${MediaStore.Images.Media.DATE_ADDED} DESC")?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(imgProj[0])
-            val nameCol = c.getColumnIndexOrThrow(imgProj[1])
-            val buckCol = c.getColumnIndexOrThrow(imgProj[2])
-            val dataCol = c.getColumnIndexOrThrow(imgProj[3])
-            val dateCol = c.getColumnIndexOrThrow(imgProj[4])
-            while (c.moveToNext()) {
-                val id = c.getLong(idCol)
-                val name = c.getString(nameCol) ?: ""
-                val buck = c.getString(buckCol)?.intern() ?: "???"
-                val full = c.getString(dataCol) ?: ""
-                val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
-                val type = if (name.lowercase().endsWith(".gif")) MediaType.GIF else MediaType.IMAGE
-                items.add(MediaItem(id, ContentUris.withAppendedId(imageUri, id), name, buck, bPath.intern(), "", full, type, 0L, c.getLong(dateCol)))
+        try {
+            val imageUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val videoUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            
+            // Fetch Images
+            val imgProj = arrayOf(
+                MediaStore.Images.Media._ID, 
+                MediaStore.Images.Media.DISPLAY_NAME, 
+                MediaStore.Images.Media.BUCKET_DISPLAY_NAME, 
+                MediaStore.Images.Media.DATA, 
+                MediaStore.Images.Media.DATE_ADDED
+            )
+            
+            context.contentResolver.query(
+                imageUri, 
+                imgProj, 
+                if (since > 0) "${MediaStore.Images.Media.DATE_ADDED} > ?" else null, 
+                if (since > 0) arrayOf(since.toString()) else null, 
+                "${MediaStore.Images.Media.DATE_ADDED} DESC"
+            )?.use { c ->
+                val idCol = c.getColumnIndexOrThrow(imgProj[0])
+                val nameCol = c.getColumnIndexOrThrow(imgProj[1])
+                val buckCol = c.getColumnIndexOrThrow(imgProj[2])
+                val dataCol = c.getColumnIndexOrThrow(imgProj[3])
+                val dateCol = c.getColumnIndexOrThrow(imgProj[4])
+                
+                while (c.moveToNext()) {
+                    try {
+                        val id = c.getLong(idCol)
+                        val name = c.getString(nameCol) ?: ""
+                        val buck = c.getString(buckCol)?.intern() ?: "???"
+                        val full = c.getString(dataCol) ?: ""
+                        val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
+                        val type = if (name.lowercase().endsWith(".gif")) MediaType.GIF else MediaType.IMAGE
+                        items.add(MediaItem(id, ContentUris.withAppendedId(imageUri, id), name, buck, bPath.intern(), "", full, type, 0L, c.getLong(dateCol)))
+                    } catch (e: Exception) {
+                        android.util.Log.e("MediaStoreDataSource", "Error processing image item", e)
+                    }
+                }
             }
+            
+            // Fetch Videos
+            val vidProj = arrayOf(
+                MediaStore.Video.Media._ID, 
+                MediaStore.Video.Media.DISPLAY_NAME, 
+                MediaStore.Video.Media.BUCKET_DISPLAY_NAME, 
+                MediaStore.Video.Media.DATA, 
+                MediaStore.Video.Media.DATE_ADDED, 
+                MediaStore.Video.Media.DURATION
+            )
+            
+            context.contentResolver.query(
+                videoUri, 
+                vidProj, 
+                if (since > 0) "${MediaStore.Video.Media.DATE_ADDED} > ?" else null, 
+                if (since > 0) arrayOf(since.toString()) else null, 
+                "${MediaStore.Video.Media.DATE_ADDED} DESC"
+            )?.use { c ->
+                val idCol = c.getColumnIndexOrThrow(vidProj[0])
+                val nameCol = c.getColumnIndexOrThrow(vidProj[1])
+                val buckCol = c.getColumnIndexOrThrow(vidProj[2])
+                val dataCol = c.getColumnIndexOrThrow(vidProj[3])
+                val dateCol = c.getColumnIndexOrThrow(vidProj[4])
+                val durCol = c.getColumnIndexOrThrow(vidProj[5])
+                
+                while (c.moveToNext()) {
+                    try {
+                        val id = c.getLong(idCol)
+                        val name = c.getString(nameCol) ?: ""
+                        val buck = c.getString(buckCol)?.intern() ?: "???"
+                        val full = c.getString(dataCol) ?: ""
+                        val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
+                        items.add(MediaItem(id, ContentUris.withAppendedId(videoUri, id), name, buck, bPath.intern(), "", full, MediaType.VIDEO, c.getLong(durCol), c.getLong(dateCol)))
+                    } catch (e: Exception) {
+                        android.util.Log.e("MediaStoreDataSource", "Error processing video item", e)
+                    }
+                }
+            }
+            
+            items.sortByDescending { it.dateAdded }
+        } catch (e: SecurityException) {
+            android.util.Log.e("MediaStoreDataSource", "Permission denied accessing MediaStore", e)
+        } catch (e: Exception) {
+            android.util.Log.e("MediaStoreDataSource", "Error fetching media", e)
         }
         
-        // Fetch Videos
-        val vidProj = arrayOf(
-            MediaStore.Video.Media._ID, 
-            MediaStore.Video.Media.DISPLAY_NAME, 
-            MediaStore.Video.Media.BUCKET_DISPLAY_NAME, 
-            MediaStore.Video.Media.DATA, 
-            MediaStore.Video.Media.DATE_ADDED, 
-            MediaStore.Video.Media.DURATION
-        )
-        context.contentResolver.query(videoUri, vidProj, if (since > 0) "${MediaStore.Video.Media.DATE_ADDED} > ?" else null, if (since > 0) arrayOf(since.toString()) else null, "${MediaStore.Video.Media.DATE_ADDED} DESC")?.use { c ->
-            val idCol = c.getColumnIndexOrThrow(vidProj[0])
-            val nameCol = c.getColumnIndexOrThrow(vidProj[1])
-            val buckCol = c.getColumnIndexOrThrow(vidProj[2])
-            val dataCol = c.getColumnIndexOrThrow(vidProj[3])
-            val dateCol = c.getColumnIndexOrThrow(vidProj[4])
-            val durCol = c.getColumnIndexOrThrow(vidProj[5])
-            while (c.moveToNext()) {
-                val id = c.getLong(idCol)
-                val name = c.getString(nameCol) ?: ""
-                val buck = c.getString(buckCol)?.intern() ?: "???"
-                val full = c.getString(dataCol) ?: ""
-                val bPath = if (full.isNotEmpty()) File(full).parent ?: "???" else "???"
-                items.add(MediaItem(id, ContentUris.withAppendedId(videoUri, id), name, buck, bPath.intern(), "", full, MediaType.VIDEO, c.getLong(durCol), c.getLong(dateCol)))
-            }
-        }
-        
-        items.sortByDescending { it.dateAdded }
         items
     }
 
@@ -99,8 +130,18 @@ class MediaStoreDataSource(private val context: Context) {
                 put(MediaStore.Files.FileColumns.DATE_ADDED, newDateSeconds)
                 put(MediaStore.Files.FileColumns.DATE_MODIFIED, newDateSeconds)
             }
-            context.contentResolver.update(contentUri, values, null, null) > 0
-        } catch (e: Exception) { false }
+            val result = context.contentResolver.update(contentUri, values, null, null) > 0
+            if (!result) {
+                android.util.Log.w("MediaStoreDataSource", "Failed to update date for media item $id")
+            }
+            result
+        } catch (e: SecurityException) {
+            android.util.Log.e("MediaStoreDataSource", "Permission denied updating media date", e)
+            false
+        } catch (e: Exception) {
+            android.util.Log.e("MediaStoreDataSource", "Error updating media date", e)
+            false
+        }
     }
 }
 

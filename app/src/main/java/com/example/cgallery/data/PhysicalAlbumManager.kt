@@ -19,39 +19,44 @@ class PhysicalAlbumManager(context: Context) {
     private val folderDao = db.monitoredFolderDao()
     private val statsDao = db.inboxStatsDao()
     private val favouritesManager = FavouritesManager(context)
+    private val settingsRepo = AppSettingsRepository(context)
     private val context = context
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; encodeDefaults = true }
     val allAlbums: Flow<List<PhysicalAlbumEntity>> = physicalAlbumDao.getAllAlbums()
 
     suspend fun syncAlbums(bucketNames: List<String>) = withContext(Dispatchers.IO) {
-        val existingAlbums = physicalAlbumDao.getAllAlbums().first()
-        val existingMap = existingAlbums.associateBy { it.bucketName }
-        val newBuckets = bucketNames.toSet()
-        
-        val toInsert = mutableListOf<PhysicalAlbumEntity>()
-        var maxSort = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
-        
-        bucketNames.distinct().forEach { bucket ->
-            if (!existingMap.containsKey(bucket)) {
-                maxSort++
-                toInsert.add(PhysicalAlbumEntity(bucketName = bucket, isHidden = false, groupId = null, sortOrder = maxSort))
-            }
-        }
-        
-        if (toInsert.isNotEmpty()) {
-            toInsert.forEach { physicalAlbumDao.insertAlbum(it) }
-        }
-        
-        existingAlbums.forEach { album ->
-            if (!newBuckets.contains(album.bucketName)) {
-                // If it's not in the MediaStore set, we should only keep it if it's a folder we tracked manually
-                // OR if it's hidden and we want to keep the "Hidden" state.
-                // But generally, if it's not in MediaStore and the directory is empty/gone, clean up.
-                val f = File(album.bucketName)
-                if (!f.exists() || (f.isDirectory && (f.list()?.isEmpty() ?: true))) {
-                     physicalAlbumDao.deleteAlbum(album)
+        try {
+            val existingAlbums = physicalAlbumDao.getAllAlbums().first()
+            val existingMap = existingAlbums.associateBy { it.bucketName }
+            val newBuckets = bucketNames.toSet()
+            
+            val toInsert = mutableListOf<PhysicalAlbumEntity>()
+            var maxSort = existingAlbums.maxOfOrNull { it.sortOrder } ?: -1
+            
+            bucketNames.distinct().forEach { bucket ->
+                if (!existingMap.containsKey(bucket)) {
+                    maxSort++
+                    toInsert.add(PhysicalAlbumEntity(bucketName = bucket, isHidden = false, groupId = null, sortOrder = maxSort))
                 }
             }
+            
+            if (toInsert.isNotEmpty()) {
+                toInsert.forEach { physicalAlbumDao.insertAlbum(it) }
+            }
+            
+            existingAlbums.forEach { album ->
+                if (!newBuckets.contains(album.bucketName)) {
+                    // Keep the album if the directory still exists on disk, even if empty or not in MediaStore.
+                    // This prevents newly created empty albums from being deleted before use.
+                    val f = File(album.bucketName)
+                    if (!f.exists()) {
+                         physicalAlbumDao.deleteAlbum(album)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Log error but don't crash - sync can retry next time
+            android.util.Log.e("PhysicalAlbumManager", "Error syncing albums", e)
         }
     }
 
@@ -84,39 +89,85 @@ class PhysicalAlbumManager(context: Context) {
 
     suspend fun moveFile(src: String, target: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val sf = File(src); val tf = File(target)
-            if (!sf.exists()) return@withContext Result.failure(Exception("no src"))
-            if (!tf.exists()) tf.mkdirs()
-            val targetFile = File(tf, sf.name)
-            if (targetFile.exists()) return@withContext Result.failure(Exception("exists"))
-            if (sf.renameTo(targetFile)) { Result.success(targetFile.absolutePath) } else {
-                sf.copyTo(targetFile, overwrite = false)
-                if (sf.delete()) { Result.success(targetFile.absolutePath) } else {
-                    targetFile.delete()
-                    Result.failure(Exception("fail delete"))
+            val sf = File(src)
+            val tf = File(target)
+            
+            if (!sf.exists()) {
+                return@withContext Result.failure(Exception("Source file does not exist"))
+            }
+            
+            if (!tf.exists()) {
+                if (!tf.mkdirs()) {
+                    return@withContext Result.failure(Exception("Failed to create target directory"))
                 }
             }
-        } catch (e: Exception) { Result.failure(e) }
+            
+            val targetFile = nextFreeFile(tf, sf.name)
+            
+            if (sf.renameTo(targetFile)) {
+                Result.success(targetFile.absolutePath)
+            } else {
+                // Try copy + delete as fallback
+                sf.copyTo(targetFile, overwrite = false)
+                if (sf.delete()) {
+                    Result.success(targetFile.absolutePath)
+                } else {
+                    targetFile.delete()
+                    Result.failure(Exception("Failed to delete source file after copy"))
+                }
+            }
+        } catch (e: SecurityException) {
+            Result.failure(Exception("Permission denied: ${e.message}"))
+        } catch (e: Exception) {
+            Result.failure(Exception("File operation failed: ${e.message}"))
+        }
     }
 
     suspend fun copyFile(src: String, target: String): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val sf = File(src); val tf = File(target)
-            if (!sf.exists()) return@withContext Result.failure(Exception("no src"))
-            if (!tf.exists()) tf.mkdirs()
-            val targetFile = File(tf, sf.name)
-            if (targetFile.exists()) return@withContext Result.failure(Exception("exists"))
+            val sf = File(src)
+            val tf = File(target)
+            
+            if (!sf.exists()) {
+                return@withContext Result.failure(Exception("Source file does not exist"))
+            }
+            
+            if (!tf.exists()) {
+                if (!tf.mkdirs()) {
+                    return@withContext Result.failure(Exception("Failed to create target directory"))
+                }
+            }
+            
+            val targetFile = nextFreeFile(tf, sf.name)
             sf.copyTo(targetFile, overwrite = false)
             Result.success(targetFile.absolutePath)
-        } catch (e: Exception) { Result.failure(e) }
+        } catch (e: SecurityException) {
+            Result.failure(Exception("Permission denied: ${e.message}"))
+        } catch (e: Exception) {
+            Result.failure(Exception("File operation failed: ${e.message}"))
+        }
     }
 
+    private fun nextFreeFile(dir: File, name: String): File {
+        var f = File(dir, name); if (!f.exists()) return f
+        val dot = name.lastIndexOf('.')
+        val base = if (dot > 0) name.substring(0, dot) else name
+        val ext = if (dot > 0) name.substring(dot) else ""
+        var i = 1
+        while (f.exists()) { f = File(dir, "$base ($i)$ext"); i++ }
+        return f
+    }
     @Serializable
     data class StructureExport(
+        val version: Int = 2,
+        val exportedAt: Long = System.currentTimeMillis(),
+        val settings: AppSettings? = null,
         val groups: List<AlbumGroupEntity> = emptyList(),
         val albums: List<PhysicalAlbumEntity> = emptyList(),
         val monitoredFolders: List<MonitoredFolderEntity> = emptyList(),
         val favourites: Set<Long> = emptySet(),
+        val favouriteCoverUri: String? = null,
+        val favouriteCoverCrop: String? = null,
         val stats: InboxStatsEntity? = null
     )
 
@@ -125,16 +176,35 @@ class PhysicalAlbumManager(context: Context) {
         val albums = physicalAlbumDao.getAllAlbums().first()
         val folders = folderDao.getAllFolders().first()
         val favs = favouritesManager.favouriteIds.first()
+        val favCover = favouritesManager.favouriteCover.first()
+        val settings = settingsRepo.settingsFlow.first()
         val stats = statsDao.getStats().first()
-        json.encodeToString(StructureExport(groups, albums, folders, favs, stats))
+        json.encodeToString(StructureExport(
+            settings = settings,
+            groups = groups,
+            albums = albums,
+            monitoredFolders = folders,
+            favourites = favs,
+            favouriteCoverUri = favCover.first,
+            favouriteCoverCrop = favCover.second,
+            stats = stats
+        ))
     }
 
     suspend fun importStructure(jsonStr: String) = withContext(Dispatchers.IO) {
         try {
             val data = json.decodeFromString<StructureExport>(jsonStr)
+            
+            // Restore Settings if present (Version 2+)
+            data.settings?.let { settingsRepo.applyImportedSettings(it) }
+
+            // Clear and Restore Group Structure
             groupDao.getAllGroups().first().forEach { groupDao.deleteGroup(it) }
             val groupMap = mutableMapOf<Long, Long>()
-            data.groups.forEach { g -> groupMap[g.id] = groupDao.insertGroup(g.copy(id = 0)) }
+            data.groups.sortedBy { if (it.parentId == null) 0 else 1 }.forEach { g -> 
+                groupMap[g.id] = groupDao.insertGroup(g.copy(id = 0, parentId = null)) 
+            }
+            // Second pass for parent links
             data.groups.forEach { g ->
                 if (g.parentId != null) {
                     val newId = groupMap[g.id]; val newParent = groupMap[g.parentId]
@@ -143,6 +213,8 @@ class PhysicalAlbumManager(context: Context) {
                     }
                 }
             }
+
+            // Restore Albums with mapped Group IDs
             data.albums.forEach { alb ->
                 val existing = physicalAlbumDao.getAlbumByBucketName(alb.bucketName).first()
                 val newGid = alb.groupId?.let { groupMap[it] }
@@ -154,8 +226,15 @@ class PhysicalAlbumManager(context: Context) {
                     MediaScannerConnection.scanFile(context, arrayOf(alb.bucketName), null, null)
                 }
             }
+
+            // Restore Monitored Folders (Replace existing)
+            folderDao.getAllFolders().first().forEach { folderDao.deleteFolder(it) }
             data.monitoredFolders.forEach { folderDao.insertFolder(it.copy(id = 0)) }
-            data.favourites.forEach { favouritesManager.addFavourite(it) }
+
+            // Restore Favourites
+            favouritesManager.replaceFavourites(data.favourites, data.favouriteCoverUri, data.favouriteCoverCrop)
+            
+            // Restore Stats
             data.stats?.let { statsDao.updateStats(it) }
         } catch (e: Exception) { e.printStackTrace() }
     }
@@ -163,3 +242,4 @@ class PhysicalAlbumManager(context: Context) {
     suspend fun updateGroupCover(id: Long, u: String?, c: String?) = groupDao.updateGroupCover(id, u, c)
     suspend fun updateGroupSortOrder(id: Long, sortOrder: Int) = groupDao.updateGroupSortOrder(id, sortOrder)
 }
+

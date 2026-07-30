@@ -38,12 +38,14 @@ fun GalleryScreen(
     allowMultiple: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current; val scope = rememberCoroutineScope()
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val selectionViewModel: SelectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val selectedIds by selectionViewModel.selectedMediaIds.collectAsState()
     val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
-    BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
+    BackHandler(enabled = isSelectionMode) { selectionViewModel.clearSelection() }
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { selectedIds = emptySet(); onReloadMedia() }
+        if (result.resultCode == Activity.RESULT_OK) { selectionViewModel.clearSelection(); onReloadMedia() }
     }
     val appSettingsRepo = remember { AppSettingsRepository(context) }
     val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
@@ -53,18 +55,30 @@ fun GalleryScreen(
                 title = {
                     if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected")
                     else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item")
-                    else Row(verticalAlignment = Alignment.Bottom) { Text("cGallery"); Spacer(Modifier.width(4.dp)); Text("v0.9/1.0rc", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)) }
+                    else Row(verticalAlignment = Alignment.Bottom) { Text("cGallery"); Spacer(Modifier.width(4.dp)); Text("v0.9/1.0rc3.0", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)) }
                 },
                 navigationIcon = {
-                    if (isSelectionMode && !isExternalPicker) IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") }
-                    else if (isExternalPicker) IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
+                    if (isSelectionMode && !isExternalPicker) {
+                        IconButton({ selectionViewModel.clearSelection() }) { Icon(Icons.Default.Close, "clear") }
+                    } else if (isExternalPicker) {
+                        IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
+                    }
                 },
                 actions = {
                     if (isExternalPicker && allowMultiple) {
-                        IconButton({ onMediaSelected(selectedIds.mapNotNull { imagesMap[it]?.uri }) }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
+                        IconButton(
+                            { onMediaSelected(selectedIds.mapNotNull { imagesMap[it]?.uri }) },
+                            enabled = selectedIds.isNotEmpty()
+                        ) { Icon(Icons.Default.Check, "ok") }
                     } else if (isSelectionMode && !isExternalPicker) {
-                        IconButton({ onAddToAlbum(selectedIds, true); selectedIds = emptySet() }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
-                        IconButton({ onAddToAlbum(selectedIds, false); selectedIds = emptySet() }) { Icon(Icons.Default.Add, "copy") }
+                        IconButton({ 
+                            onAddToAlbum(selectedIds, true)
+                            selectionViewModel.clearSelection()
+                        }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
+                        IconButton({ 
+                            onAddToAlbum(selectedIds, false)
+                            selectionViewModel.clearSelection()
+                        }) { Icon(Icons.Default.Add, "copy") }
                         IconButton({
                             val uris = selectedIds.mapNotNull { imagesMap[it]?.uri }
                             val i = Intent(Intent.ACTION_SEND_MULTIPLE).apply { putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris)); type = "*/*" }
@@ -76,7 +90,11 @@ fun GalleryScreen(
                                 val p = MediaStore.createDeleteRequest(context.contentResolver, uris)
                                 deleteLauncher.launch(IntentSenderRequest.Builder(p.intentSender).build())
                             } else {
-                                scope.launch { uris.forEach { context.contentResolver.delete(it, null, null) }; selectedIds = emptySet(); onReloadMedia() }
+                                scope.launch { 
+                                    uris.forEach { context.contentResolver.delete(it, null, null) }
+                                    selectionViewModel.clearSelection()
+                                    onReloadMedia() 
+                                }
                             }
                         }) { Icon(Icons.Default.Delete, "delete") }
                     }
@@ -94,13 +112,23 @@ fun GalleryScreen(
                 MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode,
                     onClick = {
                         if (isSelectionMode) {
-                            if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri))
-                            else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id
-                        } else onImageClick(GalleryKey.Viewer(index))
+                            if (isExternalPicker && !allowMultiple) {
+                                onMediaSelected(listOf(img.uri))
+                            } else {
+                                selectionViewModel.toggleMediaId(img.id)
+                            }
+                        } else {
+                            onImageClick(GalleryKey.Viewer(index))
+                        }
                     },
-                    onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) }
+                    onLongClick = { 
+                        if (selectedIds.isEmpty()) {
+                            selectionViewModel.toggleMediaId(img.id)
+                        }
+                    }
                 )
             }
         }
     }
 }
+

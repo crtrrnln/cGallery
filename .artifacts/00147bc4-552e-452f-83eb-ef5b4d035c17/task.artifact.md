@@ -1,0 +1,6 @@
+- [x] Fix Folder Creation and Selection Organization
+    - [x] Allow empty physical directories in `PhysicalAlbumManager.syncAlbums`
+    - [x] Align `AlbumsScreen` selection mode with group hierarchy
+- [x] Final Verification
+    - [x] Verify folder creation persists
+    - [x] Verify selection screen organization matches albums screen

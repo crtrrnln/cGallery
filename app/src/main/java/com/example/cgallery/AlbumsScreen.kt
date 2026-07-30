@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,8 +68,10 @@ fun AlbumsScreen(images: List<MediaItem>, mediaByBucket: Map<String, List<MediaI
     val visAlbs = remember(physAlbs, isHideShow) { if (isHideShow) physAlbs else physAlbs.filter { !it.isHidden } }
     val ungrouped = remember(visAlbs) { visAlbs.filter { it.groupId == null }.distinctBy { it.bucketName } }
     val albDetails = remember(ungrouped, mediaByBucket) {
-        ungrouped.map { entity -> val imgs = mediaByBucket[entity.bucketName] ?: emptyList()
-            Album(name = entity.bucketName, displayName = File(entity.bucketName).name, count = imgs.size, coverImage = imgs.firstOrNull())
+        val known = ungrouped.map { it.bucketName }.toSet()
+        val paths = (known + mediaByBucket.keys).filter { it.isNotBlank() && it != "???" && it != "unknown" }
+        paths.map { path -> val imgs = mediaByBucket[path] ?: emptyList()
+            Album(name = path, displayName = File(path).name, count = imgs.size, coverImage = imgs.firstOrNull())
         }.distinctBy { it.name }
     }
     val grouped = remember(allG, physAlbs) { val map = mutableMapOf<Long?, List<PhysicalAlbumEntity>>(); map[null] = physAlbs.filter { it.groupId == null }; allG.forEach { g -> map[g.id] = physAlbs.filter { it.groupId == g.id } }; map }
@@ -77,8 +81,12 @@ fun AlbumsScreen(images: List<MediaItem>, mediaByBucket: Map<String, List<MediaI
         items.add(DisplayItem.SpecialAlbum("Favourites", SpecialAlbumType.FAVOURITES))
         val roots = mutableListOf<DisplayItem>()
         groups.filter { it.parentId == null }.forEach { roots.add(DisplayItem.GroupItem(it)) }
-        val relAlbs = if (selectionMode) albDetails else albDetails.filter { a -> physAlbs.find { it.bucketName == a.name }?.groupId == null }
-        relAlbs.forEach { a -> physAlbs.find { it.bucketName == a.name }?.let { roots.add(DisplayItem.AlbumItem(a, it)) } }
+        // Only show albums that are not in any group at the root level
+        val relAlbs = albDetails.filter { a -> 
+            val entity = physAlbs.find { it.bucketName == a.name }
+            entity?.groupId == null
+        }
+        relAlbs.forEach { a -> roots.add(DisplayItem.AlbumItem(a, physAlbs.find { it.bucketName == a.name } ?: PhysicalAlbumEntity(bucketName = a.name))) }
         roots.sortedWith(compareBy({ when (it) { is DisplayItem.GroupItem -> it.group.sortOrder; is DisplayItem.AlbumItem -> it.entity.sortOrder; else -> Int.MAX_VALUE } }, { when (it) { is DisplayItem.GroupItem -> it.group.name; is DisplayItem.AlbumItem -> it.album.displayName; else -> "" } })).forEach { items.add(it) }
         items.distinctBy { when (it) { is DisplayItem.SpecialAlbum -> "special_${it.type}"; is DisplayItem.GroupItem -> "group_${it.group.id}"; is DisplayItem.AlbumItem -> "album_${it.album.name}" } }
     }
@@ -139,7 +147,7 @@ fun GroupAlbumItem(group: AlbumGroupEntity, physicalAlbums: List<PhysicalAlbumEn
     Column(Modifier.fillMaxWidth().combinedClickable(onClick = onGroupClick, onLongClick = onLongClick)) {
         Box(Modifier.aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             if (repImgs.isNotEmpty()) { if (repImgs.size == 1) AsyncImage(repImgs[0].uri, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else { when (repImgs.size) { 2 -> Row(Modifier.fillMaxSize()) { AsyncImage(repImgs[0].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop); Spacer(Modifier.width(1.dp)); AsyncImage(repImgs[1].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop) }; 3 -> Row(Modifier.fillMaxSize()) { AsyncImage(repImgs[0].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop); Spacer(Modifier.width(1.dp)); Column(Modifier.weight(1f).fillMaxHeight()) { AsyncImage(repImgs[1].uri, null, Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Crop); Spacer(Modifier.height(1.dp)); AsyncImage(repImgs[2].uri, null, Modifier.weight(1f).fillMaxWidth(), contentScale = ContentScale.Crop) } }; else -> Column(Modifier.fillMaxSize()) { Row(Modifier.weight(1f)) { AsyncImage(repImgs[0].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop); Spacer(Modifier.width(1.dp)); AsyncImage(repImgs[1].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop) }; Spacer(Modifier.height(1.dp)); Row(Modifier.weight(1f)) { AsyncImage(repImgs[2].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop); Spacer(Modifier.width(1.dp)); AsyncImage(repImgs[3].uri, null, Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.Crop) } } } } } else Icon(Icons.Default.Folder, null, Modifier.size(48.dp).align(Alignment.Center), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f))
-            if (showSortControls) Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(0.5f)).padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) { IconButton(onMoveUp, Modifier.size(32.dp)) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }; IconButton(onMoveDown, Modifier.size(32.dp)) { Icon(Icons.Default.ArrowForward, null, tint = Color.White) } }
+            if (showSortControls) Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(0.5f)).padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) { IconButton(onMoveUp, Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) }; IconButton(onMoveDown, Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.White) } }
         }
         Spacer(Modifier.height(8.dp)); Text(group.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${childAlbs.size} albums", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -151,8 +159,13 @@ fun AlbumItem(album: Album, isHidden: Boolean, isHideShowMode: Boolean, selectio
             val model = entity.customCoverUri ?: album.coverImage?.uri; if (model != null) AsyncImage(model = ImageRequest.Builder(LocalContext.current).data(model).crossfade(true).size(300).build(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Icon(Icons.Default.PhotoAlbum, null, Modifier.size(48.dp).align(Alignment.Center), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f))
             if (isHideShowMode) { Box(Modifier.fillMaxSize().background(if (isHidden) Color.Black.copy(0.4f) else Color.Transparent)); Icon(if (isHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, Modifier.align(Alignment.Center).size(32.dp), tint = Color.White) }
             if (selectionMode) Checkbox(isSelected, { onClick() }, Modifier.align(Alignment.TopEnd))
-            if (showSortControls) Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(0.5f)).padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) { IconButton(onMoveUp, Modifier.size(32.dp)) { Icon(Icons.Default.ArrowBack, null, tint = Color.White) }; IconButton(onMoveDown, Modifier.size(32.dp)) { Icon(Icons.Default.ArrowForward, null, tint = Color.White) } }
+            if (showSortControls) Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(0.5f)).padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) { IconButton(onMoveUp, Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White) }; IconButton(onMoveDown, Modifier.size(32.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.White) } }
         }
         Spacer(Modifier.height(8.dp)); Text(album.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${album.count} items", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+
+
+
+

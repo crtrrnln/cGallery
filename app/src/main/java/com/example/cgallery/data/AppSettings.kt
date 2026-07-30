@@ -7,14 +7,19 @@ import android.content.ComponentName
 import android.content.pm.PackageManager
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.Serializable
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 val Context.appDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 
+@Serializable
 enum class ThemeAccent { INNOCENT_SIN_RED, ETERNAL_PUNISHMENT_BLUE }
+@Serializable
 enum class GridDensity { COMFORTABLE, COMPACT }
 
+@Serializable
 data class AppSettings(
     val isEnforcementEnabled: Boolean = true,
     val isShizukuEnabled: Boolean = true,
@@ -84,4 +89,22 @@ class AppSettingsRepository(private val context: Context) {
     suspend fun updateGridDensity(v: GridDensity) { context.appDataStore.edit { it[Keys.GRID_DENSITY] = v.name } }
     suspend fun updateEfficiencyMode(v: Boolean) { context.appDataStore.edit { it[Keys.EFFICIENCY_MODE] = v } }
     suspend fun updateBiometricEnabled(v: Boolean) { context.appDataStore.edit { it[Keys.BIOMETRIC_ENABLED] = v } }
+    suspend fun applyImportedSettings(s: AppSettings) {
+        context.appDataStore.edit { p ->
+            p[Keys.ENFORCEMENT_ENABLED] = s.isEnforcementEnabled
+            p[Keys.SHIZUKU_ENABLED] = s.isShizukuEnabled
+            p[Keys.LAUNCH_AUTOMATICALLY] = s.launchAutomatically
+            p[Keys.REQUIRE_INBOX_BEFORE_GALLERY] = s.requireInboxBeforeGallery
+            p[Keys.AUTO_RETURN] = s.autoReturnToPreviousApp
+            p[Keys.SNOOZE_EXPIRATION] = 0
+            p[Keys.SNOOZE_THRESHOLD] = 0
+            p[Keys.SNOOZE_COUNT] = 0
+            p[Keys.THEME_ACCENT] = s.themeAccent.name
+            p[Keys.GRID_DENSITY] = s.gridDensity.name
+            p[Keys.EFFICIENCY_MODE] = s.efficiencyMode
+            p[Keys.BIOMETRIC_ENABLED] = s.isBiometricEnabled
+        }
+        updateThemeAccent(s.themeAccent)
+    }
 }
+

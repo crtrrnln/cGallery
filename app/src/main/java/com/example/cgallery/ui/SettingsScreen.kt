@@ -69,7 +69,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateT
             item { SectionHeader("System") }
             item {
                 Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("cGallery v0.9/1.0rc", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
+                    Text("cGallery v0.9/1.0rc3.0", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
                         tapCount++; if (tapCount >= 5) { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/crtrrnln/cGallery"))); tapCount = 0 }
                     })
                 }
@@ -88,3 +88,4 @@ fun formatSize(size: Long): String {
     val units = arrayOf("B", "KB", "MB", "GB", "TB"); val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
     return DecimalFormat("#,##0.#").format(size / Math.pow(1024.0, digitGroups.toDouble())) + " " + units[digitGroups]
 }
+

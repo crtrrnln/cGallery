@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = AppSettingsRepository(application)
     private val dataSource = MediaStoreDataSource(application)
+    private val db = VirtualAlbumDatabase.getDatabase(application)
     val settings = repo.settingsFlow.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 
     private val _storageStats = MutableStateFlow<DetailedStorageStats?>(null)
@@ -38,29 +39,55 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshLibrary() = viewModelScope.launch {
+        if (_isScanning.value) return@launch
         _isScanning.value = true
-        withContext(Dispatchers.IO) {
-            val context = getApplication<Application>()
-            val roots = arrayOf(
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM),
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES),
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
-                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
-            )
-            
-            val allFiles = mutableListOf<String>()
-            roots.forEach { root ->
-                if (root.exists()) {
-                    root.walkTopDown().filter { it.isFile && (it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "mp4", "mkv", "gif")) }.forEach { 
-                        allFiles.add(it.absolutePath) 
+        try {
+            withContext(Dispatchers.IO) {
+                val context = getApplication<Application>()
+                repairOldInboxDestinations()
+                val roots = mutableListOf(
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM),
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES),
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                    android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
+                )
+                db.physicalAlbumDao().getAllAlbums().first().forEach { roots.add(java.io.File(it.bucketName)) }
+                db.inboxDao().getCompletedItems().first().forEach { item -> item.destinationPaths.forEach { p -> roots.add(java.io.File(p).parentFile ?: java.io.File(p)) } }
+                val exts = listOf("jpg", "jpeg", "png", "webp", "mp4", "mkv", "gif", "heic", "heif", "mov", "webm")
+                val allFiles = mutableListOf<String>()
+                roots.distinctBy { it.absolutePath }.forEach { root ->
+                    if (root.exists()) {
+                        allFiles.add(root.absolutePath)
+                        root.walkTopDown().filter { it.isFile && it.extension.lowercase() in exts }.forEach { allFiles.add(it.absolutePath) }
                     }
                 }
+                if (allFiles.isNotEmpty()) {
+                    val scanFiles = allFiles.distinct()
+                    val latch = java.util.concurrent.CountDownLatch(scanFiles.size)
+                    android.media.MediaScannerConnection.scanFile(context, scanFiles.toTypedArray(), null) { _, _ -> latch.countDown() }
+                    latch.await(25, java.util.concurrent.TimeUnit.SECONDS)
+                }
             }
-            
-            if (allFiles.isNotEmpty()) {
-                android.media.MediaScannerConnection.scanFile(context, allFiles.toTypedArray(), null) { _, _ -> }
-            }
+        } finally {
+            _isScanning.value = false
+            RefreshEventBus.requestRefresh()
         }
-        _isScanning.value = false
+    }
+
+    private suspend fun repairOldInboxDestinations() = withContext(Dispatchers.IO) {
+        val dao = db.inboxDao(); val completed = dao.getCompletedItems().first()
+        completed.forEach { item ->
+            val fixed = item.destinationPaths.map { path ->
+                val f = java.io.File(path)
+                if (f.isDirectory) java.io.File(f, item.filename).absolutePath else path
+            }.filter { java.io.File(it).exists() }
+            if (fixed.isNotEmpty() && fixed != item.destinationPaths) dao.updateItem(item.copy(destinationPaths = fixed))
+        }
     }
 }
+
+
+
+
+
+

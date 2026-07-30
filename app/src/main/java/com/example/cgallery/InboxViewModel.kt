@@ -36,8 +36,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
-    private val _needsRefresh = MutableStateFlow(false)
-    val needsRefresh = _needsRefresh.asStateFlow()
+
 
     private val _showUnmonitored = MutableStateFlow(false)
     val showUnmonitored = _showUnmonitored.asStateFlow()
@@ -56,7 +55,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         loadMediaFolders()
     }
 
-    fun clearRefreshFlag() { _needsRefresh.value = false }
+
     fun toggleUnmonitored() { _showUnmonitored.value = !_showUnmonitored.value }
 
     fun loadMediaFolders() {
@@ -117,25 +116,19 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processItems(ids: Set<Long>, targetFolders: List<String>, isMove: Boolean) {
         viewModelScope.launch {
-            InboxManager.isBulkProcessing = true
-            _isScanning.value = true 
-            _needsRefresh.value = true
-            val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
-            
-            // Mark as Queued immediately to stop EnforcementEngine from re-triggering
-            val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids }
-            itemsToProcess.forEach { inboxDao.updateItem(it.copy(status = InboxStatus.Queued)) }
-            
-            var successCount = 0
-            itemsToProcess.forEach { item ->
-                if (manager.processItem(item, targetFolders, operation)) {
-                    successCount++
-                }
+            InboxManager.isBulkProcessing = true; _isScanning.value = true
+            var total = 0; var successCount = 0
+            try {
+                RefreshEventBus.requestRefresh()
+                val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
+                val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids || it.mediaStoreId in ids }
+                total = itemsToProcess.size
+                itemsToProcess.forEach { inboxDao.updateItem(it.copy(status = InboxStatus.Queued)) }
+                itemsToProcess.forEach { item -> if (manager.processItem(item, targetFolders, operation)) successCount++ }
+            } finally {
+                _isScanning.value = false; InboxManager.isBulkProcessing = false; RefreshEventBus.requestRefresh()
+                _operationResult.emit("processed $successCount/$total")
             }
-            
-            _isScanning.value = false
-            InboxManager.isBulkProcessing = false
-            _operationResult.emit("processed $successCount/${ids.size}")
         }
     }
 
@@ -196,3 +189,5 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
+
+

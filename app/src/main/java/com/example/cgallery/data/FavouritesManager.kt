@@ -63,4 +63,16 @@ class FavouritesManager(private val context: Context) {
             }
         }
     }
+    suspend fun replaceFavourites(ids: Set<Long>, coverUri: String?, coverCrop: String?) {
+        context.dataStore.edit { p ->
+            p[FAVOURITES_KEY] = ids.map { it.toString() }.toSet()
+            if (coverUri == null) {
+                p.remove(FAVOURITE_COVER_URI); p.remove(FAVOURITE_COVER_CROP)
+            } else {
+                p[FAVOURITE_COVER_URI] = coverUri
+                if (coverCrop != null) p[FAVOURITE_COVER_CROP] = coverCrop else p.remove(FAVOURITE_COVER_CROP)
+            }
+        }
+    }
 }
+

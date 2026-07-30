@@ -2,13 +2,13 @@
 
 cGallery is a simple local gallery app for organising and browsing image collections and folders, designed for people with lots of images and videos who download lots but can't keep up with the sorting of everything.
 
-It’s still in development, but it already works for daily use and I’m improving it version by version.
+It's still in development, but it already works for daily use and I'm improving it version by version.
 
 ---
 
 ## Current Version
 
-v0.86
+v0.9/1.0rc3.0
 
 ---
 
@@ -30,9 +30,9 @@ when you download a file, cGallery can automatically open and drop you into an i
 
 from there, new files are handled before they ever sit in albums
 
-the idea is that downloads don’t just get added to the collection automatically, you have to place them into an album from the inbox
+the idea is that downloads don't just get added to the collection automatically, you have to place them into an album from the inbox
 
-this only fully “takes over” the system when Shizuku permissions are enabled
+this only fully "takes over" the system when Shizuku permissions are enabled
 
 without Shizuku, the inbox still exists but it just works inside the app and you can open it manually whenever you want
 
@@ -40,22 +40,22 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ---
 
-## What I’m working on next
+## What I'm working on next
 
-### v0.8
+### v0.9/1.0rc3.0
 - cleaning up how folder/group structure works
 - fixing edge cases with empty or weird folders
 - making loading more efficient
 - general UI cleanup and small fixes
 
-### v0.9
+### v0.9/1.0rc3.0
 - smoother navigation
 - general usability improvements
 - polishing things based on actual use
 
-### v1.0
+### v0.9/1.0rc3.0
 - everything should feel consistent and stable
-- basically the “finished” baseline version
+- basically the "finished" baseline version
 
 ---
 
@@ -72,7 +72,7 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ## Status
 
-It works right now and I use it exclusively, but I’m still actively changing things so stuff might shift a bit between versions. (I intend on imports to work consistently though when moving up versions)
+It works right now and I use it exclusively, but I'm still actively changing things so stuff might shift a bit between versions. (I intend on imports to work consistently though when moving up versions)
 All testing is done on my phone with 4GB of memory, and ~64000 images and videos.
 
 ---
@@ -80,3 +80,5 @@ All testing is done on my phone with 4GB of memory, and ~64000 images and videos
 ## End goal
 
 Make something I can actually rely on long term without getting messy or overcomplicated or needing AI stuff.
+
+

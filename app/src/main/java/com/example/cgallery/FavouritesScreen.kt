@@ -23,17 +23,25 @@ import com.example.cgallery.ui.MediaGridItem
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FavouritesScreen(favouriteImages: List<MediaItem>, onImageClick: (GalleryKey) -> Unit, onMediaSelected: (List<android.net.Uri>) -> Unit = {}, isExternalPicker: Boolean = false, allowMultiple: Boolean = false, onChangeCover: () -> Unit = {}, onBack: () -> Unit = {}, modifier: Modifier = Modifier) {
-    val context = LocalContext.current; var selectedIds by remember { mutableStateOf(setOf<Long>()) }; val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker; var showMenu by remember { mutableStateOf(false) }
-    BackHandler(enabled = isSelectionMode) { selectedIds = emptySet() }
+    val context = LocalContext.current
+    val selectionViewModel: SelectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val selectedIds by selectionViewModel.selectedMediaIds.collectAsState()
+    val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
+    var showMenu by remember { mutableStateOf(false) }
+    BackHandler(enabled = isSelectionMode) { selectionViewModel.clearSelection() }
     val appSettingsRepo = remember { AppSettingsRepository(context) }; val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
 
     Scaffold(topBar = { 
         CenterAlignedTopAppBar(
             title = { if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected") else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") else Text("Favourites") },
             navigationIcon = { 
-                if (isSelectionMode && !isExternalPicker) IconButton({ selectedIds = emptySet() }) { Icon(Icons.Default.Close, "clear") } 
-                else if (isExternalPicker) IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
-                else IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") }
+                if (isSelectionMode && !isExternalPicker) {
+                    IconButton({ selectionViewModel.clearSelection() }) { Icon(Icons.Default.Close, "clear") }
+                } else if (isExternalPicker) {
+                    IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
+                } else {
+                    IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") }
+                }
             },
             actions = { 
                 if (isExternalPicker && allowMultiple) IconButton({ onMediaSelected(selectedIds.mapNotNull { id -> favouriteImages.find { it.id == id }?.uri }) }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
@@ -45,7 +53,29 @@ fun FavouritesScreen(favouriteImages: List<MediaItem>, onImageClick: (GalleryKey
         else LazyVerticalGrid(columns = GridCells.Fixed(if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
             itemsIndexed(favouriteImages, key = { _, i -> i.id }) { index, img ->
                 val isSel = img.id in selectedIds
-                MediaGridItem(image = img, index = index, isSelected = isSel, isSelectionMode = isSelectionMode, efficiencyMode = appSettings.efficiencyMode, onClick = { if (isSelectionMode) { if (isExternalPicker && !allowMultiple) onMediaSelected(listOf(img.uri)) else selectedIds = if (isSel) selectedIds - img.id else selectedIds + img.id } else onImageClick(GalleryKey.Viewer(index, isFavourites = true)) }, onLongClick = { if (selectedIds.isEmpty()) selectedIds = setOf(img.id) })
+                MediaGridItem(
+                    image = img, 
+                    index = index, 
+                    isSelected = isSel, 
+                    isSelectionMode = isSelectionMode, 
+                    efficiencyMode = appSettings.efficiencyMode, 
+                    onClick = { 
+                        if (isSelectionMode) {
+                            if (isExternalPicker && !allowMultiple) {
+                                onMediaSelected(listOf(img.uri))
+                            } else {
+                                selectionViewModel.toggleMediaId(img.id)
+                            }
+                        } else {
+                            onImageClick(GalleryKey.Viewer(index, isFavourites = true))
+                        }
+                    }, 
+                    onLongClick = { 
+                        if (selectedIds.isEmpty()) {
+                            selectionViewModel.toggleMediaId(img.id)
+                        }
+                    }
+                )
             }
         }
     }

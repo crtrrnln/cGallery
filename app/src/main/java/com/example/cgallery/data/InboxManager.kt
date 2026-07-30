@@ -33,6 +33,10 @@ class InboxManager(private val context: Context) {
         newCount
     }
 
+    suspend fun getPendingCount(): Int = withContext(Dispatchers.IO) {
+        inboxDao.getPendingItems().first().size
+    }
+
     suspend fun processItem(item: InboxItemEntity, targets: List<String>, op: InboxOperationType): Boolean = withContext(Dispatchers.IO) {
         if (targets.isEmpty()) return@withContext false
         val start = System.currentTimeMillis(); var successCount = 0; val created = mutableListOf<String>()
@@ -54,9 +58,11 @@ class InboxManager(private val context: Context) {
             }
             val allOk = successCount == targets.size; val end = System.currentTimeMillis(); val time = end - start
             if (allOk) {
-                inboxDao.updateItem(item.copy(status = InboxStatus.Completed, processingTimestamp = end, destinationPaths = targets, operationType = op))
+                inboxDao.updateItem(item.copy(status = InboxStatus.Completed, processingTimestamp = end, destinationPaths = created, operationType = op))
                 val scanPaths = (created + if (op == InboxOperationType.MOVE) listOf(item.sourcePath) else emptyList())
-                MediaScannerConnection.scanFile(context, scanPaths.toTypedArray(), null) { _, _ -> }
+                MediaScannerConnection.scanFile(context, scanPaths.toTypedArray(), null) { _, _ -> 
+                    RefreshEventBus.requestRefresh()
+                }
                 updateStats { stats ->
                     val nSrc = stats.sourceFolderCounts.toMutableMap(); nSrc[item.sourcePath] = (nSrc[item.sourcePath] ?: 0) + 1
                     val nDest = stats.destinationFolderCounts.toMutableMap(); targets.forEach { nDest[it] = (nDest[it] ?: 0) + 1 }
@@ -83,3 +89,4 @@ class InboxManager(private val context: Context) {
         statsDao.updateStats(transform(current))
     }
 }
+
