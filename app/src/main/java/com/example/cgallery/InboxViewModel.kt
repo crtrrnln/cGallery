@@ -119,14 +119,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             InboxManager.isBulkProcessing = true; _isScanning.value = true
             var total = 0; var successCount = 0
             try {
-                RefreshEventBus.requestRefresh()
                 val operation = if (isMove) InboxOperationType.MOVE else InboxOperationType.COPY
                 val itemsToProcess = inboxDao.getPendingItems().first().filter { it.id in ids || it.mediaStoreId in ids }
                 total = itemsToProcess.size
-                itemsToProcess.forEach { inboxDao.updateItem(it.copy(status = InboxStatus.Queued)) }
-                itemsToProcess.forEach { item -> if (manager.processItem(item, targetFolders, operation)) successCount++ }
+                if (total > 0) {
+                    itemsToProcess.forEach { inboxDao.updateItem(it.copy(status = InboxStatus.Queued)) }
+                    successCount = manager.processItemsBulk(itemsToProcess, targetFolders, operation)
+                }
             } finally {
-                _isScanning.value = false; InboxManager.isBulkProcessing = false; RefreshEventBus.requestRefresh()
+                _isScanning.value = false; InboxManager.isBulkProcessing = false
+                RefreshEventBus.requestRefresh()
                 _operationResult.emit("processed $successCount/$total")
             }
         }

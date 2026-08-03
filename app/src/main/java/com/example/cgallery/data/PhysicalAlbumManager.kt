@@ -199,6 +199,7 @@ class PhysicalAlbumManager(context: Context) {
             data.settings?.let { settingsRepo.applyImportedSettings(it) }
 
             // Clear and Restore Group Structure
+            physicalAlbumDao.resetAllGroupLinks()
             groupDao.getAllGroups().first().forEach { groupDao.deleteGroup(it) }
             val groupMap = mutableMapOf<Long, Long>()
             data.groups.sortedBy { if (it.parentId == null) 0 else 1 }.forEach { g -> 
@@ -214,16 +215,20 @@ class PhysicalAlbumManager(context: Context) {
                 }
             }
 
-            // Restore Albums with mapped Group IDs
+            // Restore Albums with mapped Group IDs - Merging with physical reality
             data.albums.forEach { alb ->
                 val existing = physicalAlbumDao.getAlbumByBucketName(alb.bucketName).first()
                 val newGid = alb.groupId?.let { groupMap[it] }
                 if (existing != null) {
                     physicalAlbumDao.updateAlbum(existing.copy(groupId = newGid, sortOrder = alb.sortOrder, isHidden = alb.isHidden, customCoverUri = alb.customCoverUri, customCoverCrop = alb.customCoverCrop))
                 } else {
-                    val f = File(alb.bucketName); if (!f.exists()) f.mkdirs()
-                    physicalAlbumDao.insertAlbum(alb.copy(id = 0, groupId = newGid))
-                    MediaScannerConnection.scanFile(context, arrayOf(alb.bucketName), null, null)
+                    // Only restore the entry if the folder actually exists on disk.
+                    // We don't want to create ghost folders (mkdirs) for deleted content.
+                    val f = File(alb.bucketName)
+                    if (f.exists()) {
+                        physicalAlbumDao.insertAlbum(alb.copy(id = 0, groupId = newGid))
+                        MediaScannerConnection.scanFile(context, arrayOf(alb.bucketName), null, null)
+                    }
                 }
             }
 

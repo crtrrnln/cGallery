@@ -28,6 +28,6 @@ fun HomeScreen(version: String, modifier: Modifier = Modifier) {
 @Composable
 fun HomeScreenPreview() {
     CGalleryTheme {
-        HomeScreen("v0.9/1.0rc3.0")
+        HomeScreen("v0.9/1.0rc3.2")
     }
 }

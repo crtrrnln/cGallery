@@ -31,6 +31,8 @@ interface PhysicalAlbumDao {
     suspend fun updateAlbumVisibility(bucketName: String, isHidden: Boolean)
     @Query("UPDATE physical_albums SET groupId = :groupId WHERE bucketName = :bucketName")
     suspend fun moveAlbumToGroup(bucketName: String, groupId: Long?)
+    @Query("UPDATE physical_albums SET groupId = NULL")
+    suspend fun resetAllGroupLinks()
     @Query("UPDATE physical_albums SET sortOrder = :sortOrder WHERE id = :albumId")
     suspend fun updateAlbumSortOrder(albumId: Long, sortOrder: Int)
     @Query("UPDATE physical_albums SET customCoverUri = :uri, customCoverCrop = :crop WHERE bucketName = :bucketName")

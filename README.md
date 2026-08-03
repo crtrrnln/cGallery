@@ -8,7 +8,7 @@ It's still in development, but it already works for daily use and I'm improving 
 
 ## Current Version
 
-v0.9/1.0rc3.0
+v0.9/1.0rc3.2
 
 ---
 
@@ -42,30 +42,23 @@ enforcement is also optional, so you can choose whether you want to be forced in
 
 ## What I'm working on next
 
-### v0.9/1.0rc3.0
-- cleaning up how folder/group structure works
-- fixing edge cases with empty or weird folders
+
+- fixing weird folders
 - making loading more efficient
 - general UI cleanup and small fixes
-
-### v0.9/1.0rc3.0
 - smoother navigation
 - general usability improvements
 - polishing things based on actual use
 
-### v0.9/1.0rc3.0
-- everything should feel consistent and stable
-- basically the "finished" baseline version
 
 ---
 
 ---
 
-## Future ideas (not sure yet)
-
+## not happening
 - better search/filtering somehow
 - tags or metadata stuff
-- maybe plugins later on, not sure
+- plugins and similar
 - cloud sync is probably not happening anytime soon (or ever)
 
 ---
@@ -77,8 +70,6 @@ All testing is done on my phone with 4GB of memory, and ~64000 images and videos
 
 ---
 
-## End goal
-
-Make something I can actually rely on long term without getting messy or overcomplicated or needing AI stuff.
-
+## End
+💞🦭
 
