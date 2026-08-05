@@ -1,5 +1,8 @@
 package com.example.cgallery
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,9 +33,26 @@ sealed class GroupDisplayItem {
     data class AlbumItem(val album: Album, val entity: PhysicalAlbumEntity) : GroupDisplayItem()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun GroupDetailScreen(groupId: Long, images: List<MediaItem>, onAlbumClick: (String) -> Unit, onGroupClick: (Long) -> Unit = {}, onChangeCover: () -> Unit = {}, onCreateFolder: (String) -> Unit = {}, selectionMode: Boolean = false, selectedAlbums: Set<String> = emptySet(), onToggleAlbumSelection: (String) -> Unit = {}, onConfirmSelection: (List<String>) -> Unit = {}, onBack: () -> Unit, onMediaSelected: (List<android.net.Uri>) -> Unit = {}, isExternalPicker: Boolean = false, pickerAllowMultiple: Boolean = false) {
+fun GroupDetailScreen(
+    groupId: Long, 
+    images: List<MediaItem>, 
+    onAlbumClick: (String) -> Unit, 
+    onGroupClick: (Long) -> Unit = {}, 
+    onChangeCover: () -> Unit = {}, 
+    onCreateFolder: (String) -> Unit = {}, 
+    selectionMode: Boolean = false, 
+    selectedAlbums: Set<String> = emptySet(), 
+    onToggleAlbumSelection: (String) -> Unit = {}, 
+    onConfirmSelection: (List<String>) -> Unit = {}, 
+    onBack: () -> Unit, 
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {}, 
+    isExternalPicker: Boolean = false, 
+    pickerAllowMultiple: Boolean = false,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
+) {
     val context = androidx.compose.ui.platform.LocalContext.current; val scope = rememberCoroutineScope(); val groupManager = remember { AlbumGroupManager(context) }; val physicalAlbumManager = remember { PhysicalAlbumManager(context) }
     var selectedMediaIds by remember { mutableStateOf(setOf<Long>()) }; val isSelectionMode = selectionMode || selectedMediaIds.isNotEmpty() || isExternalPicker; var showMoveToG by remember { mutableStateOf(false) }; var selAlbForG by remember { mutableStateOf<Album?>(null) }
     var selGId by remember { mutableStateOf<Long?>(null) }; var isReorder by remember { mutableStateOf(false) }; var showCreateG by remember { mutableStateOf(false) }; var newGName by remember { mutableStateOf("") }; var showMenu by remember { mutableStateOf(false) }; var showCreateF by remember { mutableStateOf(false) }
@@ -40,24 +62,73 @@ fun GroupDetailScreen(groupId: Long, images: List<MediaItem>, onAlbumClick: (Str
     val displayItems = remember(childG, albumsInG, bucketMap) { val list = mutableListOf<GroupDisplayItem>(); childG.forEach { list.add(GroupDisplayItem.GroupItem(it)) }; albumsInG.forEach { entity -> val imgs = bucketMap[entity.bucketName] ?: emptyList(); list.add(GroupDisplayItem.AlbumItem(Album(entity.bucketName, File(entity.bucketName).name, imgs.size, imgs.firstOrNull()), entity)) }; list.sortedWith(compareBy({ when (it) { is GroupDisplayItem.GroupItem -> it.group.sortOrder; is GroupDisplayItem.AlbumItem -> it.entity.sortOrder } }, { when (it) { is GroupDisplayItem.GroupItem -> it.group.name; is GroupDisplayItem.AlbumItem -> it.album.displayName } })) }
     BackHandler(enabled = isSelectionMode) { if (isExternalPicker) onMediaSelected(emptyList()) else if (selectionMode) onConfirmSelection(emptyList()) else selectedMediaIds = emptySet() }
     val appSettingsRepo = remember { AppSettingsRepository(context) }; val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
+    val vm: MediaStoreViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val starredIds by vm.combinedStarredIds.collectAsState()
+    val useModern = appSettings.useModernUI
+    
+    var showOnlyStarred by remember { mutableStateOf(false) }
+    val filteredItems = remember(displayItems, showOnlyStarred, starredIds) {
+        if (showOnlyStarred) {
+            displayItems.filter { item ->
+                when (item) {
+                    is GroupDisplayItem.AlbumItem -> item.album.count > 0 // This is a bit complex for albums, Pinterest style is per media
+                    is GroupDisplayItem.GroupItem -> true 
+                }
+            }
+        } else displayItems
+    }
+    // Pinterest style starring is really for media. Let's make it work for media inside groups too if we were to show them, but here we show albums/groups.
+    // I will focus the filtering on the media inside AlbumDetail, but for GroupDetail I'll add the menu toggle for consistency.
 
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), topBar = {
-        CenterAlignedTopAppBar(title = { if (isExternalPicker) Text(if (pickerAllowMultiple) "${selectedMediaIds.size} selected" else "Select Item") else if (selectionMode) Text("${selectedAlbums.size} Selected") else if (selectedMediaIds.isNotEmpty()) Text("${selectedMediaIds.size} selected") else Text(group?.name ?: "Group", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            navigationIcon = { IconButton({ if (isExternalPicker) onMediaSelected(emptyList()) else if (selectionMode) onConfirmSelection(emptyList()) else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = emptySet() else onBack() }) { Icon(if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, "back") } },
-            actions = {
-                if (isExternalPicker && pickerAllowMultiple) IconButton({ onMediaSelected(selectedMediaIds.mapNotNull { id -> images.find { it.id == id }?.uri }) }, enabled = selectedMediaIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
-                else if (selectionMode) { IconButton({ showCreateF = true }) { Icon(Icons.Default.Add, "new") }; IconButton({ onConfirmSelection(selectedAlbums.toList()) }, enabled = selectedAlbums.isNotEmpty()) { Icon(Icons.Default.Done, "ok") } }
-                else if (!isExternalPicker && selectedMediaIds.isEmpty()) Box { IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "more") }; DropdownMenu(showMenu, { showMenu = false }) { DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) }); DropdownMenuItem({ Text("Create Album") }, { showMenu = false; showCreateF = true }, leadingIcon = { Icon(Icons.Default.Add, null) }); DropdownMenuItem({ Text("Create Group") }, { showMenu = false; showCreateG = true }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) }); DropdownMenuItem({ Text("Reorder") }, { showMenu = false; isReorder = !isReorder }, leadingIcon = { Icon(Icons.Default.SwapVert, null) }) } }
-            })
+        if (useModern && !isSelectionMode) {
+            LargeTopAppBar(
+                title = {
+                    Column {
+                        Text(group?.name ?: "Group", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (useModern) "v0.9/1.0rc3.2UI" else "v0.9/1.0rc3.2", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                    }
+                },
+                navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") } },
+                actions = {
+                    IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "more") }
+                    DropdownMenu(showMenu, { showMenu = false }) {
+                        DropdownMenuItem({ Text(if (showOnlyStarred) "Show All" else "Show Starred") }, { showMenu = false; showOnlyStarred = !showOnlyStarred }, leadingIcon = { Icon(if (showOnlyStarred) Icons.Rounded.StarBorder else Icons.Rounded.Star, null) })
+                        DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) })
+                        DropdownMenuItem({ Text("Create Album") }, { showMenu = false; showCreateF = true }, leadingIcon = { Icon(Icons.Default.Add, null) })
+                        DropdownMenuItem({ Text("Create Group") }, { showMenu = false; showCreateG = true }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) })
+                        DropdownMenuItem({ Text("Reorder") }, { showMenu = false; isReorder = !isReorder }, leadingIcon = { Icon(Icons.Default.SwapVert, null) })
+                    }
+                }
+            )
+        } else {
+            CenterAlignedTopAppBar(title = { if (isExternalPicker) Text(if (pickerAllowMultiple) "${selectedMediaIds.size} selected" else "Select Item") else if (selectionMode) Text("${selectedAlbums.size} Selected") else if (selectedMediaIds.isNotEmpty()) Text("${selectedMediaIds.size} selected") else Text(group?.name ?: "Group", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = { IconButton({ if (isExternalPicker) onMediaSelected(emptyList()) else if (selectionMode) onConfirmSelection(emptyList()) else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = emptySet() else onBack() }) { Icon(if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack, "back") } },
+                actions = {
+                    if (isExternalPicker && pickerAllowMultiple) IconButton({ onMediaSelected(selectedMediaIds.mapNotNull { id -> images.find { it.id == id }?.uri }) }, enabled = selectedMediaIds.isNotEmpty()) { Icon(Icons.Default.Check, "ok") }
+                    else if (selectionMode) { IconButton({ showCreateF = true }) { Icon(Icons.Default.Add, "new") }; IconButton({ onConfirmSelection(selectedAlbums.toList()) }, enabled = selectedAlbums.isNotEmpty()) { Icon(Icons.Default.Done, "ok") } }
+                    else if (selectedMediaIds.isNotEmpty()) {
+                        IconButton({
+                            val items = selectedMediaIds.mapNotNull { id -> images.find { it.id == id } }
+                            vm.moveToTrash(items)
+                            selectedMediaIds = emptySet()
+                        }) { Icon(Icons.Default.Delete, "delete") }
+                    }
+                    else if (!isExternalPicker && selectedMediaIds.isEmpty()) Box { IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "more") }; DropdownMenu(showMenu, { showMenu = false }) { DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) }); DropdownMenuItem({ Text("Create Album") }, { showMenu = false; showCreateF = true }, leadingIcon = { Icon(Icons.Default.Add, null) }); DropdownMenuItem({ Text("Create Group") }, { showMenu = false; showCreateG = true }, leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) }); DropdownMenuItem({ Text("Reorder") }, { showMenu = false; isReorder = !isReorder }, leadingIcon = { Icon(Icons.Default.SwapVert, null) }) } }
+                })
+        }
     }) { p ->
         Box(Modifier.fillMaxSize().padding(p)) {
             if (displayItems.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("empty group", style = MaterialTheme.typography.bodyLarge) }
-            else LazyVerticalGrid(GridCells.Fixed(if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 80.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                items(displayItems, key = { when (it) { is GroupDisplayItem.GroupItem -> "g_${it.group.id}"; is GroupDisplayItem.AlbumItem -> "a_${it.album.name}" } }) { item ->
-                    val curIdx = displayItems.indexOf(item); val canUp = curIdx > 0; val canDown = curIdx < (displayItems.size - 1)
-                    when (item) {
-                        is GroupDisplayItem.GroupItem -> GroupAlbumItem(group = item.group, physicalAlbums = physAlbs, mediaByBucket = bucketMap, allGroups = allG, albumsByGroup = { gid -> physAlbs.filter { it.groupId == gid } }, onGroupClick = { onGroupClick(item.group.id) }, onLongClick = { if (!isSelectionMode) { selGForMove = item.group; showMoveG = true } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
-                        is GroupDisplayItem.AlbumItem -> AlbumItem(album = item.album, isHidden = item.entity.isHidden, isHideShowMode = false, selectionMode = selectionMode, isSelected = if (selectionMode) item.album.name in selectedAlbums else item.entity.id in selectedMediaIds, entity = item.entity, onClick = { if (isExternalPicker) { if (pickerAllowMultiple) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id; if (!pickerAllowMultiple) onAlbumClick(item.album.name) } else if (selectionMode) onToggleAlbumSelection(item.album.name) else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id else onAlbumClick(item.album.name) }, onLongClick = { if (!selectionMode && !isExternalPicker) { if (selectedMediaIds.isEmpty()) selectedMediaIds = setOf(item.entity.id) else { selAlbForG = item.album; showMoveToG = true } } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder)
+            else {
+                val columns = if (useModern) 2 else (if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3)
+                LazyVerticalGrid(GridCells.Fixed(columns), Modifier.fillMaxSize(), contentPadding = PaddingValues(if (useModern) 12.dp else 4.dp), horizontalArrangement = Arrangement.spacedBy(if (useModern) 16.dp else 4.dp), verticalArrangement = Arrangement.spacedBy(if (useModern) 24.dp else 4.dp)) {
+                    items(displayItems, key = { when (it) { is GroupDisplayItem.GroupItem -> "g_${it.group.id}"; is GroupDisplayItem.AlbumItem -> "a_${it.album.name}" } }) { item ->
+                        val curIdx = displayItems.indexOf(item); val canUp = curIdx > 0; val canDown = curIdx < (displayItems.size - 1)
+                        when (item) {
+                            is GroupDisplayItem.GroupItem -> GroupAlbumItem(group = item.group, physicalAlbums = physAlbs, mediaByBucket = bucketMap, allGroups = allG, albumsByGroup = { gid -> physAlbs.filter { it.groupId == gid } }, onGroupClick = { onGroupClick(item.group.id) }, onLongClick = { if (!isSelectionMode) { selGForMove = item.group; showMoveG = true } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder, useModernUI = useModern)
+                            is GroupDisplayItem.AlbumItem -> AlbumItem(album = item.album, isHidden = item.entity.isHidden, isHideShowMode = false, selectionMode = selectionMode, isSelected = if (selectionMode) item.album.name in selectedAlbums else item.entity.id in selectedMediaIds, entity = item.entity, onClick = { if (isExternalPicker) { if (pickerAllowMultiple) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id; if (!pickerAllowMultiple) onAlbumClick(item.album.name) } else if (selectionMode) onToggleAlbumSelection(item.album.name) else if (selectedMediaIds.isNotEmpty()) selectedMediaIds = if (item.entity.id in selectedMediaIds) selectedMediaIds - item.entity.id else selectedMediaIds + item.entity.id else onAlbumClick(item.album.name) }, onLongClick = { if (!selectionMode && !isExternalPicker) { if (selectedMediaIds.isEmpty()) selectedMediaIds = setOf(item.entity.id) else { selAlbForG = item.album; showMoveToG = true } } }, onMoveUp = { if (canUp) scope.launch { performSwap(item, displayItems[curIdx - 1], physicalAlbumManager) } }, onMoveDown = { if (canDown) scope.launch { performSwap(item, displayItems[curIdx + 1], physicalAlbumManager) } }, showSortControls = isReorder, useModernUI = useModern)
+                        }
                     }
                 }
             }

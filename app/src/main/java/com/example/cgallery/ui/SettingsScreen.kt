@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,12 @@ import java.text.DecimalFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateToStorage: () -> Unit) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel, 
+    onBack: () -> Unit, 
+    onNavigateToStorage: () -> Unit,
+    onNavigateToTrash: () -> Unit = {}
+) {
     val settings by viewModel.settings.collectAsState(); var tapCount by remember { mutableStateOf(0) }; val ctx = LocalContext.current
     Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Control Centre") }, navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") } }) }) { p ->
         LazyColumn(Modifier.fillMaxSize().padding(p)) {
@@ -49,6 +56,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateT
                     }
                 }
             }
+            item { SettingsToggle("Modern UI style", "Use the new v0.9/1.0rc3.2UI look and feel", settings.useModernUI, Icons.Default.AutoAwesome) { viewModel.updateModernUI(it) } }
             item { SectionHeader("Storage & Performance") }
             item { ListItem(headlineContent = { Text("Storage") }, supportingContent = { Text("Drives and cache management") }, leadingContent = { Icon(Icons.Default.Storage, null) }, trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }, modifier = Modifier.clickable(onClick = onNavigateToStorage)) }
             item { SettingsToggle("Efficiency Mode", "Downsample thumbnails to keep everything fast", settings.efficiencyMode, Icons.Default.Speed) { viewModel.updateEfficiency(it) } }
@@ -66,10 +74,34 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onNavigateT
             }
             item { SectionHeader("Security") }
             item { SettingsToggle("Biometric Lock", "Require biometrics to open app", settings.isBiometricEnabled, Icons.Default.Fingerprint) { viewModel.updateBiometric(it) } }
+            item { SectionHeader("Maintenance") }
+            item { 
+                ListItem(
+                    headlineContent = { Text("Trash Bin") }, 
+                    supportingContent = { Text("Recover or permanently delete items") }, 
+                    leadingContent = { Icon(Icons.Rounded.DeleteOutline, null) }, 
+                    trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }, 
+                    modifier = Modifier.clickable { onNavigateToTrash() }
+                ) 
+            }
+            item { SectionHeader("System") }
+            item { 
+                ListItem(
+                    headlineContent = { Text("Trash Bin") }, 
+                    supportingContent = { Text("Recover or permanently delete items") }, 
+                    leadingContent = { Icon(Icons.Rounded.DeleteOutline, null) }, 
+                    trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) }, 
+                    modifier = Modifier.clickable { 
+                        // We need a way to navigate to trash from here. 
+                        // I'll add a callback to the SettingsScreen.
+                        onNavigateToTrash() 
+                    }
+                ) 
+            }
             item { SectionHeader("System") }
             item {
                 Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("cGallery v0.9/1.0rc3.2", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
+                    Text("cGallery v0.9/1.0rc3.2UI", style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable {
                         tapCount++; if (tapCount >= 5) { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/crtrrnln/cGallery"))); tapCount = 0 }
                     })
                 }

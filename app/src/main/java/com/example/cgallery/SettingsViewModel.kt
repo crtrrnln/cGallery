@@ -25,6 +25,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateGrid(v: GridDensity) = viewModelScope.launch { repo.updateGridDensity(v) }
     fun updateEfficiency(v: Boolean) = viewModelScope.launch { repo.updateEfficiencyMode(v) }
     fun updateBiometric(v: Boolean) = viewModelScope.launch { repo.updateBiometricEnabled(v) }
+    fun updateModernUI(v: Boolean) = viewModelScope.launch { repo.updateModernUI(v) }
 
     fun calculateStorage() = viewModelScope.launch {
         if (_storageStats.value != null) return@launch

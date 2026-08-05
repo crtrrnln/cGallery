@@ -1,6 +1,7 @@
 package com.example.cgallery
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -16,11 +17,18 @@ fun HomeScreen(version: String, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "cGallery $version",
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "cGallery",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = version,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
     }
 }
 
@@ -28,6 +36,6 @@ fun HomeScreen(version: String, modifier: Modifier = Modifier) {
 @Composable
 fun HomeScreenPreview() {
     CGalleryTheme {
-        HomeScreen("v0.9/1.0rc3.2")
+        HomeScreen("v0.9/1.0rc3.2UI")
     }
 }

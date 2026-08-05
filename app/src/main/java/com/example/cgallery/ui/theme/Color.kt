@@ -18,11 +18,17 @@ val OnTertiaryLight = Color(0xFFFFFFFF)
 val TertiaryContainerLight = Color(0xFFFFDDAE)
 val OnTertiaryContainerLight = Color(0xFF281800)
 
-// Dark Theme - Persona Red Palette (Updated for v0.9/1.0rc3.2 - a bit redder)
-val PrimaryDark = Color(0xFFFF6B5D)
-val OnPrimaryDark = Color(0xFF690005)
-val PrimaryContainerDark = Color(0xFF93000A)
-val OnPrimaryContainerDark = Color(0xFFFFDAD6)
+// Classic Dark Theme - Persona Red Palette
+val ClassicPrimaryDark = Color(0xFFFF6B5D)
+val ClassicOnPrimaryDark = Color(0xFF690005)
+val ClassicPrimaryContainerDark = Color(0xFF93000A)
+val ClassicOnPrimaryContainerDark = Color(0xFFFFDAD6)
+
+// Modern Dark Theme - Persona Red Palette (Updated for v0.9/1.0rc3.2UI - deeper and more vibrant)
+val ModernPrimaryDark = Color(0xFFFF5252)
+val ModernOnPrimaryDark = Color(0xFF690005)
+val ModernPrimaryContainerDark = Color(0xFF93000A)
+val ModernOnPrimaryContainerDark = Color(0xFFFFDAD6)
 
 val SecondaryDark = Color(0xFFE7BDBB)
 val OnSecondaryDark = Color(0xFF44292A)
@@ -33,4 +39,7 @@ val TertiaryDark = Color(0xFFE5C18D)
 val OnTertiaryDark = Color(0xFF422C05)
 val TertiaryContainerDark = Color(0xFF5B421A)
 val OnTertiaryContainerDark = Color(0xFFFFDDAE)
+
+val GlassSurface = Color(0x991A1C1E)
+val GlassBorder = Color(0x33FFFFFF)
 

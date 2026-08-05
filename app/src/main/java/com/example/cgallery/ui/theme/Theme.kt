@@ -9,11 +9,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.example.cgallery.data.*
 
-private val InnocentSinRed = darkColorScheme(
-    primary = PrimaryDark,
-    onPrimary = OnPrimaryDark,
-    primaryContainer = PrimaryContainerDark,
-    onPrimaryContainer = OnPrimaryContainerDark,
+private val ClassicInnocentSinRed = darkColorScheme(
+    primary = ClassicPrimaryDark,
+    onPrimary = ClassicOnPrimaryDark,
+    primaryContainer = ClassicPrimaryContainerDark,
+    onPrimaryContainer = ClassicOnPrimaryContainerDark,
+    secondary = SecondaryDark,
+    onSecondary = OnSecondaryDark,
+    secondaryContainer = SecondaryContainerDark,
+    onSecondaryContainer = OnSecondaryContainerDark,
+    tertiary = TertiaryDark,
+    onTertiary = OnTertiaryDark,
+    tertiaryContainer = TertiaryContainerDark,
+    onTertiaryContainer = OnTertiaryContainerDark,
+)
+
+private val ModernInnocentSinRed = darkColorScheme(
+    primary = ModernPrimaryDark,
+    onPrimary = ModernOnPrimaryDark,
+    primaryContainer = ModernPrimaryContainerDark,
+    onPrimaryContainer = ModernOnPrimaryContainerDark,
     secondary = SecondaryDark,
     onSecondary = OnSecondaryDark,
     secondaryContainer = SecondaryContainerDark,
@@ -44,18 +59,20 @@ fun CGalleryTheme(
     val context = LocalContext.current
     val actualRepo = remember(settingsRepository) { settingsRepository ?: AppSettingsRepository(context) }
     val settings by actualRepo.settingsFlow.collectAsState(initial = AppSettings())
+    val useModern = settings.useModernUI
     
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             dynamicDarkColorScheme(context)
         }
         settings.themeAccent == ThemeAccent.ETERNAL_PUNISHMENT_BLUE -> EternalPunishmentBlue
-        else -> InnocentSinRed
+        else -> if (useModern) ModernInnocentSinRed else ClassicInnocentSinRed
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = if (useModern) ModernTypography else ClassicTypography,
+        shapes = if (useModern) ModernShapes else ClassicShapes,
         content = content
     )
 }

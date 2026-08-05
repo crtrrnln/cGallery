@@ -1,13 +1,18 @@
 package com.example.cgallery
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,64 +24,138 @@ import com.example.cgallery.data.*
 import com.example.cgallery.ui.MediaGridItem
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun AlbumDetailScreen(bucketName: String, images: List<MediaItem>, onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> }, onChangeCover: () -> Unit = {}, onImageClick: (GalleryKey) -> Unit, onBack: () -> Unit, albumImages: List<MediaItem>? = null, onMediaSelected: (List<android.net.Uri>) -> Unit = {}, isExternalPicker: Boolean = false, allowMultiple: Boolean = false, modifier: Modifier = Modifier) {
+fun AlbumDetailScreen(
+    bucketName: String, 
+    images: List<MediaItem>, 
+    onAddToAlbum: (Set<Long>, Boolean) -> Unit = { _, _ -> }, 
+    onChangeCover: () -> Unit = {}, 
+    onImageClick: (GalleryKey) -> Unit, 
+    onBack: () -> Unit, 
+    onMediaSelected: (List<android.net.Uri>) -> Unit = {}, 
+    isExternalPicker: Boolean = false, 
+    allowMultiple: Boolean = false, 
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val selectionViewModel: SelectionViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val vm: MediaStoreViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val selectedIds by selectionViewModel.selectedMediaIds.collectAsState()
     val isSelectionMode = selectedIds.isNotEmpty() || isExternalPicker
     var showMenu by remember { mutableStateOf(false) }
     BackHandler(enabled = isSelectionMode) { selectionViewModel.clearSelection() }
-    val appSettingsRepo = remember { AppSettingsRepository(context) }; val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
+    val appSettingsRepo = remember { AppSettingsRepository(context) }
+    val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
+    val starredIds by vm.combinedStarredIds.collectAsState()
+    val useModern = appSettings.useModernUI
+    
+    var showOnlyStarred by remember { mutableStateOf(false) }
+    val filteredImages = remember(images, showOnlyStarred, starredIds) {
+        if (showOnlyStarred) images.filter { it.id in starredIds } else images
+    }
 
     Scaffold(topBar = {
-        CenterAlignedTopAppBar(
-            title = { if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected") else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") else { val albumName = remember(bucketName) { File(bucketName).name }; val iCount = remember(images) { images.count { it.type == MediaType.IMAGE || it.type == MediaType.GIF } }; val vCount = remember(images) { images.count { it.type == MediaType.VIDEO } }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(albumName, maxLines = 1, overflow = TextOverflow.Ellipsis); if (images.isNotEmpty()) Text("$iCount imgs, $vCount vids", style = MaterialTheme.typography.labelSmall) } } },
-            navigationIcon = { 
-                if (isSelectionMode && !isExternalPicker) {
-                    IconButton({ selectionViewModel.clearSelection() }) { Icon(Icons.Default.Close, "clear") }
-                } else if (isExternalPicker) {
-                    IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
-                } else {
-                    IconButton(onBack) { Icon(Icons.Default.ArrowBack, "back") }
-                }
-            },
-            actions = { 
-                if (isExternalPicker && allowMultiple) {
-                    IconButton(
-                        { onMediaSelected(selectedIds.mapNotNull { id -> images.find { it.id == id }?.uri }) },
-                        enabled = selectedIds.isNotEmpty()
-                    ) { Icon(Icons.Default.Check, "ok") }
-                } else if (isSelectionMode && !isExternalPicker) {
-                    IconButton({ 
-                        onAddToAlbum(selectedIds, true)
-                        selectionViewModel.clearSelection()
-                    }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
-                    IconButton({ 
-                        onAddToAlbum(selectedIds, false)
-                        selectionViewModel.clearSelection()
-                    }) { Icon(Icons.Default.Add, "copy") }
-                } else if (!isExternalPicker) {
-                    Box { 
-                        IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "menu") }
-                        DropdownMenu(showMenu, { showMenu = false }) { 
-                            DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) }) 
-                        } 
+        val albumName = remember(bucketName) { File(bucketName).name }
+        if (useModern && !isSelectionMode) {
+            LargeTopAppBar(
+                title = {
+                    Column {
+                        Text(albumName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (useModern) "v0.9/1.0rc3.2UI" else "v0.9/1.0rc3.2", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                    }
+                },
+                navigationIcon = { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") } },
+                actions = {
+                    IconButton({ showOnlyStarred = !showOnlyStarred }) { 
+                        Icon(if (showOnlyStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, "filter starred") 
+                    }
+                    IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "menu") }
+                    DropdownMenu(showMenu, { showMenu = false }) { 
+                        DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) }) 
                     }
                 }
-            }
-        )
+            )
+        } else {
+            CenterAlignedTopAppBar(
+                title = { 
+                    if (isSelectionMode && !isExternalPicker) Text("${selectedIds.size} selected") 
+                    else if (isExternalPicker) Text(if (allowMultiple) "${selectedIds.size} selected" else "Select Item") 
+                    else {
+                        val iCount = remember(images) { images.count { it.type == MediaType.IMAGE || it.type == MediaType.GIF } }
+                        val vCount = remember(images) { images.count { it.type == MediaType.VIDEO } }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) { 
+                            Text(albumName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (images.isNotEmpty()) Text("$iCount imgs, $vCount vids", style = MaterialTheme.typography.labelSmall) 
+                        } 
+                    } 
+                },
+                navigationIcon = { 
+                    if (isSelectionMode && !isExternalPicker) {
+                        IconButton({ selectionViewModel.clearSelection() }) { Icon(Icons.Default.Close, "clear") }
+                    } else if (isExternalPicker) {
+                        IconButton({ onMediaSelected(emptyList()) }) { Icon(Icons.Default.Close, "cancel") }
+                    } else {
+                        IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "back") }
+                    }
+                },
+                actions = { 
+                    if (isExternalPicker && allowMultiple) {
+                        IconButton(
+                            { onMediaSelected(selectedIds.mapNotNull { id -> images.find { it.id == id }?.uri }) },
+                            enabled = selectedIds.isNotEmpty()
+                        ) { Icon(Icons.Default.Check, "ok") }
+                    } else if (isSelectionMode && !isExternalPicker) {
+                        IconButton({ 
+                            onAddToAlbum(selectedIds, true)
+                            selectionViewModel.clearSelection()
+                        }) { Icon(Icons.AutoMirrored.Filled.DriveFileMove, "move") }
+                        IconButton({ 
+                            onAddToAlbum(selectedIds, false)
+                            selectionViewModel.clearSelection()
+                        }) { Icon(Icons.Default.Add, "copy") }
+                        IconButton({
+                            val items = selectedIds.mapNotNull { id -> images.find { it.id == id } }
+                            vm.moveToTrash(items)
+                            selectionViewModel.clearSelection()
+                        }) { Icon(Icons.Default.Delete, "delete") }
+                    } else if (!isExternalPicker) {
+                        Box { 
+                            IconButton({ showMenu = true }) { Icon(Icons.Default.MoreVert, "menu") }
+                            DropdownMenu(showMenu, { showMenu = false }) { 
+                                DropdownMenuItem({ Text(if (showOnlyStarred) "Show All" else "Show Starred") }, { showMenu = false; showOnlyStarred = !showOnlyStarred }, leadingIcon = { Icon(if (showOnlyStarred) Icons.Rounded.StarBorder else Icons.Rounded.Star, null) })
+                                DropdownMenuItem({ Text("Change Cover") }, { showMenu = false; onChangeCover() }, leadingIcon = { Icon(Icons.Default.Image, null) }) 
+                            } 
+                        }
+                    }
+                }
+            )
+        }
     }, contentWindowInsets = WindowInsets(0, 0, 0, 0)) { p ->
-        LazyVerticalGrid(columns = GridCells.Fixed(if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(2.dp)) {
-            itemsIndexed(images, key = { _, it -> it.id }) { index, img ->
+        val columns = if (appSettings.gridDensity == GridDensity.COMPACT) 5 else 3
+        LazyVerticalGrid(columns = GridCells.Fixed(columns), modifier = modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(if (useModern) 4.dp else 2.dp)) {
+            itemsIndexed(filteredImages, key = { _, it -> it.id }) { index, img ->
                 val isSel = img.id in selectedIds
+                
+                val itemModifier = if (useModern && sharedTransitionScope != null && animatedVisibilityScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState(key = "image_${img.id}"),
+                            animatedVisibilityScope = animatedVisibilityScope
+                        )
+                    }
+                } else Modifier
+
                 MediaGridItem(
                     image = img, 
                     index = index, 
                     isSelected = isSel, 
                     isSelectionMode = isSelectionMode, 
-                    efficiencyMode = appSettings.efficiencyMode, 
+                    efficiencyMode = appSettings.efficiencyMode,
+                    useModernUI = useModern,
+                    isStarred = img.id in starredIds,
                     onClick = { 
                         if (isSelectionMode) {
                             if (isExternalPicker && !allowMultiple) {
@@ -92,7 +171,8 @@ fun AlbumDetailScreen(bucketName: String, images: List<MediaItem>, onAddToAlbum:
                         if (selectedIds.isEmpty()) {
                             selectionViewModel.toggleMediaId(img.id)
                         }
-                    }
+                    },
+                    modifier = itemModifier
                 )
             }
         }

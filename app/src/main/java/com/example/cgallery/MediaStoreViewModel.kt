@@ -23,6 +23,8 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     private val favouritesManager = FavouritesManager(application)
     private val inboxDao = VirtualAlbumDatabase.getDatabase(application).inboxDao()
     private val appSettings = AppSettingsRepository(application)
+    private val trashDao = VirtualAlbumDatabase.getDatabase(application).trashDao()
+    private val starredDao = VirtualAlbumDatabase.getDatabase(application).starredMediaDao()
     private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
 
     // Optimized inbox state flow with better filtering
@@ -86,6 +88,17 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
     }
     .flowOn(Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    
+    val trashItems: StateFlow<List<TrashItemEntity>> = trashDao.getAllTrashItems()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    
+    val starredMediaIds: StateFlow<Set<Long>> = starredDao.getAllStarredIds()
+        .map { it.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val combinedStarredIds: StateFlow<Set<Long>> = combine(starredMediaIds, favouritesManager.favouriteIds) { starred, favs ->
+        starred + favs
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
     
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
@@ -315,6 +328,76 @@ class MediaStoreViewModel(application: Application) : AndroidViewModel(applicati
                 } catch (e: Exception) {
                     _operationResult.emit("Error: ${e.message}")
                 }
+            }
+        }
+    }
+
+    fun moveToTrash(items: List<MediaItem>) {
+        viewModelScope.launch {
+            var successCount = 0
+            items.forEach { item ->
+                val entity = dataSource.moveToTrash(item)
+                if (entity != null) {
+                    trashDao.insertTrashItem(entity)
+                    successCount++
+                }
+            }
+            if (successCount > 0) {
+                _operationResult.emit("Moved $successCount to trash")
+                loadMedia(false)
+            } else {
+                _operationResult.emit("Failed to move to trash")
+            }
+        }
+    }
+
+    fun restoreFromTrash(items: List<TrashItemEntity>) {
+        viewModelScope.launch {
+            var successCount = 0
+            items.forEach { item ->
+                if (dataSource.restoreFromTrash(item)) {
+                    trashDao.deleteTrashItem(item)
+                    successCount++
+                }
+            }
+            if (successCount > 0) {
+                _operationResult.emit("Restored $successCount items")
+                // Wait a bit for MediaStore to update
+                delay(1000)
+                loadMedia(false)
+            } else {
+                _operationResult.emit("Failed to restore")
+            }
+        }
+    }
+
+    fun deletePermanently(items: List<TrashItemEntity>) {
+        viewModelScope.launch {
+            items.forEach { item ->
+                if (dataSource.deletePermanently(item)) {
+                    trashDao.deleteTrashItem(item)
+                }
+            }
+            _operationResult.emit("Permanently deleted")
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            val all = trashItems.value
+            all.forEach { dataSource.deletePermanently(it) }
+            trashDao.emptyTrash()
+            _operationResult.emit("Trash emptied")
+        }
+    }
+
+    fun toggleStar(mediaId: Long) {
+        viewModelScope.launch {
+            val isStarred = starredMediaIds.value.contains(mediaId)
+            if (isStarred) {
+                starredDao.unstarMedia(mediaId)
+            } else {
+                starredDao.starMedia(StarredMediaEntity(mediaId))
             }
         }
     }

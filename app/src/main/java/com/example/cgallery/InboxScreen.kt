@@ -1,12 +1,13 @@
 package com.example.cgallery
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -17,16 +18,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.cgallery.data.AppSettings
+import com.example.cgallery.data.AppSettingsRepository
 import com.example.cgallery.data.InboxItemEntity
 import com.example.cgallery.data.MediaItem
 
@@ -53,6 +65,11 @@ fun InboxScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var previewUri by remember { mutableStateOf<String?>(null) }
     var titleTapCount by remember { mutableStateOf(0) }
+    
+    val context = LocalContext.current
+    val appSettingsRepo = remember { AppSettingsRepository(context) }
+    val appSettings by appSettingsRepo.settingsFlow.collectAsState(initial = AppSettings())
+    val useModern = appSettings.useModernUI
 
     LaunchedEffect(Unit) {
         viewModel.operationResult.collect { message ->
@@ -68,132 +85,123 @@ fun InboxScreen(
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (isSelectionMode) {
-                            Text("${selectedIds.size} selected")
-                        } else {
-                            Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox", modifier = Modifier.clickable { if (isEnforcementSession) { titleTapCount++; if (titleTapCount >= 5) { titleTapCount = 0; onDebugBypass() } } })
-                            if (!isSelectionMode) {
-                                Text("${displayItems.size} items", style = MaterialTheme.typography.labelSmall)
+            if (useModern && !isSelectionMode) {
+                LargeTopAppBar(
+                    title = {
+                        Column {
+                            Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox", 
+                                modifier = Modifier.clickable { if (isEnforcementSession) { titleTapCount++; if (titleTapCount >= 5) { titleTapCount = 0; onDebugBypass() } } })
+                            Text("${displayItems.size} items", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+                        }
+                    },
+                    navigationIcon = {
+                        if (showUnmonitored) {
+                            IconButton(onClick = { viewModel.toggleUnmonitored() }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "back to inbox")
+                            }
+                        } else if (!isEnforcementSession) {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "back")
                             }
                         }
-                    }
-                },
-                navigationIcon = {
-                    if (isSelectionMode) {
-                        IconButton(onClick = { selectionViewModel.clearSelection() }) {
-                            Icon(Icons.Default.Close, contentDescription = "clear")
-                        }
-                    } else if (showUnmonitored) {
-                        IconButton(onClick = { viewModel.toggleUnmonitored() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back to inbox")
-                        }
-                    } else if (!isEnforcementSession) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
-                        }
-                    }
-                },
-                actions = {
-                    if (isSelectionMode) {
-                        IconButton(onClick = {
-                            onOrganise(selectedIds, true)
-                            selectionViewModel.clearSelection()
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
-                        }
-                        IconButton(onClick = {
-                            onOrganise(selectedIds, false)
-                            selectionViewModel.clearSelection()
-                        }) {
-                            Icon(Icons.Default.Add, contentDescription = "copy")
-                        }
-                    }
-                    
-                    val settings by viewModel.enforcementSettings.collectAsState(com.example.cgallery.data.AppSettings())
-                    val isSnoozed = settings.snoozeExpirationTime > System.currentTimeMillis() || settings.snoozeItemThreshold > 0
-
-                    if (isEnforcementSession) {
-                        var showSnoozeMenu by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showSnoozeMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "snooze")
-                        }
-                        DropdownMenu(
-                            expanded = showSnoozeMenu,
-                            onDismissRequest = { showSnoozeMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Snooze 1 hour") },
-                                onClick = { 
-                                    viewModel.setSnooze(60)
-                                    onBack() 
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Snooze 15 files") },
-                                onClick = { 
-                                    viewModel.setItemSnooze(15)
-                                    onBack() 
-                                }
-                            )
-                            if (isSnoozed) {
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Cancel Snooze") },
-                                    onClick = { 
-                                        viewModel.cancelSnooze()
-                                        showSnoozeMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    } else if (!isSelectionMode) {
-                        var showMenu by remember { mutableStateOf(false) }
-                        if (isSnoozed) {
-                            IconButton(onClick = { showMenu = true }) {
-                                Icon(Icons.Default.NotificationsPaused, contentDescription = "snoozed", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-
+                    },
+                    actions = {
                         if (!showUnmonitored) {
                             IconButton(onClick = { viewModel.toggleUnmonitored() }) {
-                                Icon(Icons.Default.FolderOpen, contentDescription = "unmonitored")
+                                Icon(Icons.Rounded.FolderOpen, contentDescription = "unmonitored")
                             }
                         }
                         IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "settings")
+                            Icon(Icons.Rounded.Settings, contentDescription = "settings")
                         }
+                        var showMenu by remember { mutableStateOf(false) }
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "more")
+                            Icon(Icons.Rounded.MoreVert, contentDescription = "more")
                         }
-
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            if (isSnoozed) {
-                                DropdownMenuItem(
-                                    text = { Text("Cancel Snooze") },
-                                    onClick = { viewModel.cancelSnooze(); showMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.NotificationsActive, null) }
-                                )
-                                HorizontalDivider()
-                            }
                             DropdownMenuItem(
                                 text = { Text("Diagnostics") },
                                 onClick = { onDiagnosticsClick(); showMenu = false },
-                                leadingIcon = { Icon(Icons.Default.BugReport, null) }
+                                leadingIcon = { Icon(Icons.Rounded.BugReport, null) }
                             )
                         }
                     }
-                }
-            )
+                )
+            } else {
+                CenterAlignedTopAppBar(
+                    title = { 
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (isSelectionMode) {
+                                Text("${selectedIds.size} selected")
+                            } else {
+                                Text(if (isEnforcementSession) "New Media" else if (showUnmonitored) "Unmonitored" else "Inbox", modifier = Modifier.clickable { if (isEnforcementSession) { titleTapCount++; if (titleTapCount >= 5) { titleTapCount = 0; onDebugBypass() } } })
+                                if (!isSelectionMode) {
+                                    Text("${displayItems.size} items", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        if (isSelectionMode) {
+                            IconButton(onClick = { selectionViewModel.clearSelection() }) {
+                                Icon(Icons.Default.Close, contentDescription = "clear")
+                            }
+                        } else if (showUnmonitored) {
+                            IconButton(onClick = { viewModel.toggleUnmonitored() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back to inbox")
+                            }
+                        } else if (!isEnforcementSession) {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "back")
+                            }
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode) {
+                            IconButton(onClick = {
+                                onOrganise(selectedIds, true)
+                                selectionViewModel.clearSelection()
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = "move")
+                            }
+                            IconButton(onClick = {
+                                onOrganise(selectedIds, false)
+                                selectionViewModel.clearSelection()
+                            }) {
+                                Icon(Icons.Default.Add, contentDescription = "copy")
+                            }
+                        } else {
+                            if (!showUnmonitored) {
+                                IconButton(onClick = { viewModel.toggleUnmonitored() }) {
+                                    Icon(Icons.Default.FolderOpen, contentDescription = "unmonitored")
+                                }
+                            }
+                            IconButton(onClick = onSettingsClick) {
+                                Icon(Icons.Default.Settings, contentDescription = "settings")
+                            }
+                            var showMenu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "more")
+                            }
+                            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Diagnostics") },
+                                    onClick = { onDiagnosticsClick(); showMenu = false },
+                                    leadingIcon = { Icon(Icons.Default.BugReport, null) }
+                                )
+                            }
+                        }
+                    }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             if (!isSelectionMode && !isEnforcementSession && !showUnmonitored) {
                 FloatingActionButton(
-                    onClick = { if (!isScanning) viewModel.scanNow() }
+                    onClick = { if (!isScanning) viewModel.scanNow() },
+                    shape = if (useModern) RoundedCornerShape(20.dp) else FloatingActionButtonDefaults.shape
                 ) {
                     if (isScanning) {
                         CircularProgressIndicator(
@@ -235,19 +243,19 @@ fun InboxScreen(
                 if (displayItems.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.DoneAll, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary.copy(0.6f))
-                            Spacer(Modifier.height(8.dp))
-                            Text(if (showUnmonitored) "All clear! No unmonitored files." else "You're all caught up!", style = MaterialTheme.typography.titleMedium)
+                            Icon(Icons.Rounded.DoneAll, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary.copy(0.4f))
+                            Spacer(Modifier.height(16.dp))
+                            Text(if (showUnmonitored) "All clear! No unmonitored files." else "You're all caught up!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text("Your collection is perfectly organized.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(120.dp),
+                        columns = GridCells.Adaptive(if (useModern) 140.dp else 120.dp),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        contentPadding = PaddingValues(if (useModern) 12.dp else 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(if (useModern) 12.dp else 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (useModern) 12.dp else 4.dp)
                     ) {
                         itemsIndexed(displayItems, key = { _, item -> item.mediaStoreId }) { index, item ->
                             val isSelected = item.mediaStoreId in selectedIds
@@ -255,6 +263,7 @@ fun InboxScreen(
                                 item = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
+                                useModernUI = useModern,
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectionViewModel.toggleMediaId(item.mediaStoreId)
@@ -311,14 +320,35 @@ fun InboxListItem(
     item: InboxItemEntity,
     isSelected: Boolean,
     isSelectionMode: Boolean,
+    useModernUI: Boolean = true,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
+    
+    val shape = if (useModernUI) RoundedCornerShape(24.dp) else RoundedCornerShape(8.dp)
+    
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(if (useModernUI) 4.dp else 0.dp, shape)
+            .clip(shape)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = {
+                    if (useModernUI) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                },
+                onLongClick = {
+                    if (useModernUI) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                }
+            )
     ) {
         AsyncImage(
             model = item.mediaUri,
@@ -327,18 +357,21 @@ fun InboxListItem(
             contentScale = ContentScale.Crop
         )
 
+        if (useModernUI) {
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(0.3f)), startY = 300f)))
+        }
+
         if (isSelectionMode || isSelected) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else Color.Transparent)
+                    .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color.Transparent)
             )
             Checkbox(
                 checked = isSelected,
                 onCheckedChange = { onClick() },
-                modifier = Modifier.align(Alignment.TopEnd)
+                modifier = Modifier.align(Alignment.TopEnd).padding(if (useModernUI) 8.dp else 0.dp)
             )
         }
     }
 }
-

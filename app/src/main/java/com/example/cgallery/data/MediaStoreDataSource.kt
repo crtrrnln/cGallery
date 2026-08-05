@@ -143,6 +143,76 @@ class MediaStoreDataSource(private val context: Context) {
             false
         }
     }
+
+    suspend fun moveToTrash(item: MediaItem): TrashItemEntity? = withContext(Dispatchers.IO) {
+        try {
+            val trashDir = File(context.getExternalFilesDir(null), ".trash")
+            if (!trashDir.exists()) trashDir.mkdirs()
+            
+            val sourceFile = File(item.fullPath)
+            if (!sourceFile.exists()) return@withContext null
+            
+            val destFile = File(trashDir, "${System.currentTimeMillis()}_${item.displayName}")
+            
+            if (sourceFile.renameTo(destFile)) {
+                // Remove from MediaStore
+                context.contentResolver.delete(item.uri, null, null)
+                
+                TrashItemEntity(
+                    mediaStoreId = item.id,
+                    originalPath = item.fullPath,
+                    trashPath = destFile.absolutePath,
+                    fileName = item.displayName,
+                    mediaType = item.type.name
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MediaStoreDataSource", "Error moving to trash", e)
+            null
+        }
+    }
+
+    suspend fun restoreFromTrash(trashEntry: TrashItemEntity): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val trashFile = File(trashEntry.trashPath)
+            if (!trashFile.exists()) return@withContext false
+            
+            val originalFile = File(trashEntry.originalPath)
+            val parentDir = originalFile.parentFile
+            if (parentDir != null && !parentDir.exists()) parentDir.mkdirs()
+            
+            if (trashFile.renameTo(originalFile)) {
+                // Scan back into MediaStore
+                android.media.MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(originalFile.absolutePath),
+                    null
+                ) { _, _ -> }
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MediaStoreDataSource", "Error restoring from trash", e)
+            false
+        }
+    }
+
+    suspend fun deletePermanently(trashEntry: TrashItemEntity): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val trashFile = File(trashEntry.trashPath)
+            if (trashFile.exists()) {
+                trashFile.delete()
+            } else {
+                true // Already gone
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MediaStoreDataSource", "Error deleting permanently", e)
+            false
+        }
+    }
 }
 
 data class DetailedStorageStats(val tISize: Long, val tVSize: Long, val iCount: Int, val vCount: Int, val volumes: List<VolumeStats>, val buckets: List<BucketStats>)

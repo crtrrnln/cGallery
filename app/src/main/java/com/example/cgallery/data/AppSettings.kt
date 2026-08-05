@@ -32,7 +32,8 @@ data class AppSettings(
     val themeAccent: ThemeAccent = ThemeAccent.INNOCENT_SIN_RED,
     val gridDensity: GridDensity = GridDensity.COMFORTABLE,
     val efficiencyMode: Boolean = false,
-    val isBiometricEnabled: Boolean = false
+    val isBiometricEnabled: Boolean = false,
+    val useModernUI: Boolean = true
 )
 
 class AppSettingsRepository(private val context: Context) {
@@ -49,6 +50,7 @@ class AppSettingsRepository(private val context: Context) {
         val GRID_DENSITY = stringPreferencesKey("grid_density")
         val EFFICIENCY_MODE = booleanPreferencesKey("efficiency_mode")
         val BIOMETRIC_ENABLED = booleanPreferencesKey("biometric_enabled")
+        val MODERN_UI = booleanPreferencesKey("use_modern_ui")
     }
 
     val settingsFlow: Flow<AppSettings> = context.appDataStore.data.map { p ->
@@ -64,7 +66,8 @@ class AppSettingsRepository(private val context: Context) {
             themeAccent = try { ThemeAccent.valueOf(p[Keys.THEME_ACCENT] ?: ThemeAccent.INNOCENT_SIN_RED.name) } catch(e: Exception) { ThemeAccent.INNOCENT_SIN_RED },
             gridDensity = try { GridDensity.valueOf(p[Keys.GRID_DENSITY] ?: GridDensity.COMFORTABLE.name) } catch(e: Exception) { GridDensity.COMFORTABLE },
             efficiencyMode = p[Keys.EFFICIENCY_MODE] ?: false,
-            isBiometricEnabled = p[Keys.BIOMETRIC_ENABLED] ?: false
+            isBiometricEnabled = p[Keys.BIOMETRIC_ENABLED] ?: false,
+            useModernUI = p[Keys.MODERN_UI] ?: true
         )
     }.distinctUntilChanged()
 
@@ -89,6 +92,7 @@ class AppSettingsRepository(private val context: Context) {
     suspend fun updateGridDensity(v: GridDensity) { context.appDataStore.edit { it[Keys.GRID_DENSITY] = v.name } }
     suspend fun updateEfficiencyMode(v: Boolean) { context.appDataStore.edit { it[Keys.EFFICIENCY_MODE] = v } }
     suspend fun updateBiometricEnabled(v: Boolean) { context.appDataStore.edit { it[Keys.BIOMETRIC_ENABLED] = v } }
+    suspend fun updateModernUI(v: Boolean) { context.appDataStore.edit { it[Keys.MODERN_UI] = v } }
     suspend fun applyImportedSettings(s: AppSettings) {
         context.appDataStore.edit { p ->
             p[Keys.ENFORCEMENT_ENABLED] = s.isEnforcementEnabled
@@ -103,6 +107,7 @@ class AppSettingsRepository(private val context: Context) {
             p[Keys.GRID_DENSITY] = s.gridDensity.name
             p[Keys.EFFICIENCY_MODE] = s.efficiencyMode
             p[Keys.BIOMETRIC_ENABLED] = s.isBiometricEnabled
+            p[Keys.MODERN_UI] = s.useModernUI
         }
         updateThemeAccent(s.themeAccent)
     }

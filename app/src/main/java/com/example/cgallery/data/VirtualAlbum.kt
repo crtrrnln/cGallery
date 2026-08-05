@@ -146,7 +146,56 @@ class Converters {
     fun toOpStatus(v: String) = OperationStatus.valueOf(v)
 }
 
-@Database(entities = [PhysicalAlbumEntity::class, AlbumGroupEntity::class, InboxItemEntity::class, MonitoredFolderEntity::class, InboxStatsEntity::class, InboxOperationEntity::class], version = 9)
+@Serializable
+@Entity(tableName = "trash_items")
+data class TrashItemEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val mediaStoreId: Long,
+    val originalPath: String,
+    val trashPath: String,
+    val fileName: String,
+    val mediaType: String,
+    val deletedTimestamp: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface TrashDao {
+    @Query("SELECT * FROM trash_items ORDER BY deletedTimestamp DESC")
+    fun getAllTrashItems(): Flow<List<TrashItemEntity>>
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTrashItem(item: TrashItemEntity): Long
+    
+    @Delete
+    suspend fun deleteTrashItem(item: TrashItemEntity)
+    
+    @Query("DELETE FROM trash_items")
+    suspend fun emptyTrash()
+    
+    @Query("SELECT * FROM trash_items WHERE id = :id")
+    suspend fun getTrashItemById(id: Long): TrashItemEntity?
+}
+
+@Serializable
+@Entity(tableName = "starred_media")
+data class StarredMediaEntity(@PrimaryKey val mediaStoreId: Long, val starredTimestamp: Long = System.currentTimeMillis())
+
+@Dao
+interface StarredMediaDao {
+    @Query("SELECT mediaStoreId FROM starred_media")
+    fun getAllStarredIds(): Flow<List<Long>>
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun starMedia(starred: StarredMediaEntity)
+    
+    @Query("DELETE FROM starred_media WHERE mediaStoreId = :mediaId")
+    suspend fun unstarMedia(mediaId: Long)
+    
+    @Query("SELECT EXISTS(SELECT 1 FROM starred_media WHERE mediaStoreId = :mediaId)")
+    suspend fun isStarred(mediaId: Long): Boolean
+}
+
+@Database(entities = [PhysicalAlbumEntity::class, AlbumGroupEntity::class, InboxItemEntity::class, MonitoredFolderEntity::class, InboxStatsEntity::class, InboxOperationEntity::class, TrashItemEntity::class, StarredMediaEntity::class], version = 11)
 @TypeConverters(Converters::class)
 abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun physicalAlbumDao(): PhysicalAlbumDao
@@ -155,6 +204,8 @@ abstract class VirtualAlbumDatabase : RoomDatabase() {
     abstract fun monitoredFolderDao(): MonitoredFolderDao
     abstract fun inboxStatsDao(): InboxStatsDao
     abstract fun inboxOperationDao(): InboxOperationDao
+    abstract fun trashDao(): TrashDao
+    abstract fun starredMediaDao(): StarredMediaDao
     companion object {
         @Volatile private var INSTANCE: VirtualAlbumDatabase? = null
         fun getDatabase(ctx: android.content.Context): VirtualAlbumDatabase {

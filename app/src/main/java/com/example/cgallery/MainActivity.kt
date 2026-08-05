@@ -9,7 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -19,8 +21,12 @@ import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaf
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.fragment.app.FragmentActivity
@@ -117,6 +123,9 @@ private fun MainContent(
     onUnlock: () -> Unit,
     onFinish: () -> Unit
 ) {
+    val context = LocalContext.current
+    val settingsRepo = remember { AppSettingsRepository(context) }
+    val settings by settingsRepo.settingsFlow.collectAsState(initial = AppSettings())
     val vm: MediaStoreViewModel = viewModel()
     val perms = remember { 
         if (Build.VERSION.SDK_INT >= 33) {
@@ -155,6 +164,7 @@ private fun MainContent(
             bStack = bStack,
             onBackstackChange = onBackstackChange,
             vm = vm,
+            settings = settings,
             showAnim = showAnim,
             onShowAnimChange = { showAnim = it },
             isPick = isPick,
@@ -218,6 +228,7 @@ private fun PermissionAndContentHandler(
     bStack: List<GalleryKey>,
     onBackstackChange: (List<GalleryKey>) -> Unit,
     vm: MediaStoreViewModel,
+    settings: AppSettings,
     showAnim: Boolean,
     onShowAnimChange: (Boolean) -> Unit,
     isPick: Boolean,
@@ -270,36 +281,88 @@ private fun PermissionAndContentHandler(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBar) {
-                NavigationBar {
-                    val base = bStack.firstOrNull { 
-                        it is GalleryKey.Gallery || it is GalleryKey.Albums || 
-                        it is GalleryKey.Favourites || it is GalleryKey.Search 
-                    } ?: GalleryKey.Gallery
-                    
-                    NavigationBarItem(
-                        selected = base is GalleryKey.Gallery,
-                        onClick = { onBackstackChange(listOf(GalleryKey.Gallery)) },
-                        icon = { Icon(Icons.Rounded.PhotoLibrary, null) },
-                        label = { Text("Gallery") }
-                    )
-                    NavigationBarItem(
-                        selected = base is GalleryKey.Albums,
-                        onClick = { onBackstackChange(listOf(GalleryKey.Albums)) },
-                        icon = { Icon(Icons.Rounded.Collections, null) },
-                        label = { Text("Albums") }
-                    )
-                    NavigationBarItem(
-                        selected = base is GalleryKey.Favourites,
-                        onClick = { onBackstackChange(listOf(GalleryKey.Favourites)) },
-                        icon = { Icon(Icons.Rounded.Favorite, null) },
-                        label = { Text("Favourites") }
-                    )
-                    NavigationBarItem(
-                        selected = base is GalleryKey.Search,
-                        onClick = { onBackstackChange(listOf(GalleryKey.Search)) },
-                        icon = { Icon(Icons.Rounded.Search, null) },
-                        label = { Text("Search") }
-                    )
+                if (settings.useModernUI) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 20.dp)
+                            .navigationBarsPadding()
+                    ) {
+                        com.example.cgallery.ui.GlassSurface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(32.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val base = bStack.firstOrNull { 
+                                    it is GalleryKey.Gallery || it is GalleryKey.Albums || 
+                                    it is GalleryKey.Favourites || it is GalleryKey.Search 
+                                } ?: GalleryKey.Gallery
+                                
+                                ModernNavItem(
+                                    selected = base is GalleryKey.Gallery,
+                                    onClick = { onBackstackChange(listOf(GalleryKey.Gallery)) },
+                                    icon = Icons.Rounded.PhotoLibrary,
+                                    label = "Gallery"
+                                )
+                                ModernNavItem(
+                                    selected = base is GalleryKey.Albums,
+                                    onClick = { onBackstackChange(listOf(GalleryKey.Albums)) },
+                                    icon = Icons.Rounded.Collections,
+                                    label = "Albums"
+                                )
+                                ModernNavItem(
+                                    selected = base is GalleryKey.Favourites,
+                                    onClick = { onBackstackChange(listOf(GalleryKey.Favourites)) },
+                                    icon = Icons.Rounded.Favorite,
+                                    label = "Favourites"
+                                )
+                                ModernNavItem(
+                                    selected = base is GalleryKey.Search,
+                                    onClick = { onBackstackChange(listOf(GalleryKey.Search)) },
+                                    icon = Icons.Rounded.Search,
+                                    label = "Search"
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    NavigationBar {
+                        val base = bStack.firstOrNull { 
+                            it is GalleryKey.Gallery || it is GalleryKey.Albums || 
+                            it is GalleryKey.Favourites || it is GalleryKey.Search 
+                        } ?: GalleryKey.Gallery
+                        
+                        NavigationBarItem(
+                            selected = base is GalleryKey.Gallery,
+                            onClick = { onBackstackChange(listOf(GalleryKey.Gallery)) },
+                            icon = { Icon(Icons.Rounded.PhotoLibrary, null) },
+                            label = { Text("Gallery") }
+                        )
+                        NavigationBarItem(
+                            selected = base is GalleryKey.Albums,
+                            onClick = { onBackstackChange(listOf(GalleryKey.Albums)) },
+                            icon = { Icon(Icons.Rounded.Collections, null) },
+                            label = { Text("Albums") }
+                        )
+                        NavigationBarItem(
+                            selected = base is GalleryKey.Favourites,
+                            onClick = { onBackstackChange(listOf(GalleryKey.Favourites)) },
+                            icon = { Icon(Icons.Rounded.Favorite, null) },
+                            label = { Text("Favourites") }
+                        )
+                        NavigationBarItem(
+                            selected = base is GalleryKey.Search,
+                            onClick = { onBackstackChange(listOf(GalleryKey.Search)) },
+                            icon = { Icon(Icons.Rounded.Search, null) },
+                            label = { Text("Search") }
+                        )
+                    }
                 }
             }
         }
@@ -380,4 +443,48 @@ private fun PermissionAndContentHandler(
     }
     
     BackHandler(true) { onBack() }
+}
+
+@Composable
+private fun ModernNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String
+) {
+    val scale by animateFloatAsState(if (selected) 1.2f else 1f, label = "iconScale")
+    val alpha by animateFloatAsState(if (selected) 1f else 0.6f, label = "iconAlpha")
+    val haptic = LocalHapticFeedback.current
+    
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = { 
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick() 
+            })
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier
+                .size(24.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+        )
+        if (selected) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
 }
